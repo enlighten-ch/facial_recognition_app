@@ -24,6 +24,7 @@ from config import (
     ERROR_NOT_ENOUGH_SAMPLES_TEXT,
     ERROR_NO_CAMERA_FRAME_TEXT,
     ERROR_SELECT_NAME_FIRST_TEXT,
+    ERROR_SETTINGS_SAVE_FAILED_TEXT_FMT,
     MONITOR_AMBIGUOUS_DETAIL_TEXT,
     MONITOR_AMBIGUOUS_STATUS_TEXT,
     MONITOR_CANDIDATE_BUTTON_FMT,
@@ -42,6 +43,7 @@ from config import (
     OUTPUT_PAGE_TITLE,
     PRINT_ENABLED,
     QUIT_BUTTON_TEXT,
+    RUNTIME_SETTING_CATEGORIES,
     REGISTER_CAPTURE_EVERY_N_FRAMES,
     REGISTER_DIRECTIONS,
     REGISTER_DIRECTION_ORDER,
@@ -49,8 +51,13 @@ from config import (
     REGISTER_DETECTED_DIRECTION_FRONT_LABEL,
     REGISTER_DONE_TEXT,
     REGISTER_DIRECTION_PROGRESS_ITEM_FMT,
+    REGISTER_ELLIPSE_AXIS_X_RATIO,
+    REGISTER_ELLIPSE_AXIS_Y_RATIO,
+    REGISTER_ELLIPSE_CENTER_Y_OFFSET_RATIO,
+    REGISTER_ELLIPSE_OUTSIDE_DIM_ALPHA,
     REGISTER_FACE_ALIGN_TEXT,
     REGISTER_FACE_NOT_FOUND_TEXT,
+    REGISTER_FACE_OUTSIDE_ELLIPSE_TEXT,
     REGISTER_DUPLICATE_TEXT,
     REGISTER_INTRO_TEXT,
     REGISTER_NAME_PAGE_SUBTITLE,
@@ -66,12 +73,21 @@ from config import (
     REGISTER_STATUS_COLLECTING_TEXT,
     REGISTER_SIMILARITY_HIGHER_BOUNDARY,
     REGISTER_SIMILARITY_LOWER_BOUNDARY,
+    RUNTIME_CATEGORY_DISPLAY_NAMES,
+    RUNTIME_SETTING_DISPLAY_NAMES,
+    SETTINGS_BUTTON_TEXT,
+    SETTINGS_CATEGORY_LABEL_TEXT,
+    SETTINGS_SAVED_TEXT,
+    SETTINGS_WINDOW_TITLE,
     TOP_K,
     UNKNOWN_TEXT,
     VIDEO_PANEL_READY_TEXT,
     WELCOME_TEXT,
+    cast_runtime_value,
     configure_qt_plugin_env,
     ensure_dirs,
+    get_runtime_settings_dict,
+    save_runtime_settings,
 )
 
 configure_qt_plugin_env()
@@ -80,7 +96,12 @@ from PySide6.QtCore import Qt, QThread, Signal, QSize
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
     QFrame,
+    QFormLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -164,6 +185,88 @@ class VideoPanel(QLabel):
         self.setPixmap(np_to_qpixmap(frame_bgr, self.size()))
 
 
+class SettingsDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(SETTINGS_WINDOW_TITLE)
+        self.resize(560, 420)
+
+        root = QVBoxLayout(self)
+        top = QHBoxLayout()
+        category_label = QLabel(SETTINGS_CATEGORY_LABEL_TEXT)
+        self.category_combo = QComboBox()
+        self.category_display_to_key = {}
+        for key in RUNTIME_SETTING_CATEGORIES.keys():
+            display = RUNTIME_CATEGORY_DISPLAY_NAMES.get(key, key)
+            self.category_combo.addItem(display)
+            self.category_display_to_key[display] = key
+        top.addWidget(category_label)
+        top.addWidget(self.category_combo, 1)
+
+        self.form_layout = QFormLayout()
+        self.form_layout.setLabelAlignment(Qt.AlignLeft)
+        self.form_widget = QWidget()
+        self.form_widget.setLayout(self.form_layout)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self.on_save)
+        buttons.rejected.connect(self.reject)
+
+        root.addLayout(top)
+        root.addWidget(self.form_widget, 1)
+        root.addWidget(buttons)
+
+        self.inputs = {}
+        self.category_combo.currentTextChanged.connect(self.rebuild_form)
+        self.rebuild_form()
+
+    def clear_form(self):
+        while self.form_layout.rowCount() > 0:
+            self.form_layout.removeRow(0)
+        self.inputs = {}
+
+    def rebuild_form(self):
+        self.clear_form()
+        category_display = self.category_combo.currentText()
+        category = self.category_display_to_key.get(category_display, category_display)
+        current = get_runtime_settings_dict()
+        for key in RUNTIME_SETTING_CATEGORIES.get(category, []):
+            value = current.get(key)
+            if isinstance(value, bool):
+                widget = QCheckBox()
+                widget.setChecked(bool(value))
+            else:
+                widget = QLineEdit(str(value))
+            self.inputs[key] = widget
+            label_text = RUNTIME_SETTING_DISPLAY_NAMES.get(key, key)
+            label = QLabel(label_text)
+            label.setToolTip(key)
+            self.form_layout.addRow(label, widget)
+
+    def _collect_current_input_values(self) -> dict:
+        out = {}
+        for key, widget in self.inputs.items():
+            if isinstance(widget, QCheckBox):
+                out[key] = widget.isChecked()
+            else:
+                out[key] = widget.text().strip()
+        return out
+
+    def on_save(self):
+        raw_values = self._collect_current_input_values()
+        parsed = {}
+        try:
+            for key, value in raw_values.items():
+                parsed[key] = cast_runtime_value(key, value)
+            save_runtime_settings(parsed)
+        except Exception as exc:
+            QMessageBox.critical(self, ERROR_DIALOG_TITLE, ERROR_SETTINGS_SAVE_FAILED_TEXT_FMT.format(reason=str(exc)))
+            return
+
+        QMessageBox.information(self, SETTINGS_WINDOW_TITLE, SETTINGS_SAVED_TEXT)
+        self.accept()
+
+
 class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
@@ -242,6 +345,12 @@ class MainWindow(QWidget):
             back_btn.clicked.connect(self.go_initial_state)
             back_btn.setStyleSheet("QPushButton{padding:8px 16px;border-radius:14px;background:#fff;border:1px solid #ddd;} QPushButton:hover{background:#f4f4f4;}")
             header.addWidget(back_btn)
+
+        settings_btn = QPushButton(SETTINGS_BUTTON_TEXT)
+        settings_btn.setMinimumHeight(42)
+        settings_btn.clicked.connect(self.open_settings_dialog)
+        settings_btn.setStyleSheet("QPushButton{padding:8px 16px;border-radius:14px;background:#fff;border:1px solid #ddd;font-size:18px;} QPushButton:hover{background:#f4f4f4;}")
+        header.addWidget(settings_btn)
 
         quit_btn = QPushButton(QUIT_BUTTON_TEXT)
         quit_btn.setMinimumHeight(42)
@@ -477,6 +586,37 @@ class MainWindow(QWidget):
             out.extend(self.register_direction_crops[direction])
         return out
 
+    def get_register_ellipse(self, frame: np.ndarray):
+        h, w = frame.shape[:2]
+        cx = w // 2
+        cy = int(h * (0.5 + REGISTER_ELLIPSE_CENTER_Y_OFFSET_RATIO))
+        axis_x = max(40, int(w * REGISTER_ELLIPSE_AXIS_X_RATIO))
+        axis_y = max(60, int(h * REGISTER_ELLIPSE_AXIS_Y_RATIO))
+        return (cx, cy), (axis_x, axis_y)
+
+    def build_register_focus_frame(self, frame: np.ndarray):
+        center, axes = self.get_register_ellipse(frame)
+        mask = np.zeros(frame.shape[:2], dtype=np.uint8)
+        cv2.ellipse(mask, center, axes, 0, 0, 360, 255, -1)
+
+        dim_alpha = min(max(float(REGISTER_ELLIPSE_OUTSIDE_DIM_ALPHA), 0.0), 1.0)
+        dark = np.zeros_like(frame)
+        dimmed = cv2.addWeighted(frame, 1.0 - dim_alpha, dark, dim_alpha, 0.0)
+
+        mask3 = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
+        focused = np.where(mask3 == 255, frame, dimmed)
+        cv2.ellipse(focused, center, axes, 0, 0, 360, (0, 255, 255), 2)
+        return focused, mask, center, axes
+
+    def is_inside_register_ellipse(self, x: int, y: int, center, axes) -> bool:
+        cx, cy = center
+        ax, ay = axes
+        if ax <= 0 or ay <= 0:
+            return False
+        dx = (x - cx) / float(ax)
+        dy = (y - cy) / float(ay)
+        return (dx * dx + dy * dy) <= 1.0
+
     def set_output_name(self, name: str):
         self.output_label.setText(f"{name}")
         self.output_sub_label.setText(OUTPUT_DONE_TEXT)
@@ -585,12 +725,26 @@ class MainWindow(QWidget):
             self.go_to(UiPage.REGISTER_NAME)
             return
 
-        emb, crop, _, detected_direction, _ = self.engine.analyze_face(frame)
+        _, ellipse_mask, ellipse_center, ellipse_axes = self.build_register_focus_frame(frame)
+        analysis_frame = frame.copy()
+        analysis_frame[ellipse_mask == 0] = 0
+
+        emb, crop, bbox, detected_direction, _ = self.engine.analyze_face(analysis_frame)
         if emb is None:
             self.register_status_label.setText(
                 f"{REGISTER_FACE_NOT_FOUND_TEXT}\n{DIRECTION_PROMPTS[target_direction]}\n{REGISTER_PROGRESS_PREFIX}: {self.summarize_direction_progress()}"
             )
             return
+
+        if bbox is not None:
+            x1, y1, x2, y2 = bbox
+            fx = int((x1 + x2) / 2)
+            fy = int((y1 + y2) / 2)
+            if not self.is_inside_register_ellipse(fx, fy, ellipse_center, ellipse_axes):
+                self.register_status_label.setText(
+                    f"{REGISTER_FACE_OUTSIDE_ELLIPSE_TEXT}\n{DIRECTION_PROMPTS[target_direction]}\n{REGISTER_PROGRESS_PREFIX}: {self.summarize_direction_progress()}"
+                )
+                return
 
         if crop is None or crop.size == 0:
             self.register_status_label.setText(
@@ -701,21 +855,28 @@ class MainWindow(QWidget):
 
     def on_frame(self, frame: np.ndarray):
         self.current_frame = frame.copy()
-        display, bbox = self.engine.detect_and_draw_bbox(frame)
-        self.current_bbox = bbox
 
         page = self.stack.currentIndex()
         if page == UiPage.MONITOR:
+            display, bbox = self.engine.detect_and_draw_bbox(frame)
+            self.current_bbox = bbox
             self.video_panel_monitor.update_frame(display)
             self.analyze_frame_tick += 1
             if self.analyze_frame_tick % ANALYZE_EVERY_N_FRAMES == 0:
                 self.apply_monitor_state_from_frame(frame)
         elif page == UiPage.REGISTER_CAPTURE:
-            self.video_panel_register.update_frame(display)
+            display, bbox = self.engine.detect_and_draw_bbox(frame)
+            self.current_bbox = bbox
+            focused_display, _, _, _ = self.build_register_focus_frame(display)
+            self.video_panel_register.update_frame(focused_display)
             self.handle_register_capture(frame)
 
     def show_error(self, message: str):
         QMessageBox.critical(self, ERROR_DIALOG_TITLE, message)
+
+    def open_settings_dialog(self):
+        dlg = SettingsDialog(self)
+        dlg.exec()
 
     def close_app(self):
         self.close()

@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 
@@ -5,6 +6,7 @@ APP_DIR = os.path.abspath(os.path.dirname(__file__))
 DATA_DIR = os.path.join(APP_DIR, "face_app_data")
 PEOPLE_DIR = os.path.join(DATA_DIR, "people")
 DB_PATH = os.path.join(DATA_DIR, "face_db.json")
+SETTINGS_FILE_PATH = os.path.join(DATA_DIR, "runtime_settings.json")
 DB_JSON_INDENT = 2
 DB_IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp")
 DB_IMAGE_FILENAME_PATTERN = "{idx:03d}.jpg"
@@ -30,6 +32,7 @@ APP_WINDOW_TITLE = "로컬 얼굴 등록 / 인증 앱"
 ERROR_DIALOG_TITLE = "오류"
 BACK_BUTTON_TEXT = "뒤로가기"
 QUIT_BUTTON_TEXT = "종료"
+SETTINGS_BUTTON_TEXT = "⚙"
 VIDEO_PANEL_READY_TEXT = "카메라 준비 중..."
 
 MONITOR_PAGE_TITLE = "얼굴 인식"
@@ -53,6 +56,7 @@ REGISTER_SUBTITLE_FMT = "{intro} (방향당 {count}장, 총 {total}장)"
 REGISTER_STATUS_COLLECTING_TEXT = "얼굴 샘플을 수집 중입니다."
 REGISTER_FACE_NOT_FOUND_TEXT = "얼굴을 찾지 못했습니다. 화면 중앙으로 와주세요."
 REGISTER_FACE_ALIGN_TEXT = "얼굴을 중앙에 맞추고 눈/코/입이 잘 보이게 해주세요."
+REGISTER_FACE_OUTSIDE_ELLIPSE_TEXT = "얼굴을 타원 가이드 안으로 맞춰주세요."
 REGISTER_DUPLICATE_TEXT = "중복 샘플입니다. 조금 더 다른 각도로 움직여주세요."
 REGISTER_OUTLIER_TEXT = "유사도가 낮습니다. 같은 사람이 카메라 앞에 있어야 합니다."
 REGISTER_DONE_TEXT = "얼굴등록이 완료되었어요! 이름을 입력해주세요"
@@ -80,6 +84,10 @@ ERROR_NOT_ENOUGH_SAMPLES_TEXT = "얼굴 샘플이 아직 충분하지 않습니�
 ERROR_CAMERA_OPEN_TEXT = "카메라를 열 수 없습니다."
 ERROR_CAMERA_READ_TEXT = "카메라 프레임을 읽지 못했습니다."
 ERROR_PRINT_FAILED_TEXT_FMT = "프린터 출력 실패: {reason}"
+ERROR_SETTINGS_SAVE_FAILED_TEXT_FMT = "설정 저장 실패: {reason}"
+SETTINGS_WINDOW_TITLE = "설정"
+SETTINGS_CATEGORY_LABEL_TEXT = "카테고리"
+SETTINGS_SAVED_TEXT = "설정이 저장되었습니다. 프로그램 재시작 후 전체 반영됩니다."
 
 # UI loop tuning
 ANALYZE_EVERY_N_FRAMES = 6
@@ -107,6 +115,10 @@ REGISTER_DIRECTIONS = ("left", "right", "up", "down")
 REGISTER_SAMPLES_PER_DIRECTION = 3
 REGISTER_CAPTURE_EVERY_N_FRAMES = 4
 REGISTER_DIRECTION_ORDER = ("left", "right", "up", "down")
+REGISTER_ELLIPSE_AXIS_X_RATIO = 0.22
+REGISTER_ELLIPSE_AXIS_Y_RATIO = 0.30
+REGISTER_ELLIPSE_CENTER_Y_OFFSET_RATIO = 0.00
+REGISTER_ELLIPSE_OUTSIDE_DIM_ALPHA = 0.60
 
 DIRECTION_PROMPTS = {
     "left": "다음 동작: 얼굴을 화면 기준 왼쪽으로 돌려주세요.",
@@ -148,3 +160,141 @@ def configure_qt_plugin_env() -> None:
         value = os.environ.get(key)
         if value and cv2_qt_marker in value:
             os.environ.pop(key, None)
+
+
+RUNTIME_SETTING_CATEGORIES = {
+    "Recognition": [
+        "AUTH_SIM_THRESHOLD",
+        "AUTH_MARGIN_THRESHOLD",
+        "TOP_K",
+        "ANALYZE_EVERY_N_FRAMES",
+        "CAMERA_INDEX",
+    ],
+    "Registration": [
+        "REGISTER_SAMPLES_PER_DIRECTION",
+        "REGISTER_CAPTURE_EVERY_N_FRAMES",
+        "REGISTER_SIMILARITY_LOWER_BOUNDARY",
+        "REGISTER_SIMILARITY_HIGHER_BOUNDARY",
+        "REGISTER_ELLIPSE_AXIS_X_RATIO",
+        "REGISTER_ELLIPSE_AXIS_Y_RATIO",
+        "REGISTER_ELLIPSE_CENTER_Y_OFFSET_RATIO",
+        "REGISTER_ELLIPSE_OUTSIDE_DIM_ALPHA",
+        "MAX_EMBEDDINGS_PER_PERSON",
+    ],
+    "AdaptiveUpdate": [
+        "ADAPTIVE_UPDATE_ENABLED",
+        "ADAPTIVE_UPDATE_MAX_SIM",
+        "ADAPTIVE_UPDATE_MIN_INTERVAL_FRAMES",
+        "ADAPTIVE_UPDATE_MAX_SAMPLES_PER_SESSION",
+    ],
+    "Printer": [
+        "PRINT_ENABLED",
+        "PRINTER_NAME",
+    ],
+}
+
+RUNTIME_CATEGORY_DISPLAY_NAMES = {
+    "Recognition": "인식",
+    "Registration": "등록",
+    "AdaptiveUpdate": "자동 보정",
+    "Printer": "프린터",
+}
+
+RUNTIME_SETTING_DISPLAY_NAMES = {
+    "AUTH_SIM_THRESHOLD": "인식 최소 유사도 (높을수록 엄격)",
+    "AUTH_MARGIN_THRESHOLD": "1,2위 점수 차 최소값",
+    "TOP_K": "후보 표시 개수",
+    "ANALYZE_EVERY_N_FRAMES": "몇 프레임마다 분석할지",
+    "CAMERA_INDEX": "카메라 번호",
+    "REGISTER_SAMPLES_PER_DIRECTION": "방향별 수집 장수",
+    "REGISTER_CAPTURE_EVERY_N_FRAMES": "몇 프레임마다 샘플 수집할지",
+    "REGISTER_SIMILARITY_LOWER_BOUNDARY": "등록 유사도 하한",
+    "REGISTER_SIMILARITY_HIGHER_BOUNDARY": "등록 유사도 상한 (중복 기준)",
+    "REGISTER_ELLIPSE_AXIS_X_RATIO": "등록 가이드 타원 너비 비율",
+    "REGISTER_ELLIPSE_AXIS_Y_RATIO": "등록 가이드 타원 높이 비율",
+    "REGISTER_ELLIPSE_CENTER_Y_OFFSET_RATIO": "타원 중심 세로 오프셋 비율",
+    "REGISTER_ELLIPSE_OUTSIDE_DIM_ALPHA": "타원 외부 어둡게 처리 강도",
+    "MAX_EMBEDDINGS_PER_PERSON": "사람별 최대 임베딩 수",
+    "ADAPTIVE_UPDATE_ENABLED": "자동 보정 사용",
+    "ADAPTIVE_UPDATE_MAX_SIM": "자동 보정 유사도 상한",
+    "ADAPTIVE_UPDATE_MIN_INTERVAL_FRAMES": "자동 보정 최소 프레임 간격",
+    "ADAPTIVE_UPDATE_MAX_SAMPLES_PER_SESSION": "세션당 자동 보정 최대 수",
+    "PRINT_ENABLED": "프린터 사용",
+    "PRINTER_NAME": "프린터 이름 (비우면 기본 프린터)",
+}
+
+_RUNTIME_SETTING_KEYS = []
+for _keys in RUNTIME_SETTING_CATEGORIES.values():
+    for _k in _keys:
+        if _k not in _RUNTIME_SETTING_KEYS:
+            _RUNTIME_SETTING_KEYS.append(_k)
+
+_RUNTIME_DEFAULTS = {k: globals()[k] for k in _RUNTIME_SETTING_KEYS}
+
+
+def cast_runtime_value(key: str, raw):
+    if key not in _RUNTIME_DEFAULTS:
+        raise KeyError(f"Unsupported runtime setting key: {key}")
+
+    default = _RUNTIME_DEFAULTS[key]
+    if isinstance(default, bool):
+        if isinstance(raw, bool):
+            return raw
+        s = str(raw).strip().lower()
+        if s in {"1", "true", "t", "yes", "y", "on"}:
+            return True
+        if s in {"0", "false", "f", "no", "n", "off"}:
+            return False
+        raise ValueError(f"Invalid bool value for {key}: {raw}")
+
+    if isinstance(default, int):
+        return int(raw)
+
+    if isinstance(default, float):
+        return float(raw)
+
+    return str(raw)
+
+
+def get_runtime_settings_dict() -> dict:
+    return {k: globals()[k] for k in _RUNTIME_SETTING_KEYS}
+
+
+def load_runtime_settings() -> None:
+    if not os.path.exists(SETTINGS_FILE_PATH):
+        return
+
+    try:
+        with open(SETTINGS_FILE_PATH, "r", encoding="utf-8") as f:
+            raw = json.load(f)
+    except Exception:
+        return
+
+    if not isinstance(raw, dict):
+        return
+
+    for key, value in raw.items():
+        if key not in _RUNTIME_DEFAULTS:
+            continue
+        try:
+            globals()[key] = cast_runtime_value(key, value)
+        except Exception:
+            continue
+
+
+def save_runtime_settings(settings: dict) -> None:
+    merged = get_runtime_settings_dict()
+    for key, raw in settings.items():
+        if key not in _RUNTIME_DEFAULTS:
+            continue
+        merged[key] = cast_runtime_value(key, raw)
+
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(SETTINGS_FILE_PATH, "w", encoding="utf-8") as f:
+        json.dump(merged, f, ensure_ascii=False, indent=2)
+
+    for key, value in merged.items():
+        globals()[key] = value
+
+
+load_runtime_settings()
