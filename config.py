@@ -71,6 +71,7 @@ NAME_SAVE_BUTTON_TEXT = "이름 저장"
 OUTPUT_PAGE_TITLE = "이름 출력"
 OUTPUT_PAGE_SUBTITLE = "선택된 이름을 출력합니다."
 OUTPUT_DONE_TEXT = "이름이 출력되었습니다."
+PRINT_SENT_TEXT_FMT = "프린터로 출력 전송됨: {name}"
 
 ERROR_SELECT_NAME_FIRST_TEXT = "먼저 이름을 선택해 주세요."
 ERROR_NO_CAMERA_FRAME_TEXT = "카메라 프레임이 아직 없습니다."
@@ -78,6 +79,7 @@ ERROR_ENTER_NAME_TEXT = "이름을 입력해 주세요."
 ERROR_NOT_ENOUGH_SAMPLES_TEXT = "얼굴 샘플이 아직 충분하지 않습니다."
 ERROR_CAMERA_OPEN_TEXT = "카메라를 열 수 없습니다."
 ERROR_CAMERA_READ_TEXT = "카메라 프레임을 읽지 못했습니다."
+ERROR_PRINT_FAILED_TEXT_FMT = "프린터 출력 실패: {reason}"
 
 # UI loop tuning
 ANALYZE_EVERY_N_FRAMES = 6
@@ -90,6 +92,15 @@ ADAPTIVE_UPDATE_MIN_INTERVAL_FRAMES = 30
 ADAPTIVE_UPDATE_MAX_SAMPLES_PER_SESSION = 20
 ADAPTIVE_UPDATE_NOTICE_TEXT = "동일 인물의 얼굴 변화가 감지되었습니다. 데이터를 업데이트 합니다."
 ADAPTIVE_UPDATE_LOG_PREFIX = "[ADAPTIVE_UPDATE]"
+
+# Printer
+PRINT_ENABLED = True
+PRINTER_NAME = ""
+PRINTER_LP_COMMAND = "lp"
+PRINTER_TIMEOUT_SEC = 10
+PRINTER_COPIES = 1
+PRINTER_JOB_TITLE_PREFIX = "FaceRecognition"
+PRINTER_CONTENT_TEMPLATE = "이름: {name}\n출력시각: {timestamp}\n"
 
 # Registration data collection
 REGISTER_DIRECTIONS = ("left", "right", "up", "down")

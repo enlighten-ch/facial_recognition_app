@@ -40,6 +40,7 @@ from config import (
     OUTPUT_NAME_BUTTON_TEXT,
     OUTPUT_PAGE_SUBTITLE,
     OUTPUT_PAGE_TITLE,
+    PRINT_ENABLED,
     QUIT_BUTTON_TEXT,
     REGISTER_CAPTURE_EVERY_N_FRAMES,
     REGISTER_DIRECTIONS,
@@ -97,6 +98,7 @@ configure_qt_plugin_env()
 
 from face_db import FaceDatabase
 from face_recognition_engine import FaceEngine, cosine_sim
+from printer_service import PrinterService
 
 
 class UiPage:
@@ -171,6 +173,7 @@ class MainWindow(QWidget):
 
         self.engine = FaceEngine()
         self.db = FaceDatabase()
+        self.printer = PrinterService()
 
         self.camera = CameraWorker()
         self.camera.frame_ready.connect(self.on_frame)
@@ -538,6 +541,14 @@ class MainWindow(QWidget):
             self.show_error(ERROR_SELECT_NAME_FIRST_TEXT)
             return
         self.set_output_name(self.selected_name)
+        if PRINT_ENABLED:
+            ok, message = self.printer.print_name(self.selected_name)
+            if ok:
+                if message:
+                    self.output_sub_label.setText(message)
+            else:
+                self.show_error(message)
+                self.output_sub_label.setText(message)
 
     def start_auto_registration(self):
         if self.current_frame is None:
