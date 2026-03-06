@@ -19,6 +19,7 @@ AUTH_SIM_THRESHOLD = 0.40
 AUTH_MARGIN_THRESHOLD = 0.10
 TOP_K = 3
 CAMERA_INDEX = 0
+RECOGNITION_USE_ELLIPSE_MASK = False
 
 # facial_recognition.py reference: GPU preferred with CPU fallback
 MODEL_NAME = "buffalo_l"
@@ -28,7 +29,7 @@ FACE_FORCE_CPU_ENV_VAR = "FACE_FORCE_CPU"
 NVIDIA_SMI_TIMEOUT_SEC = 3
 
 # UI text
-APP_WINDOW_TITLE = "로컬 얼굴 등록 / 인증 앱"
+APP_WINDOW_TITLE = "드림 올스타 얼굴 인증 앱"
 ERROR_DIALOG_TITLE = "오류"
 BACK_BUTTON_TEXT = "뒤로가기"
 QUIT_BUTTON_TEXT = "종료"
@@ -169,17 +170,20 @@ RUNTIME_SETTING_CATEGORIES = {
         "TOP_K",
         "ANALYZE_EVERY_N_FRAMES",
         "CAMERA_INDEX",
+        "RECOGNITION_USE_ELLIPSE_MASK",
     ],
     "Registration": [
         "REGISTER_SAMPLES_PER_DIRECTION",
         "REGISTER_CAPTURE_EVERY_N_FRAMES",
         "REGISTER_SIMILARITY_LOWER_BOUNDARY",
         "REGISTER_SIMILARITY_HIGHER_BOUNDARY",
+        "MAX_EMBEDDINGS_PER_PERSON",
+    ],
+    "GuideEllipse": [
         "REGISTER_ELLIPSE_AXIS_X_RATIO",
         "REGISTER_ELLIPSE_AXIS_Y_RATIO",
         "REGISTER_ELLIPSE_CENTER_Y_OFFSET_RATIO",
         "REGISTER_ELLIPSE_OUTSIDE_DIM_ALPHA",
-        "MAX_EMBEDDINGS_PER_PERSON",
     ],
     "AdaptiveUpdate": [
         "ADAPTIVE_UPDATE_ENABLED",
@@ -196,6 +200,7 @@ RUNTIME_SETTING_CATEGORIES = {
 RUNTIME_CATEGORY_DISPLAY_NAMES = {
     "Recognition": "인식",
     "Registration": "등록",
+    "GuideEllipse": "가이드 타원",
     "AdaptiveUpdate": "자동 보정",
     "Printer": "프린터",
 }
@@ -206,12 +211,13 @@ RUNTIME_SETTING_DISPLAY_NAMES = {
     "TOP_K": "후보 표시 개수",
     "ANALYZE_EVERY_N_FRAMES": "몇 프레임마다 분석할지",
     "CAMERA_INDEX": "카메라 번호",
+    "RECOGNITION_USE_ELLIPSE_MASK": "인식 시 타원 마스크 사용",
     "REGISTER_SAMPLES_PER_DIRECTION": "방향별 수집 장수",
     "REGISTER_CAPTURE_EVERY_N_FRAMES": "몇 프레임마다 샘플 수집할지",
     "REGISTER_SIMILARITY_LOWER_BOUNDARY": "등록 유사도 하한",
     "REGISTER_SIMILARITY_HIGHER_BOUNDARY": "등록 유사도 상한 (중복 기준)",
-    "REGISTER_ELLIPSE_AXIS_X_RATIO": "등록 가이드 타원 너비 비율",
-    "REGISTER_ELLIPSE_AXIS_Y_RATIO": "등록 가이드 타원 높이 비율",
+    "REGISTER_ELLIPSE_AXIS_X_RATIO": "가이드 타원 너비 비율",
+    "REGISTER_ELLIPSE_AXIS_Y_RATIO": "가이드 타원 높이 비율",
     "REGISTER_ELLIPSE_CENTER_Y_OFFSET_RATIO": "타원 중심 세로 오프셋 비율",
     "REGISTER_ELLIPSE_OUTSIDE_DIM_ALPHA": "타원 외부 어둡게 처리 강도",
     "MAX_EMBEDDINGS_PER_PERSON": "사람별 최대 임베딩 수",

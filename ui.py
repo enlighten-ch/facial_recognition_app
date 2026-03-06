@@ -43,6 +43,7 @@ from config import (
     OUTPUT_PAGE_TITLE,
     PRINT_ENABLED,
     QUIT_BUTTON_TEXT,
+    RECOGNITION_USE_ELLIPSE_MASK,
     RUNTIME_SETTING_CATEGORIES,
     REGISTER_CAPTURE_EVERY_N_FRAMES,
     REGISTER_DIRECTIONS,
@@ -605,7 +606,6 @@ class MainWindow(QWidget):
 
         mask3 = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
         focused = np.where(mask3 == 255, frame, dimmed)
-        cv2.ellipse(focused, center, axes, 0, 0, 360, (0, 255, 255), 2)
         return focused, mask, center, axes
 
     def is_inside_register_ellipse(self, x: int, y: int, center, axes) -> bool:
@@ -812,7 +812,13 @@ class MainWindow(QWidget):
             self.monitor_detail_label.setText(ADAPTIVE_UPDATE_NOTICE_TEXT)
 
     def apply_monitor_state_from_frame(self, frame: np.ndarray):
-        emb, crop, _ = self.engine.embedding_and_crop(frame)
+        if RECOGNITION_USE_ELLIPSE_MASK:
+            _, ellipse_mask, _, _ = self.build_register_focus_frame(frame)
+            analysis_frame = frame.copy()
+            analysis_frame[ellipse_mask == 0] = 0
+            emb, crop, _ = self.engine.embedding_and_crop(analysis_frame)
+        else:
+            emb, crop, _ = self.engine.embedding_and_crop(frame)
         if emb is None:
             state_key = "idle"
             if state_key != self.last_monitor_state_key:
@@ -860,6 +866,8 @@ class MainWindow(QWidget):
         if page == UiPage.MONITOR:
             display, bbox = self.engine.detect_and_draw_bbox(frame)
             self.current_bbox = bbox
+            if RECOGNITION_USE_ELLIPSE_MASK:
+                display, _, _, _ = self.build_register_focus_frame(display)
             self.video_panel_monitor.update_frame(display)
             self.analyze_frame_tick += 1
             if self.analyze_frame_tick % ANALYZE_EVERY_N_FRAMES == 0:
