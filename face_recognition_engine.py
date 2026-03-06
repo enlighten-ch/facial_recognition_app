@@ -9,7 +9,16 @@ import numpy as np
 import onnxruntime as ort
 from insightface.app import FaceAnalysis
 
-from config import DET_SIZE, MODEL_NAME, USE_GPU
+from config import (
+    DET_SIZE,
+    DIRECTION_PITCH_DOWN_THRESHOLD,
+    DIRECTION_PITCH_UP_THRESHOLD,
+    DIRECTION_YAW_THRESHOLD,
+    FACE_FORCE_CPU_ENV_VAR,
+    MODEL_NAME,
+    NVIDIA_SMI_TIMEOUT_SEC,
+    USE_GPU,
+)
 
 
 def ensure_onnxruntime_compat() -> None:
@@ -63,8 +72,8 @@ class FaceEngine:
         if not self.use_gpu:
             return False, "GPU disabled by config"
 
-        if os.environ.get("FACE_FORCE_CPU", "").lower() in {"1", "true", "yes"}:
-            return False, "FACE_FORCE_CPU is enabled"
+        if os.environ.get(FACE_FORCE_CPU_ENV_VAR, "").lower() in {"1", "true", "yes"}:
+            return False, f"{FACE_FORCE_CPU_ENV_VAR} is enabled"
 
         if "CUDAExecutionProvider" not in self.providers:
             return False, "CUDAExecutionProvider is not available in onnxruntime"
@@ -74,7 +83,7 @@ class FaceEngine:
                 ["nvidia-smi", "-L"],
                 capture_output=True,
                 text=True,
-                timeout=3,
+                timeout=NVIDIA_SMI_TIMEOUT_SEC,
                 check=False,
             )
         except FileNotFoundError:
@@ -149,3 +158,56 @@ class FaceEngine:
         x1, y1, x2, y2 = face.bbox.astype(int)
         cv2.rectangle(display, (x1, y1), (x2, y2), (0, 255, 0), 2)
         return display, (x1, y1, x2, y2)
+
+    def classify_direction(self, face) -> Optional[str]:
+        kps = getattr(face, "kps", None)
+        if kps is None:
+            return None
+
+        kps = np.asarray(kps, dtype=np.float32)
+        if kps.shape[0] < 5:
+            return None
+
+        left_eye = kps[0]
+        right_eye = kps[1]
+        nose = kps[2]
+        mouth_left = kps[3]
+        mouth_right = kps[4]
+
+        eye_center = (left_eye + right_eye) / 2.0
+        eye_dist = float(np.linalg.norm(right_eye - left_eye))
+        if eye_dist < 1e-6:
+            return None
+
+        mouth_center = (mouth_left + mouth_right) / 2.0
+        eye_to_mouth = float(mouth_center[1] - eye_center[1])
+        if abs(eye_to_mouth) < 1e-6:
+            return None
+
+        yaw = float((nose[0] - eye_center[0]) / eye_dist)
+        pitch = float((nose[1] - eye_center[1]) / eye_to_mouth)
+
+        if yaw <= -DIRECTION_YAW_THRESHOLD:
+            return "left"
+        if yaw >= DIRECTION_YAW_THRESHOLD:
+            return "right"
+        if pitch <= DIRECTION_PITCH_UP_THRESHOLD:
+            return "up"
+        if pitch >= DIRECTION_PITCH_DOWN_THRESHOLD:
+            return "down"
+        return None
+
+    def analyze_face(self, frame_bgr: np.ndarray):
+        face = self.detect_largest_face(frame_bgr)
+        if face is None:
+            return None, None, None, None, None
+
+        emb = np.asarray(face.normed_embedding, dtype=np.float32)
+        x1, y1, x2, y2 = face.bbox.astype(int)
+        x1 = max(0, x1)
+        y1 = max(0, y1)
+        x2 = min(frame_bgr.shape[1], x2)
+        y2 = min(frame_bgr.shape[0], y2)
+        crop = frame_bgr[y1:y2, x1:x2].copy() if y2 > y1 and x2 > x1 else None
+        direction = self.classify_direction(face)
+        return emb, crop, (x1, y1, x2, y2), direction, face
