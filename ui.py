@@ -7,7 +7,6 @@ from config import (
     AUTH_MARGIN_THRESHOLD,
     AUTH_SIM_THRESHOLD,
     CAMERA_INDEX,
-    REQUIRED_SIMILAR_COUNT,
     REGISTER_SIM_THRESHOLD,
     TOP_K,
     configure_qt_plugin_env,
@@ -24,8 +23,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QListWidget,
-    QListWidgetItem,
     QMessageBox,
     QProgressBar,
     QPushButton,
@@ -40,6 +37,19 @@ configure_qt_plugin_env()
 
 from face_db import FaceDatabase
 from face_recognition_engine import FaceEngine, cosine_sim
+
+WELCOME_TEXT = "환영해요 :) 얼굴 등록 및 인식을 위해 앞을 똑바로 바라봐주세요"
+UNKNOWN_TEXT = "등록이 되어있지 않아요! 등록할까요?"
+REGISTER_TARGET_COUNT = 10
+REGISTER_CAPTURE_EVERY_N_FRAMES = 4
+ANALYZE_EVERY_N_FRAMES = 6
+
+
+class UiPage:
+    MONITOR = 0
+    REGISTER_CAPTURE = 1
+    REGISTER_NAME = 2
+    OUTPUT = 3
 
 
 def np_to_qpixmap(frame_bgr: np.ndarray, target_size: Optional[QSize] = None) -> QPixmap:
@@ -62,7 +72,6 @@ class CameraWorker(QThread):
         self.camera_index = camera_index
         self.running = False
         self.cap = None
-        self.last_frame = None
 
     def run(self) -> None:
         self.cap = cv2.VideoCapture(self.camera_index)
@@ -76,7 +85,6 @@ class CameraWorker(QThread):
             if not ok:
                 self.error_signal.emit("카메라 프레임을 읽지 못했습니다.")
                 break
-            self.last_frame = frame
             self.frame_ready.emit(frame.copy())
             self.msleep(30)
 
@@ -97,15 +105,7 @@ class VideoPanel(QLabel):
         self.setStyleSheet("background:#111;color:#ddd;border-radius:20px;")
 
     def update_frame(self, frame_bgr: np.ndarray) -> None:
-        pix = np_to_qpixmap(frame_bgr, self.size())
-        self.setPixmap(pix)
-
-
-class CandidateButton(QPushButton):
-    def __init__(self, text: str, parent=None):
-        super().__init__(text, parent)
-        self.setMinimumHeight(56)
-        self.setStyleSheet("QPushButton{font-size:16px;padding:10px 14px;border-radius:16px;border:1px solid #d6d6d6;background:#fff;} QPushButton:hover{background:#f6f6f6;}")
+        self.setPixmap(np_to_qpixmap(frame_bgr, self.size()))
 
 
 class MainWindow(QWidget):
@@ -117,38 +117,37 @@ class MainWindow(QWidget):
 
         self.engine = FaceEngine()
         self.db = FaceDatabase()
+
         self.camera = CameraWorker()
         self.camera.frame_ready.connect(self.on_frame)
         self.camera.error_signal.connect(self.show_error)
-        self.current_frame = None
-        self.current_bbox = None
 
-        self.history: List[int] = []
+        self.current_frame: Optional[np.ndarray] = None
+        self.current_bbox: Optional[Tuple[int, int, int, int]] = None
+
+        self.selected_name: Optional[str] = None
+        self.latest_rankings: List[Tuple[str, float]] = []
+        self.last_monitor_state_key: Optional[str] = None
+
         self.register_embeddings: List[np.ndarray] = []
         self.register_crops: List[np.ndarray] = []
-        self.auth_rankings: List[Tuple[str, float]] = []
-        self.selected_name: Optional[str] = None
+        self.register_frame_tick = 0
+        self.analyze_frame_tick = 0
 
         self.stack = QStackedWidget()
+        self.video_panel_monitor = VideoPanel()
         self.video_panel_register = VideoPanel()
-        self.video_panel_auth = VideoPanel()
 
-        self.home_page = self.build_home_page()
+        self.monitor_page = self.build_monitor_page()
         self.register_capture_page = self.build_register_capture_page()
         self.register_name_page = self.build_register_name_page()
-        self.register_done_page = self.build_register_done_page()
-        self.auth_capture_page = self.build_auth_capture_page()
-        self.auth_result_page = self.build_auth_result_page()
-        self.greeting_page = self.build_greeting_page()
+        self.output_page = self.build_output_page()
 
         for page in [
-            self.home_page,
+            self.monitor_page,
             self.register_capture_page,
             self.register_name_page,
-            self.register_done_page,
-            self.auth_capture_page,
-            self.auth_result_page,
-            self.greeting_page,
+            self.output_page,
         ]:
             self.stack.addWidget(page)
 
@@ -156,14 +155,15 @@ class MainWindow(QWidget):
         root.setContentsMargins(18, 18, 18, 18)
         root.addWidget(self.stack)
 
-        self.go_to(0, push_history=False)
+        self.go_to(UiPage.MONITOR)
+        self.apply_monitor_idle_state()
         self.camera.start()
-        self.refresh_people_list()
 
-    def shell(self, title: str, subtitle: str, back_handler=None):
+    def shell(self, title: str, subtitle: str, with_back: bool = False):
         wrapper = QWidget()
         layout = QVBoxLayout(wrapper)
         layout.setContentsMargins(6, 6, 6, 6)
+
         header = QHBoxLayout()
         text_box = QVBoxLayout()
         title_label = QLabel(title)
@@ -175,12 +175,14 @@ class MainWindow(QWidget):
         text_box.addWidget(subtitle_label)
         header.addLayout(text_box)
         header.addStretch(1)
-        if back_handler is not None:
+
+        if with_back:
             back_btn = QPushButton("뒤로가기")
             back_btn.setMinimumHeight(42)
-            back_btn.clicked.connect(back_handler)
+            back_btn.clicked.connect(self.go_initial_state)
             back_btn.setStyleSheet("QPushButton{padding:8px 16px;border-radius:14px;background:#fff;border:1px solid #ddd;} QPushButton:hover{background:#f4f4f4;}")
             header.addWidget(back_btn)
+
         layout.addLayout(header)
         layout.addSpacing(10)
         return wrapper, layout
@@ -188,66 +190,62 @@ class MainWindow(QWidget):
     def card_style(self):
         return "background:#fff;border:1px solid #e7e7e7;border-radius:22px;"
 
-    def build_home_page(self):
-        page, layout = self.shell("로컬 얼굴 등록 / 인증 앱", "웹이 아니라 데스크톱 로컬에서 실행되는 앱입니다.")
+    def primary_btn_style(self):
+        return "QPushButton{background:#111;color:#fff;border-radius:16px;font-size:16px;font-weight:600;} QPushButton:hover{background:#222;} QPushButton:disabled{background:#999;color:#eee;}"
 
-        row = QHBoxLayout()
-        row.setSpacing(14)
+    def build_monitor_page(self):
+        page, layout = self.shell("얼굴 인식", "카메라를 보고 있으면 자동으로 등록/인식이 진행됩니다.", with_back=False)
+
+        body = QHBoxLayout()
+        body.setSpacing(14)
 
         left = QFrame()
         left.setStyleSheet(self.card_style())
         left_layout = QVBoxLayout(left)
-        left_layout.setContentsMargins(20, 20, 20, 20)
-        t1 = QLabel("얼굴 등록")
-        t1.setStyleSheet("font-size:22px;font-weight:600;")
-        d1 = QLabel(f"같은 인물의 얼굴이 유사도 기준 이상으로 {REQUIRED_SIMILAR_COUNT}개 확보되면 이름 저장 단계로 이동합니다.")
-        d1.setWordWrap(True)
-        d1.setStyleSheet("color:#666;font-size:14px;")
-        b1 = QPushButton("등록 시작")
-        b1.setMinimumHeight(52)
-        b1.clicked.connect(self.start_register)
-        b1.setStyleSheet("QPushButton{font-size:16px;font-weight:600;background:#111;color:white;border-radius:16px;} QPushButton:hover{background:#222;}")
-        left_layout.addWidget(t1)
-        left_layout.addWidget(d1)
-        left_layout.addStretch(1)
-        left_layout.addWidget(b1)
+        left_layout.setContentsMargins(16, 16, 16, 16)
+        left_layout.addWidget(self.video_panel_monitor, 1)
 
         right = QFrame()
         right.setStyleSheet(self.card_style())
         right_layout = QVBoxLayout(right)
         right_layout.setContentsMargins(20, 20, 20, 20)
-        t2 = QLabel("얼굴 인증")
-        t2.setStyleSheet("font-size:22px;font-weight:600;")
-        d2 = QLabel("1위와 2위의 차이가 충분히 크면 1위만 표시하고, 작으면 1~3위를 선택할 수 있습니다.")
-        d2.setWordWrap(True)
-        d2.setStyleSheet("color:#666;font-size:14px;")
-        b2 = QPushButton("인증 시작")
-        b2.setMinimumHeight(52)
-        b2.clicked.connect(self.start_auth)
-        b2.setStyleSheet("QPushButton{font-size:16px;font-weight:600;background:#111;color:white;border-radius:16px;} QPushButton:hover{background:#222;}")
-        right_layout.addWidget(t2)
-        right_layout.addWidget(d2)
+
+        self.monitor_status_label = QLabel(WELCOME_TEXT)
+        self.monitor_status_label.setWordWrap(True)
+        self.monitor_status_label.setStyleSheet("font-size:18px;font-weight:600;")
+
+        self.monitor_detail_label = QLabel("")
+        self.monitor_detail_label.setWordWrap(True)
+        self.monitor_detail_label.setStyleSheet("font-size:14px;color:#666;")
+
+        self.register_start_btn = QPushButton("등록시작")
+        self.register_start_btn.setMinimumHeight(50)
+        self.register_start_btn.setStyleSheet(self.primary_btn_style())
+        self.register_start_btn.clicked.connect(self.start_auto_registration)
+
+        self.candidate_buttons_layout = QVBoxLayout()
+
+        self.output_name_btn = QPushButton("이름 출력하기")
+        self.output_name_btn.setMinimumHeight(50)
+        self.output_name_btn.setStyleSheet(self.primary_btn_style())
+        self.output_name_btn.clicked.connect(self.output_selected_name)
+
+        right_layout.addWidget(self.monitor_status_label)
+        right_layout.addWidget(self.monitor_detail_label)
+        right_layout.addSpacing(10)
+        right_layout.addWidget(self.register_start_btn)
+        right_layout.addLayout(self.candidate_buttons_layout)
         right_layout.addStretch(1)
-        right_layout.addWidget(b2)
+        right_layout.addWidget(self.output_name_btn)
 
-        row.addWidget(left, 1)
-        row.addWidget(right, 1)
-        layout.addLayout(row)
-
-        people_card = QFrame()
-        people_card.setStyleSheet(self.card_style())
-        people_layout = QVBoxLayout(people_card)
-        people_layout.setContentsMargins(20, 20, 20, 20)
-        title = QLabel("등록된 사용자")
-        title.setStyleSheet("font-size:20px;font-weight:600;")
-        self.people_list = QListWidget()
-        people_layout.addWidget(title)
-        people_layout.addWidget(self.people_list)
-        layout.addWidget(people_card, 1)
+        body.addWidget(left, 3)
+        body.addWidget(right, 2)
+        layout.addLayout(body, 1)
         return page
 
     def build_register_capture_page(self):
-        page, layout = self.shell("얼굴 등록 모드", "같은 사람의 얼굴을 여러 번 촬영해 유사 샘플을 확보합니다.", self.go_back)
+        page, layout = self.shell("얼굴 등록", "등록시작 후 얼굴 샘플 10개를 자동으로 수집합니다.", with_back=True)
+
         body = QHBoxLayout()
         body.setSpacing(14)
 
@@ -261,117 +259,21 @@ class MainWindow(QWidget):
         right.setStyleSheet(self.card_style())
         right_layout = QVBoxLayout(right)
         right_layout.setContentsMargins(20, 20, 20, 20)
-        self.register_status = QLabel("정면에서 자연스럽게 여러 번 촬영해 주세요.")
-        self.register_status.setWordWrap(True)
-        self.register_status.setStyleSheet("font-size:14px;color:#555;")
+
+        self.register_status_label = QLabel("얼굴 샘플을 수집 중입니다.")
+        self.register_status_label.setWordWrap(True)
+        self.register_status_label.setStyleSheet("font-size:16px;font-weight:600;")
+
         self.register_progress = QProgressBar()
-        self.register_progress.setRange(0, REQUIRED_SIMILAR_COUNT)
+        self.register_progress.setRange(0, REGISTER_TARGET_COUNT)
         self.register_progress.setValue(0)
-        self.register_count_label = QLabel(f"0 / {REQUIRED_SIMILAR_COUNT}")
-        self.register_count_label.setStyleSheet("font-size:18px;font-weight:600;")
-        capture_btn = QPushButton("얼굴 촬영")
-        capture_btn.setMinimumHeight(50)
-        capture_btn.clicked.connect(self.capture_for_register)
-        capture_btn.setStyleSheet("QPushButton{background:#111;color:#fff;border-radius:16px;font-size:16px;font-weight:600;} QPushButton:hover{background:#222;}")
-        reset_btn = QPushButton("다시 시작")
-        reset_btn.setMinimumHeight(50)
-        reset_btn.clicked.connect(self.reset_register)
-        reset_btn.setStyleSheet("QPushButton{background:#fff;border:1px solid #ddd;border-radius:16px;font-size:16px;} QPushButton:hover{background:#f6f6f6;}")
-        self.register_preview_list = QListWidget()
-        right_layout.addWidget(QLabel("등록 진행도"))
+
+        self.register_count_label = QLabel(f"0 / {REGISTER_TARGET_COUNT}")
+        self.register_count_label.setStyleSheet("font-size:20px;font-weight:700;")
+
+        right_layout.addWidget(self.register_status_label)
         right_layout.addWidget(self.register_progress)
         right_layout.addWidget(self.register_count_label)
-        right_layout.addWidget(self.register_status)
-        right_layout.addWidget(capture_btn)
-        right_layout.addWidget(reset_btn)
-        right_layout.addWidget(QLabel("최근 얼굴 샘플"))
-        right_layout.addWidget(self.register_preview_list, 1)
-
-        body.addWidget(left, 3)
-        body.addWidget(right, 2)
-        layout.addLayout(body, 1)
-        return page
-
-    def build_register_name_page(self):
-        page, layout = self.shell("이름 저장", "이름을 입력하면 해당 이름 폴더를 생성하고 얼굴 샘플을 저장합니다.", self.go_back)
-        card = QFrame()
-        card.setStyleSheet(self.card_style())
-        card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(20, 20, 20, 20)
-        msg = QLabel("얼굴 등록이 완료되었습니다.")
-        msg.setStyleSheet("font-size:24px;font-weight:700;")
-        msg2 = QLabel("이름을 입력한 뒤 저장을 누르세요.")
-        msg2.setStyleSheet("color:#666;font-size:14px;")
-        self.name_input = QLineEdit()
-        self.name_input.setPlaceholderText("이름 입력")
-        self.name_input.setMinimumHeight(48)
-        self.name_input.setStyleSheet("QLineEdit{font-size:16px;padding:10px 14px;border:1px solid #ddd;border-radius:14px;}")
-        save_btn = QPushButton("저장")
-        save_btn.setMinimumHeight(50)
-        save_btn.clicked.connect(self.save_registration)
-        save_btn.setStyleSheet("QPushButton{background:#111;color:#fff;border-radius:16px;font-size:16px;font-weight:600;} QPushButton:hover{background:#222;}")
-        card_layout.addWidget(msg)
-        card_layout.addWidget(msg2)
-        card_layout.addSpacing(10)
-        card_layout.addWidget(self.name_input)
-        card_layout.addWidget(save_btn)
-        card_layout.addStretch(1)
-        layout.addWidget(card)
-        return page
-
-    def build_register_done_page(self):
-        page, layout = self.shell("등록 완료", "얼굴과 이름이 저장되었습니다.", self.go_back)
-        card = QFrame()
-        card.setStyleSheet(self.card_style())
-        card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(20, 30, 20, 30)
-        self.register_done_label = QLabel("등록 완료")
-        self.register_done_label.setAlignment(Qt.AlignCenter)
-        self.register_done_label.setStyleSheet("font-size:30px;font-weight:700;")
-        home_btn = QPushButton("홈으로")
-        home_btn.setMinimumHeight(50)
-        home_btn.clicked.connect(lambda: self.go_to(0))
-        auth_btn = QPushButton("인증으로 이동")
-        auth_btn.setMinimumHeight(50)
-        auth_btn.clicked.connect(self.start_auth)
-        for btn in [home_btn, auth_btn]:
-            btn.setStyleSheet("QPushButton{background:#111;color:#fff;border-radius:16px;font-size:16px;font-weight:600;} QPushButton:hover{background:#222;}")
-        card_layout.addStretch(1)
-        card_layout.addWidget(self.register_done_label)
-        card_layout.addSpacing(14)
-        card_layout.addWidget(home_btn)
-        card_layout.addWidget(auth_btn)
-        card_layout.addStretch(1)
-        layout.addWidget(card, 1)
-        return page
-
-    def build_auth_capture_page(self):
-        page, layout = self.shell("얼굴 인증 모드", "등록된 얼굴과 비교해 1위 또는 1~3위 후보를 제안합니다.", self.go_back)
-        body = QHBoxLayout()
-        body.setSpacing(14)
-
-        left = QFrame()
-        left.setStyleSheet(self.card_style())
-        left_layout = QVBoxLayout(left)
-        left_layout.setContentsMargins(16, 16, 16, 16)
-        left_layout.addWidget(self.video_panel_auth, 1)
-
-        right = QFrame()
-        right.setStyleSheet(self.card_style())
-        right_layout = QVBoxLayout(right)
-        right_layout.setContentsMargins(20, 20, 20, 20)
-        info = QLabel("1위와 다른 순위의 차이가 클 경우 1위만 표현하고, 차이가 적을 경우 1~3위 이름을 출력합니다.")
-        info.setWordWrap(True)
-        info.setStyleSheet("font-size:14px;color:#666;")
-        capture_btn = QPushButton("얼굴 인증 시작")
-        capture_btn.setMinimumHeight(50)
-        capture_btn.clicked.connect(self.capture_for_auth)
-        capture_btn.setStyleSheet("QPushButton{background:#111;color:#fff;border-radius:16px;font-size:16px;font-weight:600;} QPushButton:hover{background:#222;}")
-        self.auth_info_label = QLabel(f"등록 사용자 수: {len(self.db.people)}")
-        self.auth_info_label.setStyleSheet("font-size:18px;font-weight:600;")
-        right_layout.addWidget(self.auth_info_label)
-        right_layout.addWidget(info)
-        right_layout.addWidget(capture_btn)
         right_layout.addStretch(1)
 
         body.addWidget(left, 3)
@@ -379,82 +281,73 @@ class MainWindow(QWidget):
         layout.addLayout(body, 1)
         return page
 
-    def build_auth_result_page(self):
-        page, layout = self.shell("인증 결과", "점수 차이에 따라 1명만 표시하거나 1~3명을 선택하게 합니다.", self.go_back)
+    def build_register_name_page(self):
+        page, layout = self.shell("이름 저장", "얼굴등록이 완료되었어요! 이름을 입력해주세요", with_back=True)
+
         card = QFrame()
         card.setStyleSheet(self.card_style())
         card_layout = QVBoxLayout(card)
         card_layout.setContentsMargins(20, 20, 20, 20)
-        self.auth_result_label = QLabel("결과 없음")
-        self.auth_result_label.setWordWrap(True)
-        self.auth_result_label.setStyleSheet("font-size:20px;font-weight:600;")
-        self.auth_candidates_box = QVBoxLayout()
-        card_layout.addWidget(self.auth_result_label)
+
+        self.register_complete_label = QLabel("얼굴등록이 완료되었어요! 이름을 입력해주세요")
+        self.register_complete_label.setWordWrap(True)
+        self.register_complete_label.setStyleSheet("font-size:24px;font-weight:700;")
+
+        self.name_input = QLineEdit()
+        self.name_input.setPlaceholderText("이름 입력")
+        self.name_input.setMinimumHeight(48)
+        self.name_input.setStyleSheet("QLineEdit{font-size:16px;padding:10px 14px;border:1px solid #ddd;border-radius:14px;}")
+
+        save_btn = QPushButton("이름 저장")
+        save_btn.setMinimumHeight(50)
+        save_btn.setStyleSheet(self.primary_btn_style())
+        save_btn.clicked.connect(self.save_registration)
+
+        card_layout.addWidget(self.register_complete_label)
         card_layout.addSpacing(10)
-        card_layout.addLayout(self.auth_candidates_box)
+        card_layout.addWidget(self.name_input)
+        card_layout.addWidget(save_btn)
         card_layout.addStretch(1)
+
         layout.addWidget(card, 1)
         return page
 
-    def build_greeting_page(self):
-        page, layout = self.shell("인증 완료", "선택된 사용자를 확정했습니다.", self.go_back)
+    def build_output_page(self):
+        page, layout = self.shell("이름 출력", "선택된 이름을 출력합니다.", with_back=True)
+
         card = QFrame()
         card.setStyleSheet(self.card_style())
         card_layout = QVBoxLayout(card)
         card_layout.setContentsMargins(20, 30, 20, 30)
-        self.greeting_label = QLabel("반갑습니다.")
-        self.greeting_label.setAlignment(Qt.AlignCenter)
-        self.greeting_label.setStyleSheet("font-size:34px;font-weight:700;")
-        self.greeting_name_label = QLabel("")
-        self.greeting_name_label.setAlignment(Qt.AlignCenter)
-        self.greeting_name_label.setStyleSheet("font-size:20px;color:#555;")
-        home_btn = QPushButton("홈으로")
-        home_btn.clicked.connect(lambda: self.go_to(0))
-        home_btn.setMinimumHeight(50)
-        home_btn.setStyleSheet("QPushButton{background:#111;color:#fff;border-radius:16px;font-size:16px;font-weight:600;} QPushButton:hover{background:#222;}")
+
+        self.output_label = QLabel("")
+        self.output_label.setAlignment(Qt.AlignCenter)
+        self.output_label.setStyleSheet("font-size:36px;font-weight:700;")
+
+        self.output_sub_label = QLabel("")
+        self.output_sub_label.setAlignment(Qt.AlignCenter)
+        self.output_sub_label.setStyleSheet("font-size:16px;color:#666;")
+
         card_layout.addStretch(1)
-        card_layout.addWidget(self.greeting_label)
-        card_layout.addWidget(self.greeting_name_label)
-        card_layout.addSpacing(16)
-        card_layout.addWidget(home_btn)
+        card_layout.addWidget(self.output_label)
+        card_layout.addWidget(self.output_sub_label)
         card_layout.addStretch(1)
+
         layout.addWidget(card, 1)
         return page
 
-    def go_to(self, index: int, push_history: bool = True):
-        current = self.stack.currentIndex()
-        if push_history and current != index:
-            self.history.append(current)
+    def go_to(self, index: int):
         self.stack.setCurrentIndex(index)
-        self.refresh_people_list()
-        self.auth_info_label.setText(f"등록 사용자 수: {len(self.db.people)}")
 
-    def go_back(self):
-        if self.history:
-            index = self.history.pop()
-            self.stack.setCurrentIndex(index)
-        else:
-            self.stack.setCurrentIndex(0)
-
-    def refresh_people_list(self):
-        self.db.load()
-        self.people_list.clear()
-        if not self.db.people:
-            self.people_list.addItem(QListWidgetItem("아직 등록된 사용자가 없습니다."))
-            return
-
-        for person in sorted(self.db.people, key=lambda x: x.name):
-            self.people_list.addItem(QListWidgetItem(f"{person.name}  |  샘플 {person.num_samples}개  |  폴더 {person.folder}"))
-
-    def set_register_status(self, text: str):
-        self.register_status.setText(text)
-        self.register_count_label.setText(f"{len(self.register_embeddings)} / {REQUIRED_SIMILAR_COUNT}")
-        self.register_progress.setValue(min(len(self.register_embeddings), REQUIRED_SIMILAR_COUNT))
-
-    def update_register_preview(self):
-        self.register_preview_list.clear()
-        for idx in range(len(self.register_crops)):
-            self.register_preview_list.addItem(QListWidgetItem(f"샘플 {idx + 1}"))
+    def go_initial_state(self):
+        self.register_embeddings = []
+        self.register_crops = []
+        self.selected_name = None
+        self.latest_rankings = []
+        self.last_monitor_state_key = None
+        self.name_input.clear()
+        self.apply_monitor_idle_state()
+        self.go_to(UiPage.MONITOR)
 
     def clear_layout(self, layout):
         while layout.count():
@@ -466,124 +359,192 @@ class MainWindow(QWidget):
             elif child_layout is not None:
                 self.clear_layout(child_layout)
 
-    def on_frame(self, frame: np.ndarray):
-        self.current_frame = frame.copy()
-        display, bbox = self.engine.detect_and_draw_bbox(frame)
-        self.current_bbox = bbox
+    def set_register_count(self):
+        count = len(self.register_embeddings)
+        self.register_progress.setValue(min(count, REGISTER_TARGET_COUNT))
+        self.register_count_label.setText(f"{count} / {REGISTER_TARGET_COUNT}")
 
-        if self.stack.currentIndex() == 1:
-            self.video_panel_register.update_frame(display)
-        elif self.stack.currentIndex() == 4:
-            self.video_panel_auth.update_frame(display)
+    def set_output_name(self, name: str):
+        self.output_label.setText(f"{name}")
+        self.output_sub_label.setText("이름이 출력되었습니다.")
+        self.go_to(UiPage.OUTPUT)
 
-    def show_error(self, message: str):
-        QMessageBox.critical(self, "오류", message)
+    def apply_monitor_idle_state(self):
+        self.monitor_status_label.setText(WELCOME_TEXT)
+        self.monitor_detail_label.setText("")
+        self.register_start_btn.setVisible(False)
+        self.register_start_btn.setEnabled(False)
+        self.output_name_btn.setEnabled(False)
+        self.clear_layout(self.candidate_buttons_layout)
 
-    def reset_register(self):
-        self.register_embeddings = []
-        self.register_crops = []
-        self.name_input.clear()
-        self.register_preview_list.clear()
-        self.set_register_status("정면에서 자연스럽게 여러 번 촬영해 주세요.")
+    def apply_unregistered_state(self):
+        self.monitor_status_label.setText(UNKNOWN_TEXT)
+        self.monitor_detail_label.setText("등록시작 버튼을 누르면 얼굴 샘플 10개를 자동으로 수집합니다.")
+        self.register_start_btn.setVisible(True)
+        self.register_start_btn.setEnabled(True)
+        self.output_name_btn.setEnabled(False)
+        self.clear_layout(self.candidate_buttons_layout)
 
-    def start_register(self):
-        self.reset_register()
-        self.go_to(1)
+    def apply_registered_clear_state(self, top_name: str, top_score: float, margin: float):
+        self.monitor_status_label.setText(f"등록된 사용자입니다: {top_name}")
+        self.monitor_detail_label.setText(f"1위 점수 {top_score:.3f}, 2위와 차이 {margin:.3f}")
+        self.register_start_btn.setVisible(False)
+        self.register_start_btn.setEnabled(False)
+        self.clear_layout(self.candidate_buttons_layout)
 
-    def capture_for_register(self):
+        candidate = QPushButton(f"1위 {top_name}")
+        candidate.setEnabled(False)
+        candidate.setMinimumHeight(48)
+        candidate.setStyleSheet("QPushButton{background:#f4f4f4;color:#333;border-radius:14px;border:1px solid #ddd;font-size:15px;}")
+        self.candidate_buttons_layout.addWidget(candidate)
+
+        self.selected_name = top_name
+        self.output_name_btn.setEnabled(True)
+
+    def apply_registered_ambiguous_state(self, rankings: List[Tuple[str, float]]):
+        self.monitor_status_label.setText("유사한 얼굴이 있습니다. 이름을 선택해 주세요.")
+        self.monitor_detail_label.setText("1~3위 후보 중 이름 선택 후 이름 출력하기 버튼이 활성화됩니다.")
+        self.register_start_btn.setVisible(False)
+        self.register_start_btn.setEnabled(False)
+        self.clear_layout(self.candidate_buttons_layout)
+
+        self.selected_name = None
+        self.output_name_btn.setEnabled(False)
+
+        for idx, (name, score) in enumerate(rankings, start=1):
+            btn = QPushButton(f"{idx}위 선택: {name} (점수 {score:.3f})")
+            btn.setMinimumHeight(48)
+            btn.setStyleSheet(self.primary_btn_style())
+            btn.clicked.connect(lambda checked=False, n=name: self.choose_candidate_name(n))
+            self.candidate_buttons_layout.addWidget(btn)
+
+    def choose_candidate_name(self, name: str):
+        self.selected_name = name
+        self.monitor_detail_label.setText(f"선택됨: {name} / 이름 출력하기 버튼을 눌러주세요.")
+        self.output_name_btn.setEnabled(True)
+
+    def output_selected_name(self):
+        if not self.selected_name:
+            self.show_error("먼저 이름을 선택해 주세요.")
+            return
+        self.set_output_name(self.selected_name)
+
+    def start_auto_registration(self):
         if self.current_frame is None:
             self.show_error("카메라 프레임이 아직 없습니다.")
             return
 
-        emb, crop, _ = self.engine.embedding_and_crop(self.current_frame)
+        self.register_embeddings = []
+        self.register_crops = []
+        self.register_frame_tick = 0
+        self.set_register_count()
+        self.register_status_label.setText("얼굴 샘플을 자동으로 수집 중입니다. 정면을 바라봐주세요.")
+        self.go_to(UiPage.REGISTER_CAPTURE)
+
+    def handle_register_capture(self, frame: np.ndarray):
+        self.register_frame_tick += 1
+        if self.register_frame_tick % REGISTER_CAPTURE_EVERY_N_FRAMES != 0:
+            return
+
+        emb, crop, _ = self.engine.embedding_and_crop(frame)
         if emb is None:
-            self.set_register_status("얼굴을 찾지 못했습니다. 카메라를 정면으로 봐 주세요.")
+            self.register_status_label.setText("얼굴을 찾지 못했습니다. 정면을 바라봐주세요.")
             return
 
         if not self.register_embeddings:
             self.register_embeddings.append(emb)
             self.register_crops.append(crop)
-            self.update_register_preview()
-            self.set_register_status("첫 얼굴 샘플이 확보되었습니다. 같은 인물로 추가 촬영해 주세요.")
+            self.set_register_count()
+            self.register_status_label.setText("샘플 수집 시작. 계속 정면을 바라봐주세요.")
             return
 
         base = self.register_embeddings[0]
         sim = cosine_sim(base, emb)
-        if sim >= REGISTER_SIM_THRESHOLD:
-            self.register_embeddings.append(emb)
-            self.register_crops.append(crop)
-            self.update_register_preview()
-            if len(self.register_embeddings) >= REQUIRED_SIMILAR_COUNT:
-                self.set_register_status("얼굴 등록이 완료되었습니다.")
-                self.go_to(2)
-            else:
-                self.set_register_status(
-                    f"유사한 얼굴 확보: {len(self.register_embeddings)} / {REQUIRED_SIMILAR_COUNT} (유사도 {sim:.3f})"
-                )
-        else:
-            self.set_register_status(f"같은 사람으로 보기 어려운 샘플입니다. 다시 촬영해 주세요. (유사도 {sim:.3f})")
+        if sim < REGISTER_SIM_THRESHOLD:
+            self.register_status_label.setText(f"동일 인물 유사도 부족({sim:.3f}). 같은 인물이 계속 보이게 유지해 주세요.")
+            return
+
+        self.register_embeddings.append(emb)
+        self.register_crops.append(crop)
+        self.set_register_count()
+        self.register_status_label.setText(f"샘플 수집 중... ({len(self.register_embeddings)}/{REGISTER_TARGET_COUNT})")
+
+        if len(self.register_embeddings) >= REGISTER_TARGET_COUNT:
+            self.register_status_label.setText("얼굴등록이 완료되었어요! 이름을 입력해주세요")
+            self.go_to(UiPage.REGISTER_NAME)
 
     def save_registration(self):
         name = self.name_input.text().strip()
         if not name:
             self.show_error("이름을 입력해 주세요.")
             return
-        if len(self.register_embeddings) < REQUIRED_SIMILAR_COUNT:
-            self.show_error("아직 충분한 얼굴 샘플이 확보되지 않았습니다.")
+
+        if len(self.register_embeddings) < REGISTER_TARGET_COUNT:
+            self.show_error("얼굴 샘플이 아직 충분하지 않습니다.")
             return
 
         self.db.upsert_person(name, self.register_embeddings, self.register_crops)
-        self.register_done_label.setText(f"{name} 님의 얼굴 등록이 완료되었습니다.")
-        self.refresh_people_list()
-        self.go_to(3)
-
-    def start_auth(self):
         self.db.load()
-        if not self.db.people:
-            self.show_error("먼저 얼굴 등록을 해 주세요.")
-            return
-        self.auth_rankings = []
-        self.selected_name = None
-        self.go_to(4)
+        self.go_initial_state()
 
-    def capture_for_auth(self):
-        if self.current_frame is None:
-            self.show_error("카메라 프레임이 아직 없습니다.")
-            return
-
-        emb, _, _ = self.engine.embedding_and_crop(self.current_frame)
+    def apply_monitor_state_from_frame(self, frame: np.ndarray):
+        emb, _, _ = self.engine.embedding_and_crop(frame)
         if emb is None:
-            self.show_error("얼굴을 찾지 못했습니다. 다시 시도해 주세요.")
+            state_key = "idle"
+            if state_key != self.last_monitor_state_key:
+                self.apply_monitor_idle_state()
+                self.last_monitor_state_key = state_key
             return
 
         rankings = self.db.rank(emb, TOP_K)
         if not rankings:
-            self.show_error("등록된 사용자가 없습니다.")
+            state_key = "unknown:none"
+            if state_key != self.last_monitor_state_key:
+                self.apply_unregistered_state()
+                self.last_monitor_state_key = state_key
             return
 
         top_name, top_score = rankings[0]
+        if top_score < AUTH_SIM_THRESHOLD:
+            state_key = f"unknown:score:{round(top_score, 3)}"
+            if state_key != self.last_monitor_state_key:
+                self.apply_unregistered_state()
+                self.last_monitor_state_key = state_key
+            return
+
         second_score = rankings[1][1] if len(rankings) > 1 else -1.0
         margin = top_score - second_score if second_score >= 0 else top_score
-        self.auth_rankings = rankings
-        self.clear_layout(self.auth_candidates_box)
 
-        if top_score >= AUTH_SIM_THRESHOLD and margin >= AUTH_MARGIN_THRESHOLD:
-            self.auth_result_label.setText(f"1위가 명확합니다: {top_name} (점수 {top_score:.3f}, 차이 {margin:.3f})")
-            btn = CandidateButton(f"{top_name} 선택")
-            btn.clicked.connect(lambda: self.confirm_name(top_name))
-            self.auth_candidates_box.addWidget(btn)
-        else:
-            self.auth_result_label.setText("차이가 적어 상위 1~3위를 선택할 수 있습니다.")
-            for idx, (name, score) in enumerate(rankings, start=1):
-                btn = CandidateButton(f"{idx}위  {name}  |  점수 {score:.3f}")
-                btn.clicked.connect(lambda checked=False, n=name: self.confirm_name(n))
-                self.auth_candidates_box.addWidget(btn)
-        self.go_to(5)
+        if margin >= AUTH_MARGIN_THRESHOLD:
+            state_key = f"known:clear:{top_name}:{round(top_score, 3)}:{round(margin, 3)}"
+            if state_key != self.last_monitor_state_key:
+                self.apply_registered_clear_state(top_name, top_score, margin)
+                self.last_monitor_state_key = state_key
+            return
 
-    def confirm_name(self, name: str):
-        self.selected_name = name
-        self.greeting_name_label.setText(f"선택된 사용자: {name}")
-        self.go_to(6)
+        top3 = rankings[:3]
+        state_key = "known:ambiguous:" + "|".join([f"{n}:{round(s, 3)}" for n, s in top3])
+        if state_key != self.last_monitor_state_key:
+            self.apply_registered_ambiguous_state(top3)
+            self.last_monitor_state_key = state_key
+
+    def on_frame(self, frame: np.ndarray):
+        self.current_frame = frame.copy()
+        display, bbox = self.engine.detect_and_draw_bbox(frame)
+        self.current_bbox = bbox
+
+        page = self.stack.currentIndex()
+        if page == UiPage.MONITOR:
+            self.video_panel_monitor.update_frame(display)
+            self.analyze_frame_tick += 1
+            if self.analyze_frame_tick % ANALYZE_EVERY_N_FRAMES == 0:
+                self.apply_monitor_state_from_frame(frame)
+        elif page == UiPage.REGISTER_CAPTURE:
+            self.video_panel_register.update_frame(display)
+            self.handle_register_capture(frame)
+
+    def show_error(self, message: str):
+        QMessageBox.critical(self, "오류", message)
 
     def closeEvent(self, event):
         try:
@@ -598,7 +559,6 @@ def run_app() -> int:
     app.setStyleSheet(
         """
     QWidget { background: #f6f7fb; color: #111; font-family: Arial, Helvetica, sans-serif; }
-    QListWidget { background:#fff; border:1px solid #e7e7e7; border-radius:14px; padding:8px; }
     QProgressBar { background:#ededed; border:none; border-radius:10px; text-align:center; min-height:18px; }
     QProgressBar::chunk { background:#111; border-radius:10px; }
     """
