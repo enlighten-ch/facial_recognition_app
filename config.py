@@ -109,7 +109,17 @@ PRINTER_LP_COMMAND = "lp"
 PRINTER_TIMEOUT_SEC = 10
 PRINTER_COPIES = 1
 PRINTER_JOB_TITLE_PREFIX = "FaceRecognition"
-PRINTER_CONTENT_TEMPLATE = "이름: {name}\n출력시각: {timestamp}\n"
+PRINTER_CONTENT_TEMPLATE = "이름: {name}\n"
+PRINT_TEXT_BASE_FONT_SIZE = 48
+PRINT_TEXT_SCALE_MULTIPLIER = 5
+PRINT_FONT_CANDIDATES = (
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",
+    "/usr/share/fonts/opentype/noto/NotoSerifCJK-Regular.ttc",
+    "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",
+    "/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+)
 
 # Registration data collection
 REGISTER_DIRECTIONS = ("left", "right", "up", "down")
@@ -194,6 +204,12 @@ RUNTIME_SETTING_CATEGORIES = {
     "Printer": [
         "PRINT_ENABLED",
         "PRINTER_NAME",
+        "PRINTER_TIMEOUT_SEC",
+        "PRINTER_COPIES",
+        "PRINTER_JOB_TITLE_PREFIX",
+        "PRINTER_CONTENT_TEMPLATE",
+        "PRINT_TEXT_BASE_FONT_SIZE",
+        "PRINT_TEXT_SCALE_MULTIPLIER",
     ],
 }
 
@@ -227,6 +243,12 @@ RUNTIME_SETTING_DISPLAY_NAMES = {
     "ADAPTIVE_UPDATE_MAX_SAMPLES_PER_SESSION": "세션당 자동 보정 최대 수",
     "PRINT_ENABLED": "프린터 사용",
     "PRINTER_NAME": "프린터 이름 (비우면 기본 프린터)",
+    "PRINTER_TIMEOUT_SEC": "출력 타임아웃(초)",
+    "PRINTER_COPIES": "출력 매수",
+    "PRINTER_JOB_TITLE_PREFIX": "출력 작업 제목 접두어",
+    "PRINTER_CONTENT_TEMPLATE": "출력 문구 템플릿",
+    "PRINT_TEXT_BASE_FONT_SIZE": "출력 기본 글자 크기",
+    "PRINT_TEXT_SCALE_MULTIPLIER": "출력 글자 확대 배율",
 }
 
 _RUNTIME_SETTING_KEYS = []

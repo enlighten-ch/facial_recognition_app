@@ -1,7 +1,6 @@
 import os
 import subprocess
 import tempfile
-from datetime import datetime
 from typing import Tuple
 
 from config import (
@@ -11,6 +10,9 @@ from config import (
     PRINT_SENT_TEXT_FMT,
     PRINTER_CONTENT_TEMPLATE,
     PRINTER_COPIES,
+    PRINT_FONT_CANDIDATES,
+    PRINT_TEXT_BASE_FONT_SIZE,
+    PRINT_TEXT_SCALE_MULTIPLIER,
     PRINTER_JOB_TITLE_PREFIX,
     PRINTER_LP_COMMAND,
     PRINTER_NAME,
@@ -27,26 +29,79 @@ class PrinterService:
         self.copies = max(1, int(PRINTER_COPIES))
         self.job_title_prefix = PRINTER_JOB_TITLE_PREFIX
 
+    def _pick_font_path(self) -> str:
+        for path in PRINT_FONT_CANDIDATES:
+            if os.path.exists(path):
+                return path
+        # Fallback: ask fontconfig for any Korean-capable font path.
+        try:
+            proc = subprocess.run(
+                ["fc-list", ":lang=ko", "file"],
+                capture_output=True,
+                text=True,
+                timeout=3,
+                check=False,
+            )
+            if proc.returncode == 0:
+                for line in (proc.stdout or "").splitlines():
+                    p = line.strip().split(":", 1)[0]
+                    if p and os.path.exists(p):
+                        return p
+        except Exception:
+            pass
+        return ""
+
+    def _render_text_as_png(self, content: str) -> str:
+        # Prefer image-based printing so Korean glyphs are preserved and text size is predictable.
+        try:
+            from PIL import Image, ImageDraw, ImageFont
+        except Exception as exc:
+            raise RuntimeError(f"Pillow is required for image print mode: {exc}") from exc
+
+        font_size = max(12, int(PRINT_TEXT_BASE_FONT_SIZE * PRINT_TEXT_SCALE_MULTIPLIER))
+        font_path = self._pick_font_path()
+        if font_path:
+            font = ImageFont.truetype(font_path, font_size)
+        else:
+            font = ImageFont.load_default()
+
+        # A4 @300dpi canvas
+        width, height = 2480, 3508
+        image = Image.new("RGB", (width, height), "white")
+        draw = ImageDraw.Draw(image)
+
+        left_margin = 180
+        top_margin = 240
+        line_gap = int(font_size * 0.35)
+
+        y = top_margin
+        for line in content.splitlines():
+            if not line:
+                y += font_size + line_gap
+                continue
+            draw.text((left_margin, y), line, fill="black", font=font)
+            y += font_size + line_gap
+
+        fd, out_path = tempfile.mkstemp(
+            suffix=".png",
+            prefix="print_job_",
+            dir=DATA_DIR,
+        )
+        os.close(fd)
+        image.save(out_path, format="PNG")
+        return out_path
+
     def print_name(self, name: str) -> Tuple[bool, str]:
         if not self.enabled:
             return True, ""
 
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        content = PRINTER_CONTENT_TEMPLATE.format(name=name, timestamp=timestamp)
+        content = PRINTER_CONTENT_TEMPLATE.format(name=name)
 
         os.makedirs(DATA_DIR, exist_ok=True)
         tmp_path = ""
         try:
-            with tempfile.NamedTemporaryFile(
-                mode="w",
-                encoding="utf-8",
-                delete=False,
-                suffix=".txt",
-                prefix="print_job_",
-                dir=DATA_DIR,
-            ) as fp:
-                fp.write(content)
-                tmp_path = fp.name
+            # Render to image first for Korean-safe output and large text control.
+            tmp_path = self._render_text_as_png(content)
 
             cmd = [self.lp_cmd]
             if self.printer_name:

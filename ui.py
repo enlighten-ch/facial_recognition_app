@@ -163,6 +163,7 @@ class CameraWorker(QThread):
             if not ok:
                 self.error_signal.emit(ERROR_CAMERA_READ_TEXT)
                 break
+            frame = cv2.flip(frame, 1)
             self.frame_ready.emit(frame.copy())
             self.msleep(30)
 
