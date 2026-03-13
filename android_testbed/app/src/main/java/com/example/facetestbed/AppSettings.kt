@@ -4,6 +4,7 @@ import android.content.Context
 import org.json.JSONObject
 
 data class AppSettings(
+    val faceDataDir: String = "",
     val authSimThreshold: Float = 0.40f,
     val authMarginThreshold: Float = 0.10f,
     val topK: Int = 3,
@@ -41,6 +42,7 @@ class AppSettingsStore(context: Context) {
         return runCatching {
             val o = JSONObject(raw)
             AppSettings(
+                faceDataDir = o.optString("FACE_DATA_DIR", ""),
                 authSimThreshold = o.optDouble("AUTH_SIM_THRESHOLD", 0.40).toFloat(),
                 authMarginThreshold = o.optDouble("AUTH_MARGIN_THRESHOLD", 0.10).toFloat(),
                 topK = o.optInt("TOP_K", 3),
@@ -74,6 +76,7 @@ class AppSettingsStore(context: Context) {
 
     fun save(settings: AppSettings) {
         val o = JSONObject()
+        o.put("FACE_DATA_DIR", settings.faceDataDir)
         o.put("AUTH_SIM_THRESHOLD", settings.authSimThreshold.toDouble())
         o.put("AUTH_MARGIN_THRESHOLD", settings.authMarginThreshold.toDouble())
         o.put("TOP_K", settings.topK)

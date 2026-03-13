@@ -79,6 +79,12 @@
                 android:id="@+id/previewView"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent" />
+
+            <com.example.facetestbed.EllipseMaskOverlayView
+                android:id="@+id/ellipseOverlay"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:visibility="gone" />
         </FrameLayout>
 
         <FrameLayout

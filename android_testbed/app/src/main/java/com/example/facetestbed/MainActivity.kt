@@ -9,6 +9,7 @@ import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.ViewFlipper
+import android.view.View
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -54,6 +55,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var settingsButton: Button
     private lateinit var quitButton: Button
     private lateinit var previewView: PreviewView
+    private lateinit var ellipseOverlay: EllipseMaskOverlayView
     private lateinit var pageFlipper: ViewFlipper
 
     private lateinit var monitorStatusText: TextView
@@ -114,9 +116,10 @@ class MainActivity : AppCompatActivity() {
         bindViews()
 
         faceDb = FaceDatabase(File(filesDir, "face_db.json"))
-        faceEngine = FaceRecognitionEngine()
+        faceEngine = FaceRecognitionEngine(this)
         settingsStore = AppSettingsStore(this)
         settings = settingsStore.load()
+        applyEllipseSettings()
 
         registerStartButton.setOnClickListener { startAutoRegistration() }
         outputNameButton.setOnClickListener { outputSelectedName() }
@@ -141,6 +144,7 @@ class MainActivity : AppCompatActivity() {
         settingsButton = findViewById(R.id.settingsButton)
         quitButton = findViewById(R.id.quitButton)
         previewView = findViewById(R.id.previewView)
+        ellipseOverlay = findViewById(R.id.ellipseOverlay)
         pageFlipper = findViewById(R.id.pageFlipper)
 
         monitorStatusText = findViewById(R.id.monitorStatusText)
@@ -165,6 +169,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun goTo(page: Int) {
         pageFlipper.displayedChild = page
+        updateEllipseOverlay()
         when (page) {
             PAGE_MONITOR -> {
                 headerTitle.text = "얼굴 인식"
@@ -517,6 +522,10 @@ class MainActivity : AppCompatActivity() {
             try {
                 provider.unbindAll()
                 provider.bindToLifecycle(this, selector, preview, analysis)
+                runOnUiThread {
+                    val modelLabel = if (faceEngine.isBuffaloReady()) "buffalo_l ONNX" else "geometry fallback"
+                    monitorDetailText.text = "모델: $modelLabel"
+                }
             } catch (t: Throwable) {
                 showError("카메라 바인딩 실패: ${t.javaClass.simpleName}")
             }
@@ -538,46 +547,58 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        val inputImage = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
+        val bitmap = ImageProxyBitmapConverter.toUprightBitmap(imageProxy)
+        if (bitmap == null) {
+            frameInFlight.set(false)
+            imageProxy.close()
+            return
+        }
+
+        val inputImage = InputImage.fromBitmap(bitmap, 0)
         lastImageWidth = inputImage.width
         lastImageHeight = inputImage.height
 
         faceEngine.detectLargestFace(inputImage)
             .addOnSuccessListener { faces ->
-                val face = pickLargestFace(faces)
-                val page = currentPage()
-                if (face == null) {
-                    if (page == PAGE_MONITOR) {
-                        val stateKey = "idle"
-                        if (stateKey != lastMonitorStateKey) {
-                            runOnUiThread { applyMonitorIdleState() }
-                            lastMonitorStateKey = stateKey
-                        }
-                    } else if (page == PAGE_REGISTER_CAPTURE) {
-                        runOnUiThread {
-                            val t = nextTargetDirection()
-                            if (t != null) {
-                                registerStatusText.text = "얼굴을 찾지 못했습니다. 화면 중앙으로 와주세요.\n${DIRECTION_PROMPTS[t]}\n진행: ${summarizeDirectionProgress()}"
+                try {
+                    val face = pickLargestFace(faces)
+                    val page = currentPage()
+                    if (face == null) {
+                        if (page == PAGE_MONITOR) {
+                            val stateKey = "idle"
+                            if (stateKey != lastMonitorStateKey) {
+                                runOnUiThread { applyMonitorIdleState() }
+                                lastMonitorStateKey = stateKey
+                            }
+                        } else if (page == PAGE_REGISTER_CAPTURE) {
+                            runOnUiThread {
+                                val t = nextTargetDirection()
+                                if (t != null) {
+                                    registerStatusText.text = "얼굴을 찾지 못했습니다. 화면 중앙으로 와주세요.\n${DIRECTION_PROMPTS[t]}\n진행: ${summarizeDirectionProgress()}"
+                                }
                             }
                         }
+                        return@addOnSuccessListener
                     }
-                    return@addOnSuccessListener
-                }
 
-                val embedding = faceEngine.makeEmbedding(face, inputImage.width, inputImage.height)
-                when (page) {
-                    PAGE_MONITOR -> {
-                        analyzeFrameTick += 1
-                        if (analyzeFrameTick % settings.analyzeEveryNFrames.coerceAtLeast(1) == 0L) {
-                            runOnUiThread { applyMonitorStateFromFace(face, embedding) }
+                    val embedding = faceEngine.makeEmbedding(face, bitmap)
+                    when (page) {
+                        PAGE_MONITOR -> {
+                            analyzeFrameTick += 1
+                            if (analyzeFrameTick % settings.analyzeEveryNFrames.coerceAtLeast(1) == 0L) {
+                                runOnUiThread { applyMonitorStateFromFace(face, embedding) }
+                            }
+                        }
+                        PAGE_REGISTER_CAPTURE -> {
+                            runOnUiThread { handleRegisterCapture(face, embedding) }
                         }
                     }
-                    PAGE_REGISTER_CAPTURE -> {
-                        runOnUiThread { handleRegisterCapture(face, embedding) }
-                    }
+                } finally {
+                    bitmap.recycle()
                 }
             }
             .addOnFailureListener { err ->
+                bitmap.recycle()
                 runOnUiThread { showError("얼굴 분석 실패: ${err.javaClass.simpleName}") }
             }
             .addOnCompleteListener {
@@ -634,11 +655,26 @@ class MainActivity : AppCompatActivity() {
         SettingsDialog.show(this, settings) { updated ->
             settings = updated
             settingsStore.save(updated)
+            applyEllipseSettings()
             setRegisterCount()
             resetRegistrationState()
             goInitialState()
             restartCamera()
         }
+    }
+
+    private fun updateEllipseOverlay() {
+        val visible = currentPage() == PAGE_REGISTER_CAPTURE ||
+            (currentPage() == PAGE_MONITOR && settings.recognitionUseEllipseMask)
+        ellipseOverlay.visibility = if (visible) View.VISIBLE else View.GONE
+    }
+
+    private fun applyEllipseSettings() {
+        ellipseOverlay.axisXRatio = settings.registerEllipseAxisXRatio
+        ellipseOverlay.axisYRatio = settings.registerEllipseAxisYRatio
+        ellipseOverlay.centerYOffsetRatio = settings.registerEllipseCenterYOffsetRatio
+        ellipseOverlay.outsideDimAlpha = settings.registerEllipseOutsideDimAlpha
+        updateEllipseOverlay()
     }
 
     private fun showError(message: String) {
