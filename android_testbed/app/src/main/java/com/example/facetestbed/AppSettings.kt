@@ -24,6 +24,7 @@ data class AppSettings(
     val adaptiveUpdateMaxSim: Float = 0.62f,
     val adaptiveUpdateMinIntervalFrames: Int = 30,
     val adaptiveUpdateMaxSamplesPerSession: Int = 20,
+    val adaptiveUpdateIdleSeconds: Int = 5,
     val dbSyncEnabled: Boolean = true,
     val dbServerBaseUrl: String = "http://127.0.0.1:18080",
     val dbClientId: String = "",
@@ -85,6 +86,7 @@ class AppSettingsStore(context: Context) {
                 adaptiveUpdateMaxSim = o.optDouble("ADAPTIVE_UPDATE_MAX_SIM", 0.62).toFloat(),
                 adaptiveUpdateMinIntervalFrames = o.optInt("ADAPTIVE_UPDATE_MIN_INTERVAL_FRAMES", 30),
                 adaptiveUpdateMaxSamplesPerSession = o.optInt("ADAPTIVE_UPDATE_MAX_SAMPLES_PER_SESSION", 20),
+                adaptiveUpdateIdleSeconds = o.optInt("ADAPTIVE_UPDATE_IDLE_SECONDS", 5),
                 dbSyncEnabled = o.optBoolean("DB_SYNC_ENABLED", true),
                 dbServerBaseUrl = o.optString("DB_SERVER_BASE_URL", "http://127.0.0.1:18080"),
                 dbClientId = o.optString("DB_CLIENT_ID", ""),
@@ -130,6 +132,7 @@ class AppSettingsStore(context: Context) {
         o.put("ADAPTIVE_UPDATE_MAX_SIM", settings.adaptiveUpdateMaxSim.toDouble())
         o.put("ADAPTIVE_UPDATE_MIN_INTERVAL_FRAMES", settings.adaptiveUpdateMinIntervalFrames)
         o.put("ADAPTIVE_UPDATE_MAX_SAMPLES_PER_SESSION", settings.adaptiveUpdateMaxSamplesPerSession)
+        o.put("ADAPTIVE_UPDATE_IDLE_SECONDS", settings.adaptiveUpdateIdleSeconds)
         o.put("DB_SYNC_ENABLED", settings.dbSyncEnabled)
         o.put("DB_SERVER_BASE_URL", settings.dbServerBaseUrl)
         o.put("DB_CLIENT_ID", settings.dbClientId)

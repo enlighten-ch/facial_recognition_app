@@ -334,7 +334,7 @@ class MainActivity : AppCompatActivity() {
             setBackgroundColor(if (isHeader) Color.parseColor("#1A3D8F") else Color.parseColor("#EEF3FF"))
             textSize = if (isHeader) 14f else 13f
         }
-        val lp = TableRow.LayoutParams(0, TableRow.LayoutParams.WRAP_CONTENT, 1f)
+        val lp = TableRow.LayoutParams(TableRow.LayoutParams.WRAP_CONTENT, TableRow.LayoutParams.WRAP_CONTENT)
         lp.setMargins(2, 2, 2, 2)
         row.addView(tv, lp)
     }
@@ -345,7 +345,7 @@ class MainActivity : AppCompatActivity() {
             textSize = 12f
             setOnClickListener { onClick() }
         }
-        val lp = TableRow.LayoutParams(0, TableRow.LayoutParams.WRAP_CONTENT, 1f)
+        val lp = TableRow.LayoutParams(TableRow.LayoutParams.WRAP_CONTENT, TableRow.LayoutParams.WRAP_CONTENT)
         lp.setMargins(2, 2, 2, 2)
         row.addView(actionButton, lp)
     }

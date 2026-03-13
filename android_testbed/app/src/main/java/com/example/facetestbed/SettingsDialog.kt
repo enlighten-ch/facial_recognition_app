@@ -71,11 +71,14 @@ object SettingsDialog {
         val adaptiveMax = numberField(content, context, "자동 보정 유사도 상한", current.adaptiveUpdateMaxSim.toString(), false)
         val adaptiveMinInterval = numberField(content, context, "자동 보정 최소 프레임 간격", current.adaptiveUpdateMinIntervalFrames.toString(), true)
         val adaptiveMaxSamples = numberField(content, context, "세션당 자동 보정 최대 횟수", current.adaptiveUpdateMaxSamplesPerSession.toString(), true)
+        val adaptiveIdleSeconds = numberField(content, context, "DB 업데이트 유휴시간(초)", current.adaptiveUpdateIdleSeconds.toString(), true)
 
         section(content, context, "DB 서버 동기화")
         val dbSyncEnabled = boolField(content, context, "서버 동기화 사용", current.dbSyncEnabled)
         val dbServerBaseUrl = textField(content, context, "DB 서버 주소", current.dbServerBaseUrl)
         val dbClientId = textField(content, context, "클라이언트 ID (비우면 자동 생성)", current.dbClientId)
+        val dbDeviceName = textField(content, context, "디바이스 이름 (비우면 자동 생성)", current.dbDeviceName)
+        val dbAuthToken = textField(content, context, "DB 인증 토큰", current.dbAuthToken)
 
         section(content, context, "프린터")
         val printEnabled = boolField(content, context, "프린터 사용", current.printEnabled)
@@ -125,11 +128,12 @@ object SettingsDialog {
                     adaptiveUpdateMaxSim = adaptiveMax.asFloat(current.adaptiveUpdateMaxSim),
                     adaptiveUpdateMinIntervalFrames = adaptiveMinInterval.asInt(current.adaptiveUpdateMinIntervalFrames).coerceAtLeast(1),
                     adaptiveUpdateMaxSamplesPerSession = adaptiveMaxSamples.asInt(current.adaptiveUpdateMaxSamplesPerSession).coerceAtLeast(1),
+                    adaptiveUpdateIdleSeconds = adaptiveIdleSeconds.asInt(current.adaptiveUpdateIdleSeconds).coerceAtLeast(1),
                     dbSyncEnabled = dbSyncEnabled.isChecked,
                     dbServerBaseUrl = dbServerBaseUrl.text.toString().trim(),
                     dbClientId = dbClientId.text.toString().trim(),
-                    dbAuthToken = current.dbAuthToken,
-                    dbDeviceName = current.dbDeviceName,
+                    dbAuthToken = dbAuthToken.text.toString().trim(),
+                    dbDeviceName = dbDeviceName.text.toString().trim(),
                     printEnabled = printEnabled.isChecked,
                     printerModel = if (printerModel.selectedItemPosition == 1) PrinterModel.NEMONIC else PrinterModel.SYSTEM,
                     printerName = printerName.text.toString(),

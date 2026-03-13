@@ -29,6 +29,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
+import org.json.JSONTokener
 import java.io.File
 import java.security.MessageDigest
 import java.text.SimpleDateFormat
@@ -628,8 +629,17 @@ class FaceDbServerEngine(
             log("DB 초기화: ${dbStorageBackend.description()}")
             return
         }
-        val loaded = runCatching { JSONObject(raw) }.getOrNull()
-        currentDb = loaded ?: JSONObject().put("people", JSONArray())
+        val parsed = runCatching { JSONTokener(raw).nextValue() }.getOrNull()
+        val normalized = when (parsed) {
+            is JSONObject -> normalizeDbRoot(parsed)
+            is JSONArray -> JSONObject().put("people", parsed)
+            else -> null
+        }
+        if (normalized == null) {
+            log("DB 로드 실패: JSON 파싱 오류(${dbStorageBackend.description()})")
+            return
+        }
+        currentDb = normalized
         revision.set(1)
         log("DB 로드 완료: ${dbStorageBackend.description()}")
     }
@@ -655,6 +665,16 @@ class FaceDbServerEngine(
             return FileDbStorageBackend(File(dir, "face_db.json"))
         }
         return FileDbStorageBackend(File(serverDataDir, "face_db.json"))
+    }
+
+    private fun normalizeDbRoot(root: JSONObject): JSONObject {
+        val arr = extractPeopleArray(root)
+        val people = JSONArray()
+        for (i in 0 until arr.length()) {
+            val person = arr.optJSONObject(i) ?: continue
+            people.put(JSONObject(person.toString()))
+        }
+        return JSONObject().put("people", people)
     }
 
     private fun loadAuthStateFromDisk() {
