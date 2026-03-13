@@ -5,14 +5,22 @@ import android.content.Context
 import android.text.InputType
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.Spinner
 import android.widget.Switch
 import android.widget.TextView
+import android.widget.ArrayAdapter
 
 object SettingsDialog {
-    fun show(context: Context, current: AppSettings, onSave: (AppSettings) -> Unit) {
+    fun show(
+        context: Context,
+        current: AppSettings,
+        onPickFolderRequested: ((String?) -> Unit) -> Unit,
+        onSave: (AppSettings) -> Unit,
+    ) {
         val root = ScrollView(context)
         val content = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
@@ -21,7 +29,21 @@ object SettingsDialog {
         root.addView(content, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
         section(content, context, "저장 위치")
-        val faceDataDir = textField(content, context, "얼굴 정보 저장 폴더 경로 (비우면 기본 폴더)", current.faceDataDir)
+        val faceDataDir = textField(content, context, "얼굴 정보 저장 폴더", current.faceDataDir)
+        faceDataDir.isFocusable = false
+        faceDataDir.isClickable = false
+        faceDataDir.hint = "선택된 폴더 URI가 표시됩니다"
+        val pickFolderBtn = Button(context).apply {
+            text = "폴더 트리에서 선택"
+            setOnClickListener {
+                onPickFolderRequested { selected ->
+                    if (selected != null) {
+                        faceDataDir.setText(selected)
+                    }
+                }
+            }
+        }
+        content.addView(pickFolderBtn)
 
         section(content, context, "인식")
         val authSim = numberField(content, context, "인식 최소 유사도 (높을수록 엄격)", current.authSimThreshold.toString(), false)
@@ -52,7 +74,15 @@ object SettingsDialog {
 
         section(content, context, "프린터")
         val printEnabled = boolField(content, context, "프린터 사용", current.printEnabled)
-        val printerName = textField(content, context, "프린터 이름 (비우면 기본)", current.printerName)
+        val printerModel = choiceField(
+            parent = content,
+            context = context,
+            label = "프린터 모델",
+            items = listOf("기본 프린터", "Nemonic"),
+            selectedIndex = if (current.printerModel == PrinterModel.NEMONIC) 1 else 0,
+        )
+        val printerName = textField(content, context, "프린터 이름", current.printerName)
+        val nemonicMac = textField(content, context, "네모닉 MAC 주소", current.nemonicPrinterMacAddress)
         val printerTimeout = numberField(content, context, "출력 대기시간(초)", current.printerTimeoutSec.toString(), true)
         val printerCopies = numberField(content, context, "출력 매수", current.printerCopies.toString(), true)
         val printerTitlePrefix = textField(content, context, "출력 작업 제목 접두어", current.printerJobTitlePrefix)
@@ -87,7 +117,9 @@ object SettingsDialog {
                     adaptiveUpdateMinIntervalFrames = adaptiveMinInterval.asInt(current.adaptiveUpdateMinIntervalFrames).coerceAtLeast(1),
                     adaptiveUpdateMaxSamplesPerSession = adaptiveMaxSamples.asInt(current.adaptiveUpdateMaxSamplesPerSession).coerceAtLeast(1),
                     printEnabled = printEnabled.isChecked,
+                    printerModel = if (printerModel.selectedItemPosition == 1) PrinterModel.NEMONIC else PrinterModel.SYSTEM,
                     printerName = printerName.text.toString(),
+                    nemonicPrinterMacAddress = nemonicMac.text.toString(),
                     printerTimeoutSec = printerTimeout.asInt(current.printerTimeoutSec).coerceAtLeast(1),
                     printerCopies = printerCopies.asInt(current.printerCopies).coerceAtLeast(1),
                     printerJobTitlePrefix = printerTitlePrefix.text.toString(),
@@ -143,6 +175,30 @@ object SettingsDialog {
         }
         parent.addView(sw)
         return sw
+    }
+
+    private fun choiceField(
+        parent: LinearLayout,
+        context: Context,
+        label: String,
+        items: List<String>,
+        selectedIndex: Int,
+    ): Spinner {
+        val box = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(context, 4), 0, dp(context, 4))
+        }
+        val tv = TextView(context).apply { text = label }
+        val spinner = Spinner(context)
+        val adapter = ArrayAdapter(context, android.R.layout.simple_spinner_item, items).apply {
+            setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        }
+        spinner.adapter = adapter
+        spinner.setSelection(selectedIndex.coerceIn(0, items.lastIndex))
+        box.addView(tv)
+        box.addView(spinner)
+        parent.addView(box)
+        return spinner
     }
 
     private fun EditText.asInt(default: Int): Int = text.toString().trim().toIntOrNull() ?: default

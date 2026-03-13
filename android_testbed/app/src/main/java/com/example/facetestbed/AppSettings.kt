@@ -25,7 +25,9 @@ data class AppSettings(
     val adaptiveUpdateMinIntervalFrames: Int = 30,
     val adaptiveUpdateMaxSamplesPerSession: Int = 20,
     val printEnabled: Boolean = true,
+    val printerModel: String = PrinterModel.SYSTEM,
     val printerName: String = "",
+    val nemonicPrinterMacAddress: String = "",
     val printerTimeoutSec: Int = 10,
     val printerCopies: Int = 1,
     val printerJobTitlePrefix: String = "FaceRecognition",
@@ -33,6 +35,18 @@ data class AppSettings(
     val printTextBaseFontSize: Int = 48,
     val printTextScaleMultiplier: Int = 5,
 )
+
+object PrinterModel {
+    const val SYSTEM = "system"
+    const val NEMONIC = "nemonic"
+
+    fun sanitize(value: String?): String {
+        return when (value) {
+            NEMONIC -> NEMONIC
+            else -> SYSTEM
+        }
+    }
+}
 
 class AppSettingsStore(context: Context) {
     private val prefs = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
@@ -63,7 +77,9 @@ class AppSettingsStore(context: Context) {
                 adaptiveUpdateMinIntervalFrames = o.optInt("ADAPTIVE_UPDATE_MIN_INTERVAL_FRAMES", 30),
                 adaptiveUpdateMaxSamplesPerSession = o.optInt("ADAPTIVE_UPDATE_MAX_SAMPLES_PER_SESSION", 20),
                 printEnabled = o.optBoolean("PRINT_ENABLED", true),
+                printerModel = PrinterModel.sanitize(o.optString("PRINTER_MODEL", PrinterModel.SYSTEM)),
                 printerName = o.optString("PRINTER_NAME", ""),
+                nemonicPrinterMacAddress = o.optString("NEMONIC_PRINTER_MAC_ADDRESS", ""),
                 printerTimeoutSec = o.optInt("PRINTER_TIMEOUT_SEC", 10),
                 printerCopies = o.optInt("PRINTER_COPIES", 1),
                 printerJobTitlePrefix = o.optString("PRINTER_JOB_TITLE_PREFIX", "FaceRecognition"),
@@ -97,7 +113,9 @@ class AppSettingsStore(context: Context) {
         o.put("ADAPTIVE_UPDATE_MIN_INTERVAL_FRAMES", settings.adaptiveUpdateMinIntervalFrames)
         o.put("ADAPTIVE_UPDATE_MAX_SAMPLES_PER_SESSION", settings.adaptiveUpdateMaxSamplesPerSession)
         o.put("PRINT_ENABLED", settings.printEnabled)
+        o.put("PRINTER_MODEL", settings.printerModel)
         o.put("PRINTER_NAME", settings.printerName)
+        o.put("NEMONIC_PRINTER_MAC_ADDRESS", settings.nemonicPrinterMacAddress)
         o.put("PRINTER_TIMEOUT_SEC", settings.printerTimeoutSec)
         o.put("PRINTER_COPIES", settings.printerCopies)
         o.put("PRINTER_JOB_TITLE_PREFIX", settings.printerJobTitlePrefix)

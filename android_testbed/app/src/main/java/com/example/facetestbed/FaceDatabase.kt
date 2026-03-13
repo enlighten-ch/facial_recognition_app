@@ -1,5 +1,8 @@
 package com.example.facetestbed
 
+import android.content.Context
+import android.net.Uri
+import androidx.documentfile.provider.DocumentFile
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -11,7 +14,13 @@ data class PersonRecord(
     val embeddings: MutableList<FloatArray>,
 )
 
-class FaceDatabase(private val dbFile: File) {
+class FaceDatabase private constructor(private val backend: StorageBackend) {
+    constructor(dbFile: File) : this(FileStorageBackend(dbFile))
+
+    constructor(context: Context, treeUri: Uri, fileName: String = "face_db.json") : this(
+        TreeUriStorageBackend(context, treeUri, fileName)
+    )
+
     private val people = mutableListOf<PersonRecord>()
 
     init {
@@ -56,8 +65,7 @@ class FaceDatabase(private val dbFile: File) {
     }
 
     private fun load() {
-        if (!dbFile.exists()) return
-        val raw = runCatching { dbFile.readText() }.getOrNull() ?: return
+        val raw = backend.readText() ?: return
         val root = runCatching { JSONObject(raw) }.getOrNull() ?: return
         val arr = root.optJSONArray("people") ?: return
 
@@ -95,8 +103,7 @@ class FaceDatabase(private val dbFile: File) {
             arr.put(obj)
         }
         root.put("people", arr)
-        dbFile.parentFile?.mkdirs()
-        dbFile.writeText(root.toString(2))
+        backend.writeText(root.toString(2))
     }
 
     private fun pruneToLimit(embeddings: MutableList<FloatArray>, limit: Int): List<FloatArray> {
@@ -167,5 +174,52 @@ class FaceDatabase(private val dbFile: File) {
             out[i] = arr.optDouble(i, 0.0).toFloat()
         }
         return out
+    }
+
+    private interface StorageBackend {
+        fun readText(): String?
+        fun writeText(raw: String): Boolean
+    }
+
+    private class FileStorageBackend(private val dbFile: File) : StorageBackend {
+        override fun readText(): String? {
+            if (!dbFile.exists()) return null
+            return runCatching { dbFile.readText() }.getOrNull()
+        }
+
+        override fun writeText(raw: String): Boolean {
+            dbFile.parentFile?.mkdirs()
+            return runCatching {
+                dbFile.writeText(raw)
+            }.isSuccess
+        }
+    }
+
+    private class TreeUriStorageBackend(
+        private val context: Context,
+        private val treeUri: Uri,
+        private val fileName: String,
+    ) : StorageBackend {
+        override fun readText(): String? {
+            val file = resolveDocumentFile(createIfMissing = false) ?: return null
+            return runCatching {
+                context.contentResolver.openInputStream(file.uri)?.bufferedReader()?.use { it.readText() }
+            }.getOrNull()
+        }
+
+        override fun writeText(raw: String): Boolean {
+            val file = resolveDocumentFile(createIfMissing = true) ?: return false
+            return runCatching {
+                context.contentResolver.openOutputStream(file.uri, "wt")?.bufferedWriter()?.use { it.write(raw) } != null
+            }.getOrDefault(false)
+        }
+
+        private fun resolveDocumentFile(createIfMissing: Boolean): DocumentFile? {
+            val root = DocumentFile.fromTreeUri(context, treeUri) ?: return null
+            val existing = root.findFile(fileName)
+            if (existing != null) return existing
+            if (!createIfMissing) return null
+            return root.createFile("application/json", fileName)
+        }
     }
 }

@@ -1,8 +1,17 @@
 package com.example.facetestbed
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.os.Build
+import android.net.Uri
 import android.os.Bundle
+import android.text.Layout
+import android.text.StaticLayout
+import android.text.TextPaint
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -22,6 +31,13 @@ import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.Face
+import com.mangoslab.nemonicsdk.INPrinterControllerCallback
+import com.mangoslab.nemonicsdk.NPrintInfo
+import com.mangoslab.nemonicsdk.NPrinter
+import com.mangoslab.nemonicsdk.NPrinterController
+import com.mangoslab.nemonicsdk.constants.NPrintQuality
+import com.mangoslab.nemonicsdk.constants.NPrinterType
+import com.mangoslab.nemonicsdk.constants.NResult
 import java.io.File
 import java.util.Locale
 import java.util.concurrent.Executors
@@ -96,6 +112,8 @@ class MainActivity : AppCompatActivity() {
 
     private var adaptiveLastFrame = -1_000_000_000L
     private var adaptiveUpdateCount = 0
+    private var pendingFolderPickerCallback: ((String?) -> Unit)? = null
+    private var pendingNemonicPrintName: String? = null
 
     private val registerDirectionEmbeddings = mutableMapOf(
         "left" to mutableListOf<FloatArray>(),
@@ -109,16 +127,42 @@ class MainActivity : AppCompatActivity() {
             if (granted) startCamera() else showError("카메라 권한이 필요합니다.")
         }
 
+    private val folderPickerLauncher =
+        registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+            val callback = pendingFolderPickerCallback
+            pendingFolderPickerCallback = null
+            if (uri == null) {
+                callback?.invoke(null)
+                return@registerForActivityResult
+            }
+            val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            runCatching { contentResolver.takePersistableUriPermission(uri, flags) }
+            callback?.invoke(uri.toString())
+        }
+
+    private val nemonicPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
+            val targetName = pendingNemonicPrintName
+            pendingNemonicPrintName = null
+            if (targetName.isNullOrBlank()) return@registerForActivityResult
+            val granted = grants.entries.all { it.value }
+            if (!granted) {
+                outputSubLabel.text = "네모닉 출력 권한이 거부되었습니다."
+                return@registerForActivityResult
+            }
+            printWithNemonic(targetName)
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
         bindViews()
 
-        faceDb = FaceDatabase(File(filesDir, "face_db.json"))
-        faceEngine = FaceRecognitionEngine(this)
         settingsStore = AppSettingsStore(this)
         settings = settingsStore.load()
+        faceDb = createFaceDatabase(settings)
+        faceEngine = FaceRecognitionEngine(this)
         applyEllipseSettings()
 
         registerStartButton.setOnClickListener { startAutoRegistration() }
@@ -321,12 +365,134 @@ class MainActivity : AppCompatActivity() {
             return
         }
         outputLabel.text = name
-        outputSubLabel.text = if (settings.printEnabled) {
-            "프린터로 출력 전송됨: $name"
-        } else {
-            "이름이 출력되었습니다."
-        }
+        outputSubLabel.text = "출력 처리 중..."
         goTo(PAGE_OUTPUT)
+        dispatchPrint(name)
+    }
+
+    private fun dispatchPrint(name: String) {
+        if (!settings.printEnabled) {
+            outputSubLabel.text = "이름이 출력되었습니다."
+            return
+        }
+
+        if (settings.printerModel == PrinterModel.NEMONIC) {
+            if (!hasNemonicPermissions()) {
+                pendingNemonicPrintName = name
+                nemonicPermissionLauncher.launch(requiredNemonicPermissions())
+                outputSubLabel.text = "네모닉 권한 요청 중..."
+                return
+            }
+            printWithNemonic(name)
+            return
+        }
+
+        outputSubLabel.text = "기본 프린터로 출력 전송됨: $name"
+    }
+
+    private fun hasNemonicPermissions(): Boolean {
+        return requiredNemonicPermissions().all { permission ->
+            ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
+        }
+    }
+
+    private fun requiredNemonicPermissions(): Array<String> {
+        val permissions = mutableListOf<String>()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            permissions += Manifest.permission.BLUETOOTH_SCAN
+            permissions += Manifest.permission.BLUETOOTH_CONNECT
+        } else {
+            permissions += Manifest.permission.ACCESS_FINE_LOCATION
+        }
+        return permissions.toTypedArray()
+    }
+
+    private fun printWithNemonic(name: String) {
+        val macAddress = settings.nemonicPrinterMacAddress.trim()
+        if (macAddress.isBlank()) {
+            outputSubLabel.text = "네모닉 MAC 주소를 설정해 주세요."
+            return
+        }
+
+        val printerName = settings.printerName.trim().ifBlank { "Nemonic" }
+        outputSubLabel.text = "네모닉 프린터로 전송 중..."
+
+        Thread {
+            val controller = NPrinterController(
+                this,
+                object : INPrinterControllerCallback {
+                    override fun disconnected() {}
+                    override fun printProgress(current: Int, total: Int, progress: Int) {}
+                    override fun printComplete(result: Int) {}
+                },
+            )
+
+            try {
+                controller.setPrintTimeout(true, settings.printerTimeoutSec.coerceAtLeast(1))
+                val printer = NPrinter(NPrinterType.NEMONIC, printerName, macAddress)
+                val connectResult = controller.connect(printer)
+                if (connectResult != NResult.OK && connectResult != NResult.ALREADY_CONNECTED) {
+                    runOnUiThread {
+                        outputSubLabel.text = "네모닉 연결 실패: 코드 $connectResult"
+                    }
+                    return@Thread
+                }
+
+                val printText = resolvePrintText(name)
+                val bitmap = buildNemonicPrintBitmap(printText)
+                val printInfo = NPrintInfo(printer, bitmap)
+                    .setCopies(settings.printerCopies.coerceAtLeast(1))
+                    .setEnableLastPageCut(true)
+                    .setEnableDither(true)
+                    .setPrintQuality(NPrintQuality.MIDDLE)
+
+                val printResult = controller.print(printInfo)
+                bitmap.recycle()
+
+                runOnUiThread {
+                    outputSubLabel.text = if (printResult == NResult.OK) {
+                        "네모닉 출력 전송 완료: $name"
+                    } else {
+                        "네모닉 출력 실패: 코드 $printResult"
+                    }
+                }
+            } catch (t: Throwable) {
+                runOnUiThread {
+                    outputSubLabel.text = "네모닉 출력 오류: ${t.javaClass.simpleName}"
+                }
+            } finally {
+                runCatching { controller.disconnect() }
+            }
+        }.start()
+    }
+
+    private fun resolvePrintText(name: String): String {
+        val template = settings.printerContentTemplate.ifBlank { "Name: {name}\n" }
+        return template.replace("{name}", name)
+    }
+
+    private fun buildNemonicPrintBitmap(content: String): Bitmap {
+        val printWidth = 576
+        val fontSize = (settings.printTextBaseFontSize * settings.printTextScaleMultiplier)
+            .coerceIn(16, 256)
+        val textPaint = TextPaint().apply {
+            color = Color.BLACK
+            textSize = fontSize.toFloat()
+            isAntiAlias = true
+        }
+        val layout = StaticLayout.Builder
+            .obtain(content, 0, content.length, textPaint, printWidth)
+            .setAlignment(Layout.Alignment.ALIGN_NORMAL)
+            .setIncludePad(true)
+            .setLineSpacing(0f, 1.1f)
+            .build()
+
+        val bitmapHeight = (layout.height + fontSize).coerceAtLeast(120)
+        val bitmap = Bitmap.createBitmap(printWidth, bitmapHeight, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        canvas.drawColor(Color.WHITE)
+        layout.draw(canvas)
+        return bitmap
     }
 
     private fun startAutoRegistration() {
@@ -652,20 +818,29 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openSettingsDialog() {
-        SettingsDialog.show(this, settings) { updated ->
-            settings = updated
-            settingsStore.save(updated)
-            applyEllipseSettings()
-            setRegisterCount()
-            resetRegistrationState()
-            goInitialState()
-            restartCamera()
-        }
+        SettingsDialog.show(
+            context = this,
+            current = settings,
+            onPickFolderRequested = { onPicked ->
+                pendingFolderPickerCallback = onPicked
+                val initial = settings.faceDataDir.takeIf { it.startsWith("content://") }?.let(Uri::parse)
+                folderPickerLauncher.launch(initial)
+            },
+            onSave = { updated ->
+                settings = updated
+                settingsStore.save(updated)
+                faceDb = createFaceDatabase(settings)
+                applyEllipseSettings()
+                setRegisterCount()
+                resetRegistrationState()
+                goInitialState()
+                restartCamera()
+            },
+        )
     }
 
     private fun updateEllipseOverlay() {
-        val visible = currentPage() == PAGE_REGISTER_CAPTURE ||
-            (currentPage() == PAGE_MONITOR && settings.recognitionUseEllipseMask)
+        val visible = currentPage() == PAGE_REGISTER_CAPTURE || currentPage() == PAGE_MONITOR
         ellipseOverlay.visibility = if (visible) View.VISIBLE else View.GONE
     }
 
@@ -683,6 +858,31 @@ class MainActivity : AppCompatActivity() {
             .setMessage(message)
             .setPositiveButton("확인", null)
             .show()
+    }
+
+    private fun resolveFaceDbFile(settings: AppSettings): File {
+        val raw = settings.faceDataDir.trim()
+        val dir = if (raw.isEmpty()) {
+            File(filesDir, "face_data")
+        } else {
+            val f = File(raw)
+            if (f.isAbsolute) f else File(filesDir, raw)
+        }
+        if (!dir.exists()) {
+            dir.mkdirs()
+        }
+        return File(dir, "face_db.json")
+    }
+
+    private fun createFaceDatabase(settings: AppSettings): FaceDatabase {
+        val raw = settings.faceDataDir.trim()
+        if (raw.startsWith("content://")) {
+            val uri = runCatching { Uri.parse(raw) }.getOrNull()
+            if (uri != null) {
+                return FaceDatabase(this, uri)
+            }
+        }
+        return FaceDatabase(resolveFaceDbFile(settings))
     }
 
     override fun onDestroy() {
