@@ -1,0 +1,276 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#F6F8FF">
+
+    <LinearLayout
+        android:id="@+id/loginContainer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:text="Faith DB Server 로그인"
+            android:textColor="#111111"
+            android:textSize="28sp"
+            android:textStyle="bold" />
+
+        <EditText
+            android:id="@+id/loginIdInput"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginTop="18dp"
+            android:hint="ID"
+            android:inputType="text"
+            android:maxLines="1" />
+
+        <EditText
+            android:id="@+id/loginPasswordInput"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginTop="10dp"
+            android:hint="PW"
+            android:inputType="textPassword"
+            android:maxLines="1" />
+
+        <Button
+            android:id="@+id/loginButton"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:layout_marginTop="14dp"
+            android:text="로그인" />
+
+        <TextView
+            android:id="@+id/loginMessageText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:gravity="center"
+            android:textColor="#C62828"
+            android:textSize="14sp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/mainContainer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="16dp"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/titleText"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Face DB 서버"
+                android:textColor="#111111"
+                android:textSize="24sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/settingsButton"
+                android:layout_width="wrap_content"
+                android:layout_height="44dp"
+                android:text="설정" />
+
+            <Button
+                android:id="@+id/quitButton"
+                android:layout_width="wrap_content"
+                android:layout_height="44dp"
+                android:layout_marginStart="8dp"
+                android:text="종료" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/statusText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="서버 중지"
+            android:textColor="#444444"
+            android:textSize="15sp" />
+
+        <EditText
+            android:id="@+id/portInput"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginTop="10dp"
+            android:hint="포트 (기본 18080)"
+            android:inputType="number"
+            android:maxLines="1"
+            android:text="18080" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/startButton"
+                android:layout_width="0dp"
+                android:layout_height="46dp"
+                android:layout_weight="1"
+                android:text="서버 시작" />
+
+            <Button
+                android:id="@+id/stopButton"
+                android:layout_width="0dp"
+                android:layout_height="46dp"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="서버 중지" />
+
+            <Button
+                android:id="@+id/reloadDbButton"
+                android:layout_width="0dp"
+                android:layout_height="46dp"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="DB 재로드" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/endpointText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="엔드포인트: -"
+            android:textColor="#1A3D8F"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/pendingText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="승인 대기: -"
+            android:textColor="#9A4D00"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/approvedText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="승인 완료: -"
+            android:textColor="#1F6A2B"
+            android:textSize="13sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="클라이언트 연결 상태"
+            android:textColor="#111111"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/clientStatusText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:background="#EDF1FF"
+            android:padding="8dp"
+            android:text="연결된 클라이언트 없음"
+            android:textColor="#2C2C2C"
+            android:textSize="12sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal">
+
+            <EditText
+                android:id="@+id/approveClientInput"
+                android:layout_width="0dp"
+                android:layout_height="44dp"
+                android:layout_weight="1"
+                android:hint="승인할 clientId"
+                android:inputType="text" />
+
+            <Button
+                android:id="@+id/approveClientButton"
+                android:layout_width="wrap_content"
+                android:layout_height="44dp"
+                android:layout_marginStart="8dp"
+                android:text="개별 승인" />
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/approveAllButton"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginTop="6dp"
+            android:text="대기 요청 전체 승인" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="DB 테이블"
+            android:textColor="#111111"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="170dp"
+            android:layout_marginTop="6dp"
+            android:background="#EAF0FF"
+            android:fillViewport="true"
+            android:padding="6dp">
+
+            <ScrollView
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:fillViewport="true">
+
+                <TableLayout
+                    android:id="@+id/dbTable"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" />
+            </ScrollView>
+        </HorizontalScrollView>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="서버 로그"
+            android:textColor="#111111"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginTop="6dp"
+            android:layout_weight="1"
+            android:background="#F3F5FA"
+            android:padding="10dp">
+
+            <TextView
+                android:id="@+id/logText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="#333333"
+                android:textSize="13sp" />
+        </ScrollView>
+    </LinearLayout>
+</FrameLayout>

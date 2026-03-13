@@ -60,6 +60,71 @@
     </LinearLayout>
 
     <LinearLayout
+        android:id="@+id/syncStatusRow"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="DB서버 연결"
+            android:textColor="#1A3D8F"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/connectionStatusIndicator"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="5dp"
+            android:text="미연결"
+            android:textColor="#9AA0A6"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="18dp"
+            android:text="DB로드"
+            android:textColor="#1A3D8F"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/dbLoadStatusIndicator"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="5dp"
+            android:text="대기"
+            android:textColor="#9AA0A6"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="18dp"
+            android:text="DB전송"
+            android:textColor="#1A3D8F"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/dbPushStatusIndicator"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="5dp"
+            android:text="대기"
+            android:textColor="#9AA0A6"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_marginTop="14dp"
@@ -209,12 +274,22 @@
                         android:maxLines="1"
                         android:textSize="20sp" />
 
+                    <EditText
+                        android:id="@+id/departmentInput"
+                        android:layout_width="match_parent"
+                        android:layout_height="56dp"
+                        android:layout_marginTop="12dp"
+                        android:hint="부서 입력"
+                        android:inputType="text"
+                        android:maxLines="1"
+                        android:textSize="20sp" />
+
                     <Button
                         android:id="@+id/saveNameButton"
                         android:layout_width="match_parent"
                         android:layout_height="56dp"
                         android:layout_marginTop="14dp"
-                        android:text="이름 저장"
+                        android:text="이름/부서 저장"
                         android:textSize="20sp" />
                 </LinearLayout>
 
@@ -224,14 +299,29 @@
                     android:gravity="center"
                     android:orientation="vertical">
 
-                    <TextView
-                        android:id="@+id/outputLabel"
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:gravity="center"
-                        android:textColor="#111111"
-                        android:textSize="46sp"
-                        android:textStyle="bold" />
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:id="@+id/outputLabel"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="#111111"
+                            android:textSize="46sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/outputDepartmentLabel"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="14dp"
+                            android:textColor="#1A3D8F"
+                            android:textSize="28sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
 
                     <TextView
                         android:id="@+id/outputSubLabel"

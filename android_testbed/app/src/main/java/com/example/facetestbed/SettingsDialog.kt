@@ -72,6 +72,11 @@ object SettingsDialog {
         val adaptiveMinInterval = numberField(content, context, "자동 보정 최소 프레임 간격", current.adaptiveUpdateMinIntervalFrames.toString(), true)
         val adaptiveMaxSamples = numberField(content, context, "세션당 자동 보정 최대 횟수", current.adaptiveUpdateMaxSamplesPerSession.toString(), true)
 
+        section(content, context, "DB 서버 동기화")
+        val dbSyncEnabled = boolField(content, context, "서버 동기화 사용", current.dbSyncEnabled)
+        val dbServerBaseUrl = textField(content, context, "DB 서버 주소", current.dbServerBaseUrl)
+        val dbClientId = textField(content, context, "클라이언트 ID (비우면 자동 생성)", current.dbClientId)
+
         section(content, context, "프린터")
         val printEnabled = boolField(content, context, "프린터 사용", current.printEnabled)
         val printerModel = choiceField(
@@ -89,6 +94,10 @@ object SettingsDialog {
         val printerTemplate = textField(content, context, "출력 문구 템플릿", current.printerContentTemplate)
         val printBaseFont = numberField(content, context, "출력 기본 글자 크기", current.printTextBaseFontSize.toString(), true)
         val printScale = numberField(content, context, "출력 글자 확대 배율", current.printTextScaleMultiplier.toString(), true)
+        val outputNameSize = numberField(content, context, "출력 화면 이름 글자 크기(sp)", current.outputNameTextSizeSp.toString(), true)
+        val outputDepartmentSize = numberField(content, context, "출력 화면 부서 글자 크기(sp)", current.outputDepartmentTextSizeSp.toString(), true)
+        val outputDepartmentOffsetX = numberField(content, context, "출력 화면 부서 X 오프셋", current.outputDepartmentOffsetX.toString(), true)
+        val outputDepartmentOffsetY = numberField(content, context, "출력 화면 부서 Y 오프셋", current.outputDepartmentOffsetY.toString(), true)
 
         AlertDialog.Builder(context)
             .setTitle("설정")
@@ -116,6 +125,11 @@ object SettingsDialog {
                     adaptiveUpdateMaxSim = adaptiveMax.asFloat(current.adaptiveUpdateMaxSim),
                     adaptiveUpdateMinIntervalFrames = adaptiveMinInterval.asInt(current.adaptiveUpdateMinIntervalFrames).coerceAtLeast(1),
                     adaptiveUpdateMaxSamplesPerSession = adaptiveMaxSamples.asInt(current.adaptiveUpdateMaxSamplesPerSession).coerceAtLeast(1),
+                    dbSyncEnabled = dbSyncEnabled.isChecked,
+                    dbServerBaseUrl = dbServerBaseUrl.text.toString().trim(),
+                    dbClientId = dbClientId.text.toString().trim(),
+                    dbAuthToken = current.dbAuthToken,
+                    dbDeviceName = current.dbDeviceName,
                     printEnabled = printEnabled.isChecked,
                     printerModel = if (printerModel.selectedItemPosition == 1) PrinterModel.NEMONIC else PrinterModel.SYSTEM,
                     printerName = printerName.text.toString(),
@@ -126,6 +140,10 @@ object SettingsDialog {
                     printerContentTemplate = printerTemplate.text.toString(),
                     printTextBaseFontSize = printBaseFont.asInt(current.printTextBaseFontSize).coerceAtLeast(1),
                     printTextScaleMultiplier = printScale.asInt(current.printTextScaleMultiplier).coerceAtLeast(1),
+                    outputNameTextSizeSp = outputNameSize.asInt(current.outputNameTextSizeSp).coerceIn(12, 120),
+                    outputDepartmentTextSizeSp = outputDepartmentSize.asInt(current.outputDepartmentTextSizeSp).coerceIn(10, 100),
+                    outputDepartmentOffsetX = outputDepartmentOffsetX.asInt(current.outputDepartmentOffsetX).coerceIn(-300, 300),
+                    outputDepartmentOffsetY = outputDepartmentOffsetY.asInt(current.outputDepartmentOffsetY).coerceIn(-300, 300),
                 )
                 onSave(updated)
             }

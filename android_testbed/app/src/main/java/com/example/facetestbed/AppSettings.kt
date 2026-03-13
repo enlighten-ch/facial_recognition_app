@@ -24,6 +24,11 @@ data class AppSettings(
     val adaptiveUpdateMaxSim: Float = 0.62f,
     val adaptiveUpdateMinIntervalFrames: Int = 30,
     val adaptiveUpdateMaxSamplesPerSession: Int = 20,
+    val dbSyncEnabled: Boolean = true,
+    val dbServerBaseUrl: String = "http://127.0.0.1:18080",
+    val dbClientId: String = "",
+    val dbAuthToken: String = "",
+    val dbDeviceName: String = "",
     val printEnabled: Boolean = true,
     val printerModel: String = PrinterModel.SYSTEM,
     val printerName: String = "",
@@ -31,9 +36,13 @@ data class AppSettings(
     val printerTimeoutSec: Int = 10,
     val printerCopies: Int = 1,
     val printerJobTitlePrefix: String = "FaceRecognition",
-    val printerContentTemplate: String = "Name: {name}\n",
+    val printerContentTemplate: String = "Name: {name}\nDepartment: {department}\n",
     val printTextBaseFontSize: Int = 48,
     val printTextScaleMultiplier: Int = 5,
+    val outputNameTextSizeSp: Int = 40,
+    val outputDepartmentTextSizeSp: Int = 24,
+    val outputDepartmentOffsetX: Int = 0,
+    val outputDepartmentOffsetY: Int = 0,
 )
 
 object PrinterModel {
@@ -76,6 +85,11 @@ class AppSettingsStore(context: Context) {
                 adaptiveUpdateMaxSim = o.optDouble("ADAPTIVE_UPDATE_MAX_SIM", 0.62).toFloat(),
                 adaptiveUpdateMinIntervalFrames = o.optInt("ADAPTIVE_UPDATE_MIN_INTERVAL_FRAMES", 30),
                 adaptiveUpdateMaxSamplesPerSession = o.optInt("ADAPTIVE_UPDATE_MAX_SAMPLES_PER_SESSION", 20),
+                dbSyncEnabled = o.optBoolean("DB_SYNC_ENABLED", true),
+                dbServerBaseUrl = o.optString("DB_SERVER_BASE_URL", "http://127.0.0.1:18080"),
+                dbClientId = o.optString("DB_CLIENT_ID", ""),
+                dbAuthToken = o.optString("DB_AUTH_TOKEN", ""),
+                dbDeviceName = o.optString("DB_DEVICE_NAME", ""),
                 printEnabled = o.optBoolean("PRINT_ENABLED", true),
                 printerModel = PrinterModel.sanitize(o.optString("PRINTER_MODEL", PrinterModel.SYSTEM)),
                 printerName = o.optString("PRINTER_NAME", ""),
@@ -83,9 +97,13 @@ class AppSettingsStore(context: Context) {
                 printerTimeoutSec = o.optInt("PRINTER_TIMEOUT_SEC", 10),
                 printerCopies = o.optInt("PRINTER_COPIES", 1),
                 printerJobTitlePrefix = o.optString("PRINTER_JOB_TITLE_PREFIX", "FaceRecognition"),
-                printerContentTemplate = o.optString("PRINTER_CONTENT_TEMPLATE", "Name: {name}\n"),
+                printerContentTemplate = o.optString("PRINTER_CONTENT_TEMPLATE", "Name: {name}\nDepartment: {department}\n"),
                 printTextBaseFontSize = o.optInt("PRINT_TEXT_BASE_FONT_SIZE", 48),
                 printTextScaleMultiplier = o.optInt("PRINT_TEXT_SCALE_MULTIPLIER", 5),
+                outputNameTextSizeSp = o.optInt("OUTPUT_NAME_TEXT_SIZE_SP", 40),
+                outputDepartmentTextSizeSp = o.optInt("OUTPUT_DEPARTMENT_TEXT_SIZE_SP", 24),
+                outputDepartmentOffsetX = o.optInt("OUTPUT_DEPARTMENT_OFFSET_X", 0),
+                outputDepartmentOffsetY = o.optInt("OUTPUT_DEPARTMENT_OFFSET_Y", 0),
             )
         }.getOrDefault(AppSettings())
     }
@@ -112,6 +130,11 @@ class AppSettingsStore(context: Context) {
         o.put("ADAPTIVE_UPDATE_MAX_SIM", settings.adaptiveUpdateMaxSim.toDouble())
         o.put("ADAPTIVE_UPDATE_MIN_INTERVAL_FRAMES", settings.adaptiveUpdateMinIntervalFrames)
         o.put("ADAPTIVE_UPDATE_MAX_SAMPLES_PER_SESSION", settings.adaptiveUpdateMaxSamplesPerSession)
+        o.put("DB_SYNC_ENABLED", settings.dbSyncEnabled)
+        o.put("DB_SERVER_BASE_URL", settings.dbServerBaseUrl)
+        o.put("DB_CLIENT_ID", settings.dbClientId)
+        o.put("DB_AUTH_TOKEN", settings.dbAuthToken)
+        o.put("DB_DEVICE_NAME", settings.dbDeviceName)
         o.put("PRINT_ENABLED", settings.printEnabled)
         o.put("PRINTER_MODEL", settings.printerModel)
         o.put("PRINTER_NAME", settings.printerName)
@@ -122,6 +145,10 @@ class AppSettingsStore(context: Context) {
         o.put("PRINTER_CONTENT_TEMPLATE", settings.printerContentTemplate)
         o.put("PRINT_TEXT_BASE_FONT_SIZE", settings.printTextBaseFontSize)
         o.put("PRINT_TEXT_SCALE_MULTIPLIER", settings.printTextScaleMultiplier)
+        o.put("OUTPUT_NAME_TEXT_SIZE_SP", settings.outputNameTextSizeSp)
+        o.put("OUTPUT_DEPARTMENT_TEXT_SIZE_SP", settings.outputDepartmentTextSizeSp)
+        o.put("OUTPUT_DEPARTMENT_OFFSET_X", settings.outputDepartmentOffsetX)
+        o.put("OUTPUT_DEPARTMENT_OFFSET_Y", settings.outputDepartmentOffsetY)
         prefs.edit().putString(KEY_JSON, o.toString()).apply()
     }
 

@@ -65,6 +65,7 @@ dependencies {
     implementation("androidx.camera:camera-view:$cameraxVersion")
     implementation("com.google.mlkit:face-detection:16.1.7")
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.19.2")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")

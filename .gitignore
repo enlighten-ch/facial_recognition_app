@@ -3,3 +3,4 @@
 /face_app_data
 /__pycache__
 /android_testbed/app/build
+/android_testbed/dbserver/build

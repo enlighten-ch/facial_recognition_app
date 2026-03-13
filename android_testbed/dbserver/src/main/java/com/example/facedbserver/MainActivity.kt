@@ -1,0 +1,429 @@
+package com.example.facedbserver
+
+import android.app.AlertDialog
+import android.content.Intent
+import android.graphics.Color
+import android.os.Bundle
+import android.text.InputType
+import android.view.View
+import android.widget.Button
+import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.TableLayout
+import android.widget.TableRow
+import android.widget.TextView
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
+import java.net.NetworkInterface
+import java.util.Collections
+
+class MainActivity : AppCompatActivity() {
+    private lateinit var loginContainer: LinearLayout
+    private lateinit var loginIdInput: EditText
+    private lateinit var loginPasswordInput: EditText
+    private lateinit var loginButton: Button
+    private lateinit var loginMessageText: TextView
+
+    private lateinit var mainContainer: LinearLayout
+    private lateinit var statusText: TextView
+    private lateinit var endpointText: TextView
+    private lateinit var pendingText: TextView
+    private lateinit var approvedText: TextView
+    private lateinit var clientStatusText: TextView
+    private lateinit var logText: TextView
+    private lateinit var portInput: EditText
+    private lateinit var approveClientInput: EditText
+    private lateinit var startButton: Button
+    private lateinit var stopButton: Button
+    private lateinit var reloadDbButton: Button
+    private lateinit var approveClientButton: Button
+    private lateinit var approveAllButton: Button
+    private lateinit var settingsButton: Button
+    private lateinit var quitButton: Button
+    private lateinit var dbTable: TableLayout
+
+    private lateinit var serverEngine: FaceDbServerEngine
+    private lateinit var configStore: ServerConfigStore
+    private var config = ServerUiConfig()
+    private val logs = mutableListOf<String>()
+    private var pendingStoragePickerCallback: ((String?) -> Unit)? = null
+
+    private val storagePickerLauncher =
+        registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+            val callback = pendingStoragePickerCallback
+            pendingStoragePickerCallback = null
+            if (uri == null) {
+                callback?.invoke(null)
+                return@registerForActivityResult
+            }
+            val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            runCatching { contentResolver.takePersistableUriPermission(uri, flags) }
+            callback?.invoke(uri.toString())
+        }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+
+        bindViews()
+
+        configStore = ServerConfigStore(this)
+        config = configStore.load()
+        portInput.setText(config.defaultPort.toString())
+
+        serverEngine = FaceDbServerEngine(this) { line ->
+            runOnUiThread { appendLog(line) }
+        }
+        serverEngine.setDbStorageDir(config.dbStorageDir)
+
+        loginButton.setOnClickListener { tryLogin() }
+        startButton.setOnClickListener { startServer() }
+        stopButton.setOnClickListener { stopServer() }
+        reloadDbButton.setOnClickListener { reloadDb() }
+        approveClientButton.setOnClickListener { approveSingleClient() }
+        approveAllButton.setOnClickListener { approveAllClients() }
+        settingsButton.setOnClickListener { openSettingsDialog() }
+        quitButton.setOnClickListener { quitApp() }
+
+        showLoginView()
+    }
+
+    private fun bindViews() {
+        loginContainer = findViewById(R.id.loginContainer)
+        loginIdInput = findViewById(R.id.loginIdInput)
+        loginPasswordInput = findViewById(R.id.loginPasswordInput)
+        loginButton = findViewById(R.id.loginButton)
+        loginMessageText = findViewById(R.id.loginMessageText)
+
+        mainContainer = findViewById(R.id.mainContainer)
+        statusText = findViewById(R.id.statusText)
+        endpointText = findViewById(R.id.endpointText)
+        pendingText = findViewById(R.id.pendingText)
+        approvedText = findViewById(R.id.approvedText)
+        clientStatusText = findViewById(R.id.clientStatusText)
+        logText = findViewById(R.id.logText)
+        portInput = findViewById(R.id.portInput)
+        approveClientInput = findViewById(R.id.approveClientInput)
+        startButton = findViewById(R.id.startButton)
+        stopButton = findViewById(R.id.stopButton)
+        reloadDbButton = findViewById(R.id.reloadDbButton)
+        approveClientButton = findViewById(R.id.approveClientButton)
+        approveAllButton = findViewById(R.id.approveAllButton)
+        settingsButton = findViewById(R.id.settingsButton)
+        quitButton = findViewById(R.id.quitButton)
+        dbTable = findViewById(R.id.dbTable)
+    }
+
+    private fun quitApp() {
+        if (serverEngine.isRunning()) {
+            serverEngine.stop()
+        }
+        finish()
+    }
+
+    private fun showLoginView() {
+        loginContainer.visibility = View.VISIBLE
+        mainContainer.visibility = View.GONE
+        loginIdInput.setText("")
+        loginPasswordInput.setText("")
+        loginMessageText.text = ""
+    }
+
+    private fun showMainView() {
+        loginContainer.visibility = View.GONE
+        mainContainer.visibility = View.VISIBLE
+        refreshStatus()
+    }
+
+    private fun tryLogin() {
+        val id = loginIdInput.text.toString().trim()
+        val password = loginPasswordInput.text.toString()
+        if (id == config.adminId && password == config.adminPassword) {
+            appendLog("관리자 로그인 성공: $id")
+            showMainView()
+        } else {
+            loginMessageText.text = "ID 또는 PW가 올바르지 않습니다."
+        }
+    }
+
+    private fun openSettingsDialog() {
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(40, 24, 40, 8)
+        }
+
+        val idInput = EditText(this).apply {
+            hint = "관리자 ID"
+            setText(config.adminId)
+            setSingleLine(true)
+        }
+        val pwInput = EditText(this).apply {
+            hint = "관리자 PW"
+            setText(config.adminPassword)
+            setSingleLine(true)
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+        }
+        val portSetting = EditText(this).apply {
+            hint = "기본 포트"
+            setText(config.defaultPort.toString())
+            setSingleLine(true)
+            inputType = InputType.TYPE_CLASS_NUMBER
+        }
+        val dbStorageInput = EditText(this).apply {
+            hint = "DB 저장 디렉토리(content:// 또는 절대경로)"
+            setText(config.dbStorageDir)
+            setSingleLine(true)
+            isFocusable = false
+            isClickable = false
+        }
+        val pickFolderButton = Button(this).apply {
+            text = "폴더 트리에서 선택"
+            setOnClickListener {
+                pendingStoragePickerCallback = { selected ->
+                    if (!selected.isNullOrBlank()) {
+                        dbStorageInput.setText(selected)
+                    }
+                }
+                storagePickerLauncher.launch(null)
+            }
+        }
+
+        root.addView(idInput)
+        root.addView(pwInput)
+        root.addView(portSetting)
+        root.addView(dbStorageInput)
+        root.addView(pickFolderButton)
+
+        AlertDialog.Builder(this)
+            .setTitle("서버 설정")
+            .setView(root)
+            .setNegativeButton("취소", null)
+            .setPositiveButton("저장") { _, _ ->
+                val next = ServerUiConfig(
+                    adminId = idInput.text.toString().trim().ifBlank { "admin" },
+                    adminPassword = pwInput.text.toString().ifBlank { "1234" },
+                    defaultPort = portSetting.text.toString().trim().toIntOrNull()?.coerceIn(1, 65535) ?: 18080,
+                    dbStorageDir = dbStorageInput.text.toString().trim(),
+                )
+                val ok = configStore.save(next)
+                config = configStore.load()
+                serverEngine.setDbStorageDir(config.dbStorageDir)
+                if (!serverEngine.isRunning()) {
+                    portInput.setText(config.defaultPort.toString())
+                }
+                appendLog(if (ok) "설정 저장 완료(config.yaml, DB 디렉토리 포함)" else "설정 저장 실패")
+            }
+            .show()
+    }
+
+    private fun startServer() {
+        val port = portInput.text.toString().trim().toIntOrNull()?.coerceIn(1, 65535) ?: config.defaultPort
+        serverEngine.setDbStorageDir(config.dbStorageDir)
+        val started = serverEngine.start(port)
+        if (started) {
+            appendLog("서버 앱 시작 완료 (DB 경로: ${config.dbStorageDir.ifBlank { "기본 내부저장소" }})")
+        }
+        refreshStatus()
+    }
+
+    private fun stopServer() {
+        serverEngine.stop()
+        refreshStatus()
+    }
+
+    private fun reloadDb() {
+        val ok = serverEngine.reloadDbFromStorage()
+        if (ok) {
+            appendLog("DB 재로드 완료")
+        } else {
+            appendLog("DB 재로드 실패")
+            refreshStatus()
+        }
+    }
+
+    private fun approveSingleClient() {
+        val target = approveClientInput.text.toString().trim()
+        if (target.isBlank()) {
+            appendLog("승인할 clientId를 입력해 주세요.")
+            return
+        }
+        val ok = serverEngine.approveClient(target)
+        if (ok) {
+            appendLog("클라이언트 승인: $target")
+        } else {
+            appendLog("승인 실패(대기중 아님): $target")
+        }
+        refreshStatus()
+    }
+
+    private fun approveAllClients() {
+        val count = serverEngine.approveAllPending()
+        appendLog("전체 승인 완료: ${count}건")
+        refreshStatus()
+    }
+
+    private fun refreshStatus() {
+        val running = serverEngine.isRunning()
+        if (running) {
+            val port = serverEngine.endpointPort()
+            val ip = detectLocalIpAddress()
+            statusText.text = "서버 실행중"
+            endpointText.text = "엔드포인트: http://$ip:$port"
+        } else {
+            statusText.text = "서버 중지"
+            endpointText.text = "엔드포인트: -"
+        }
+
+        startButton.isEnabled = !running
+        stopButton.isEnabled = running
+
+        val pending = serverEngine.pendingClientIds()
+        val approved = serverEngine.approvedClientIds()
+        pendingText.text = "승인 대기: " + if (pending.isEmpty()) "없음" else pending.joinToString(", ")
+        approvedText.text = "승인 완료: " + if (approved.isEmpty()) "없음" else approved.joinToString(", ")
+
+        val statuses = serverEngine.clientStatuses()
+        clientStatusText.text = if (statuses.isEmpty()) {
+            "연결된 클라이언트 없음"
+        } else {
+            statuses.joinToString("\n") { status ->
+                "${status.clientId} | ${status.status} | 세션 ${status.onlineSessionCount}"
+            }
+        }
+
+        renderDbTable(serverEngine.dbRowsSnapshot())
+    }
+
+    private fun renderDbTable(rows: List<DbPersonRow>) {
+        dbTable.removeAllViews()
+
+        val header = TableRow(this)
+        addCell(header, "이름", isHeader = true)
+        addCell(header, "부서", isHeader = true)
+        addCell(header, "임베딩 수", isHeader = true)
+        addCell(header, "작업", isHeader = true)
+        dbTable.addView(header)
+
+        if (rows.isEmpty()) {
+            val row = TableRow(this)
+            addCell(row, "데이터 없음", isHeader = false)
+            addCell(row, "-", isHeader = false)
+            addCell(row, "0", isHeader = false)
+            addCell(row, "-", isHeader = false)
+            dbTable.addView(row)
+            return
+        }
+
+        rows.forEach { person ->
+            val row = TableRow(this)
+            addCell(row, person.name, isHeader = false)
+            addCell(row, person.department.ifBlank { "-" }, isHeader = false)
+            addCell(row, person.embeddingCount.toString(), isHeader = false)
+            addActionCell(row, "수정") {
+                openEditPersonDialog(person)
+            }
+            dbTable.addView(row)
+        }
+    }
+
+    private fun addCell(row: TableRow, text: String, isHeader: Boolean) {
+        val tv = TextView(this).apply {
+            this.text = text
+            setPadding(20, 12, 20, 12)
+            setTextColor(if (isHeader) Color.WHITE else Color.parseColor("#1E1E1E"))
+            setBackgroundColor(if (isHeader) Color.parseColor("#1A3D8F") else Color.parseColor("#EEF3FF"))
+            textSize = if (isHeader) 14f else 13f
+        }
+        val lp = TableRow.LayoutParams(0, TableRow.LayoutParams.WRAP_CONTENT, 1f)
+        lp.setMargins(2, 2, 2, 2)
+        row.addView(tv, lp)
+    }
+
+    private fun addActionCell(row: TableRow, buttonText: String, onClick: () -> Unit) {
+        val actionButton = Button(this).apply {
+            text = buttonText
+            textSize = 12f
+            setOnClickListener { onClick() }
+        }
+        val lp = TableRow.LayoutParams(0, TableRow.LayoutParams.WRAP_CONTENT, 1f)
+        lp.setMargins(2, 2, 2, 2)
+        row.addView(actionButton, lp)
+    }
+
+    private fun openEditPersonDialog(person: DbPersonRow) {
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(40, 24, 40, 8)
+        }
+
+        val nameInput = EditText(this).apply {
+            hint = "이름"
+            setText(person.name)
+            setSingleLine(true)
+        }
+
+        val departmentInput = EditText(this).apply {
+            hint = "부서"
+            setText(person.department)
+            setSingleLine(true)
+        }
+
+        val embeddingCountView = TextView(this).apply {
+            text = "임베딩 수(읽기 전용): ${person.embeddingCount}"
+            setTextColor(Color.parseColor("#333333"))
+            textSize = 13f
+            setPadding(0, 12, 0, 0)
+        }
+
+        root.addView(nameInput)
+        root.addView(departmentInput)
+        root.addView(embeddingCountView)
+
+        AlertDialog.Builder(this)
+            .setTitle("DB 항목 수정")
+            .setView(root)
+            .setNegativeButton("취소", null)
+            .setPositiveButton("저장") { _, _ ->
+                val ok = serverEngine.updatePersonRow(
+                    personIndex = person.personIndex,
+                    name = nameInput.text.toString(),
+                    department = departmentInput.text.toString(),
+                )
+                appendLog(if (ok) "DB 항목 수정 완료: ${person.name}" else "DB 항목 수정 실패")
+                if (!ok) {
+                    refreshStatus()
+                }
+            }
+            .show()
+    }
+
+    private fun appendLog(line: String) {
+        logs += line
+        while (logs.size > 200) logs.removeAt(0)
+        logText.text = logs.joinToString("\n")
+        if (mainContainer.visibility == View.VISIBLE) {
+            refreshStatus()
+        }
+    }
+
+    private fun detectLocalIpAddress(): String {
+        return runCatching {
+            val interfaces = Collections.list(NetworkInterface.getNetworkInterfaces())
+            for (networkInterface in interfaces) {
+                val addresses = Collections.list(networkInterface.inetAddresses)
+                for (address in addresses) {
+                    val host = address.hostAddress ?: continue
+                    if (!address.isLoopbackAddress && host.indexOf(':') < 0) {
+                        return host
+                    }
+                }
+            }
+            "127.0.0.1"
+        }.getOrDefault("127.0.0.1")
+    }
+
+    override fun onDestroy() {
+        serverEngine.release()
+        super.onDestroy()
+    }
+}

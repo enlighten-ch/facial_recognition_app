@@ -40,6 +40,7 @@ import com.mangoslab.nemonicsdk.constants.NPrinterType
 import com.mangoslab.nemonicsdk.constants.NResult
 import java.io.File
 import java.util.Locale
+import java.util.UUID
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -67,6 +68,9 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var headerTitle: TextView
     private lateinit var headerSubtitle: TextView
+    private lateinit var connectionStatusIndicator: TextView
+    private lateinit var dbLoadStatusIndicator: TextView
+    private lateinit var dbPushStatusIndicator: TextView
     private lateinit var backButton: Button
     private lateinit var settingsButton: Button
     private lateinit var quitButton: Button
@@ -86,15 +90,18 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var registerCompleteText: TextView
     private lateinit var nameInput: EditText
+    private lateinit var departmentInput: EditText
     private lateinit var saveNameButton: Button
 
     private lateinit var outputLabel: TextView
+    private lateinit var outputDepartmentLabel: TextView
     private lateinit var outputSubLabel: TextView
 
     private lateinit var faceDb: FaceDatabase
     private lateinit var faceEngine: FaceRecognitionEngine
     private lateinit var settingsStore: AppSettingsStore
     private var settings = AppSettings()
+    private lateinit var dbSyncClient: FaceDbSyncClient
 
     private val cameraExecutor = Executors.newSingleThreadExecutor()
     private val frameInFlight = AtomicBoolean(false)
@@ -107,13 +114,19 @@ class MainActivity : AppCompatActivity() {
     private var lastImageHeight = 0
 
     private var selectedName: String? = null
-    private var latestRankings: List<Pair<String, Float>> = emptyList()
+    private var selectedDepartment: String = ""
+    private var latestRankings: List<FaceMatch> = emptyList()
     private var lastMonitorStateKey: String? = null
 
     private var adaptiveLastFrame = -1_000_000_000L
     private var adaptiveUpdateCount = 0
     private var pendingFolderPickerCallback: ((String?) -> Unit)? = null
     private var pendingNemonicPrintName: String? = null
+    private var pendingNemonicPrintDepartment: String = ""
+    private var connectionStatus = SyncLightStatus.IDLE
+    private var dbLoadStatus = SyncLightStatus.IDLE
+    private var dbPushStatus = SyncLightStatus.IDLE
+    private var isDbServerConnected = false
 
     private val registerDirectionEmbeddings = mutableMapOf(
         "left" to mutableListOf<FloatArray>(),
@@ -121,6 +134,13 @@ class MainActivity : AppCompatActivity() {
         "up" to mutableListOf<FloatArray>(),
         "down" to mutableListOf<FloatArray>(),
     )
+
+    private enum class SyncLightStatus {
+        IDLE,
+        IN_PROGRESS,
+        SUCCESS,
+        ERROR,
+    }
 
     private val cameraPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -144,13 +164,15 @@ class MainActivity : AppCompatActivity() {
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
             val targetName = pendingNemonicPrintName
             pendingNemonicPrintName = null
+            val targetDepartment = pendingNemonicPrintDepartment
+            pendingNemonicPrintDepartment = ""
             if (targetName.isNullOrBlank()) return@registerForActivityResult
             val granted = grants.entries.all { it.value }
             if (!granted) {
                 outputSubLabel.text = "네모닉 출력 권한이 거부되었습니다."
                 return@registerForActivityResult
             }
-            printWithNemonic(targetName)
+            printWithNemonic(targetName, targetDepartment)
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -161,7 +183,10 @@ class MainActivity : AppCompatActivity() {
 
         settingsStore = AppSettingsStore(this)
         settings = settingsStore.load()
+        ensureSyncIdentity()
         faceDb = createFaceDatabase(settings)
+        dbSyncClient = createDbSyncClient()
+        dbSyncClient.start(settings)
         faceEngine = FaceRecognitionEngine(this)
         applyEllipseSettings()
 
@@ -184,6 +209,9 @@ class MainActivity : AppCompatActivity() {
     private fun bindViews() {
         headerTitle = findViewById(R.id.headerTitle)
         headerSubtitle = findViewById(R.id.headerSubtitle)
+        connectionStatusIndicator = findViewById(R.id.connectionStatusIndicator)
+        dbLoadStatusIndicator = findViewById(R.id.dbLoadStatusIndicator)
+        dbPushStatusIndicator = findViewById(R.id.dbPushStatusIndicator)
         backButton = findViewById(R.id.backButton)
         settingsButton = findViewById(R.id.settingsButton)
         quitButton = findViewById(R.id.quitButton)
@@ -203,9 +231,11 @@ class MainActivity : AppCompatActivity() {
 
         registerCompleteText = findViewById(R.id.registerCompleteText)
         nameInput = findViewById(R.id.nameInput)
+        departmentInput = findViewById(R.id.departmentInput)
         saveNameButton = findViewById(R.id.saveNameButton)
 
         outputLabel = findViewById(R.id.outputLabel)
+        outputDepartmentLabel = findViewById(R.id.outputDepartmentLabel)
         outputSubLabel = findViewById(R.id.outputSubLabel)
     }
 
@@ -286,12 +316,20 @@ class MainActivity : AppCompatActivity() {
     private fun goInitialState() {
         resetRegistrationState()
         selectedName = null
+        selectedDepartment = ""
         latestRankings = emptyList()
         lastMonitorStateKey = null
         adaptiveLastFrame = -1_000_000_000L
         adaptiveUpdateCount = 0
         nameInput.setText("")
-        applyMonitorIdleState()
+        departmentInput.setText("")
+        outputLabel.text = ""
+        outputDepartmentLabel.text = ""
+        if (isDbServerConnected) {
+            applyMonitorIdleState()
+        } else {
+            applyServerDisconnectedState()
+        }
         goTo(PAGE_MONITOR)
     }
 
@@ -308,6 +346,15 @@ class MainActivity : AppCompatActivity() {
         clearCandidates()
     }
 
+    private fun applyServerDisconnectedState() {
+        monitorStatusText.text = "서버 앱 실행 및 연동 후 사용해주세요"
+        monitorDetailText.text = "DB 서버 연결 이후 인식 기능이 자동으로 활성화됩니다."
+        registerStartButton.visibility = Button.GONE
+        registerStartButton.isEnabled = false
+        outputNameButton.isEnabled = false
+        clearCandidates()
+    }
+
     private fun applyUnregisteredState() {
         monitorStatusText.text = "등록이 되어있지 않아요! 등록할까요?"
         monitorDetailText.text = "등록시작 버튼을 누르면 좌/우/위/아래 방향별로 ${settings.registerSamplesPerDirection}장씩 수집합니다."
@@ -317,44 +364,52 @@ class MainActivity : AppCompatActivity() {
         clearCandidates()
     }
 
-    private fun applyRegisteredClearState(topName: String, topScore: Float, margin: Float) {
-        monitorStatusText.text = "등록된 사용자입니다: $topName"
+    private fun applyRegisteredClearState(topMatch: FaceMatch, topScore: Float, margin: Float) {
+        val topName = topMatch.name
+        val topDepartment = topMatch.department
+        val userLabel = if (topDepartment.isBlank()) topName else "$topName ($topDepartment)"
+        monitorStatusText.text = "등록된 사용자입니다: $userLabel"
         monitorDetailText.text = String.format(Locale.US, "1위 점수 %.3f, 2위와 차이 %.3f", topScore, margin)
         registerStartButton.visibility = Button.GONE
         registerStartButton.isEnabled = false
         clearCandidates()
 
         val btn = Button(this).apply {
-            text = "1위 $topName"
+            text = "1위 $userLabel"
             isEnabled = false
         }
         candidateContainer.addView(btn)
 
         selectedName = topName
+        selectedDepartment = topDepartment
         outputNameButton.isEnabled = true
     }
 
-    private fun applyRegisteredAmbiguousState(rankings: List<Pair<String, Float>>) {
+    private fun applyRegisteredAmbiguousState(rankings: List<FaceMatch>) {
         monitorStatusText.text = "유사한 얼굴이 있습니다. 이름을 선택해 주세요."
         monitorDetailText.text = "1~3위 후보 중 이름 선택 후 이름 출력하기 버튼이 활성화됩니다."
         registerStartButton.visibility = Button.GONE
         registerStartButton.isEnabled = false
         clearCandidates()
         selectedName = null
+        selectedDepartment = ""
         outputNameButton.isEnabled = false
 
-        rankings.forEachIndexed { idx, (name, score) ->
+        rankings.forEachIndexed { idx, match ->
             val btn = Button(this).apply {
-                text = String.format(Locale.US, "%d위 선택: %s (점수 %.3f)", idx + 1, name, score)
-                setOnClickListener { chooseCandidateName(name) }
+                val label = if (match.department.isBlank()) match.name else "${match.name} (${match.department})"
+                text = String.format(Locale.US, "%d위 선택: %s (점수 %.3f)", idx + 1, label, match.score)
+                setOnClickListener { chooseCandidateName(match) }
             }
             candidateContainer.addView(btn)
         }
     }
 
-    private fun chooseCandidateName(name: String) {
-        selectedName = name
-        monitorDetailText.text = "선택됨: $name / 이름 출력하기 버튼을 눌러주세요."
+    private fun chooseCandidateName(match: FaceMatch) {
+        selectedName = match.name
+        selectedDepartment = match.department
+        val label = if (match.department.isBlank()) match.name else "${match.name} (${match.department})"
+        monitorDetailText.text = "선택됨: $label / 이름 출력하기 버튼을 눌러주세요."
         outputNameButton.isEnabled = true
     }
 
@@ -364,30 +419,46 @@ class MainActivity : AppCompatActivity() {
             showError("먼저 이름을 선택해 주세요.")
             return
         }
+        val department = selectedDepartment.ifBlank { faceDb.departmentOf(name) }
         outputLabel.text = name
+        outputDepartmentLabel.text = department
+        outputLabel.textSize = settings.outputNameTextSizeSp.toFloat()
+        outputDepartmentLabel.textSize = settings.outputDepartmentTextSizeSp.toFloat()
+        outputDepartmentLabel.translationX = settings.outputDepartmentOffsetX.toFloat()
+        outputDepartmentLabel.translationY = settings.outputDepartmentOffsetY.toFloat()
+        outputDepartmentLabel.visibility = if (department.isBlank()) View.GONE else View.VISIBLE
         outputSubLabel.text = "출력 처리 중..."
         goTo(PAGE_OUTPUT)
-        dispatchPrint(name)
+        dispatchPrint(name, department)
     }
 
-    private fun dispatchPrint(name: String) {
+    private fun dispatchPrint(name: String, department: String) {
         if (!settings.printEnabled) {
-            outputSubLabel.text = "이름이 출력되었습니다."
+            outputSubLabel.text = if (department.isBlank()) {
+                "이름이 출력되었습니다."
+            } else {
+                "이름/부서가 출력되었습니다."
+            }
             return
         }
 
         if (settings.printerModel == PrinterModel.NEMONIC) {
             if (!hasNemonicPermissions()) {
                 pendingNemonicPrintName = name
+                pendingNemonicPrintDepartment = department
                 nemonicPermissionLauncher.launch(requiredNemonicPermissions())
                 outputSubLabel.text = "네모닉 권한 요청 중..."
                 return
             }
-            printWithNemonic(name)
+            printWithNemonic(name, department)
             return
         }
 
-        outputSubLabel.text = "기본 프린터로 출력 전송됨: $name"
+        outputSubLabel.text = if (department.isBlank()) {
+            "기본 프린터로 출력 전송됨: $name"
+        } else {
+            "기본 프린터로 출력 전송됨: $name / $department"
+        }
     }
 
     private fun hasNemonicPermissions(): Boolean {
@@ -407,7 +478,7 @@ class MainActivity : AppCompatActivity() {
         return permissions.toTypedArray()
     }
 
-    private fun printWithNemonic(name: String) {
+    private fun printWithNemonic(name: String, department: String) {
         val macAddress = settings.nemonicPrinterMacAddress.trim()
         if (macAddress.isBlank()) {
             outputSubLabel.text = "네모닉 MAC 주소를 설정해 주세요."
@@ -438,8 +509,7 @@ class MainActivity : AppCompatActivity() {
                     return@Thread
                 }
 
-                val printText = resolvePrintText(name)
-                val bitmap = buildNemonicPrintBitmap(printText)
+                val bitmap = buildNemonicPrintBitmap(name, department)
                 val printInfo = NPrintInfo(printer, bitmap)
                     .setCopies(settings.printerCopies.coerceAtLeast(1))
                     .setEnableLastPageCut(true)
@@ -451,7 +521,7 @@ class MainActivity : AppCompatActivity() {
 
                 runOnUiThread {
                     outputSubLabel.text = if (printResult == NResult.OK) {
-                        "네모닉 출력 전송 완료: $name"
+                        if (department.isBlank()) "네모닉 출력 전송 완료: $name" else "네모닉 출력 전송 완료: $name / $department"
                     } else {
                         "네모닉 출력 실패: 코드 $printResult"
                     }
@@ -466,36 +536,76 @@ class MainActivity : AppCompatActivity() {
         }.start()
     }
 
-    private fun resolvePrintText(name: String): String {
-        val template = settings.printerContentTemplate.ifBlank { "Name: {name}\n" }
-        return template.replace("{name}", name)
+    private fun resolvePrintText(name: String, department: String): String {
+        val template = settings.printerContentTemplate.ifBlank { "Name: {name}\nDepartment: {department}\n" }
+        return template
+            .replace("{name}", name)
+            .replace("{department}", department)
     }
 
-    private fun buildNemonicPrintBitmap(content: String): Bitmap {
+    private fun buildNemonicPrintBitmap(name: String, department: String): Bitmap {
         val printWidth = 576
-        val fontSize = (settings.printTextBaseFontSize * settings.printTextScaleMultiplier)
-            .coerceIn(16, 256)
-        val textPaint = TextPaint().apply {
+        val scale = settings.printTextScaleMultiplier.coerceAtLeast(1)
+        val nameFontSize = (settings.outputNameTextSizeSp * scale).coerceIn(16, 240)
+        val departmentFontSize = (settings.outputDepartmentTextSizeSp * scale).coerceIn(12, 180)
+
+        val namePaint = TextPaint().apply {
             color = Color.BLACK
-            textSize = fontSize.toFloat()
+            textSize = nameFontSize.toFloat()
+            isAntiAlias = true
+            isFakeBoldText = true
+        }
+
+        val departmentPaint = TextPaint().apply {
+            color = Color.BLACK
+            textSize = departmentFontSize.toFloat()
+            isAntiAlias = true
+            isFakeBoldText = true
+        }
+
+        val baseX = 24f
+        val baselineY = (nameFontSize + 28).toFloat()
+        val departmentX = baseX + namePaint.measureText(name) + (settings.outputDepartmentOffsetX * scale)
+        val departmentY = baselineY + (settings.outputDepartmentOffsetY * scale)
+
+        val extraTemplateText = resolvePrintText(name, department).trim()
+        val extraPaint = TextPaint().apply {
+            color = Color.DKGRAY
+            textSize = (settings.printTextBaseFontSize.coerceAtLeast(12) * 0.9f)
             isAntiAlias = true
         }
-        val layout = StaticLayout.Builder
-            .obtain(content, 0, content.length, textPaint, printWidth)
+        val extraLayout = StaticLayout.Builder
+            .obtain(extraTemplateText, 0, extraTemplateText.length, extraPaint, printWidth - 48)
             .setAlignment(Layout.Alignment.ALIGN_NORMAL)
             .setIncludePad(true)
             .setLineSpacing(0f, 1.1f)
             .build()
 
-        val bitmapHeight = (layout.height + fontSize).coerceAtLeast(120)
+        val contentBottom = maxOf(
+            baselineY + nameFontSize,
+            if (department.isBlank()) baselineY else departmentY + departmentFontSize,
+        )
+        val textTop = (contentBottom + 20).toInt()
+        val bitmapHeight = (textTop + extraLayout.height + 24).coerceAtLeast(180)
         val bitmap = Bitmap.createBitmap(printWidth, bitmapHeight, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         canvas.drawColor(Color.WHITE)
-        layout.draw(canvas)
+        canvas.drawText(name, baseX, baselineY, namePaint)
+        if (department.isNotBlank()) {
+            canvas.drawText(department, departmentX, departmentY, departmentPaint)
+        }
+        canvas.save()
+        canvas.translate(24f, textTop.toFloat())
+        extraLayout.draw(canvas)
+        canvas.restore()
         return bitmap
     }
 
     private fun startAutoRegistration() {
+        if (!isDbServerConnected) {
+            applyServerDisconnectedState()
+            return
+        }
         if (!hasCameraFrame) {
             showError("카메라 프레임이 아직 없습니다.")
             return
@@ -568,8 +678,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun saveRegistration() {
         val name = nameInput.text?.toString()?.trim().orEmpty()
+        val department = departmentInput.text?.toString()?.trim().orEmpty()
         if (name.isBlank()) {
             showError("이름을 입력해 주세요.")
+            return
+        }
+        if (department.isBlank()) {
+            showError("부서를 입력해 주세요.")
             return
         }
 
@@ -579,7 +694,8 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        faceDb.upsertPerson(name, embeddings, settings.maxEmbeddingsPerPerson)
+        faceDb.upsertPerson(name, department, embeddings, settings.maxEmbeddingsPerPerson)
+        dbSyncClient.pushLatest("신규 얼굴 등록")
         goInitialState()
     }
 
@@ -593,6 +709,7 @@ class MainActivity : AppCompatActivity() {
             adaptiveLastFrame = analyzeFrameTick
             adaptiveUpdateCount += 1
             monitorDetailText.text = "동일 인물의 얼굴 변화가 감지되었습니다. 데이터를 업데이트 합니다."
+            dbSyncClient.pushLatest("자동 임베딩 업데이트")
         }
     }
 
@@ -622,8 +739,9 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        val topName = rankings[0].first
-        val topScore = rankings[0].second
+        val topMatch = rankings[0]
+        val topName = topMatch.name
+        val topScore = topMatch.score
         if (topScore < settings.authSimThreshold) {
             val stateKey = "unknown:score:${String.format(Locale.US, "%.3f", topScore)}"
             if (stateKey != lastMonitorStateKey) {
@@ -633,21 +751,21 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        val secondScore = rankings.getOrNull(1)?.second ?: -1f
+        val secondScore = rankings.getOrNull(1)?.score ?: -1f
         val margin = if (secondScore >= 0f) topScore - secondScore else topScore
 
         if (margin >= settings.authMarginThreshold) {
             tryAdaptiveUpdate(topName, topScore, embedding)
-            val stateKey = "known:clear:$topName:${String.format(Locale.US, "%.3f", topScore)}:${String.format(Locale.US, "%.3f", margin)}"
+            val stateKey = "known:clear:${topMatch.name}:${topMatch.department}:${String.format(Locale.US, "%.3f", topScore)}:${String.format(Locale.US, "%.3f", margin)}"
             if (stateKey != lastMonitorStateKey) {
-                applyRegisteredClearState(topName, topScore, margin)
+                applyRegisteredClearState(topMatch, topScore, margin)
                 lastMonitorStateKey = stateKey
             }
             return
         }
 
         val top3 = rankings.take(3)
-        val stateKey = "known:ambiguous:" + top3.joinToString("|") { "${it.first}:${String.format(Locale.US, "%.3f", it.second)}" }
+        val stateKey = "known:ambiguous:" + top3.joinToString("|") { "${it.name}:${it.department}:${String.format(Locale.US, "%.3f", it.score)}" }
         if (stateKey != lastMonitorStateKey) {
             applyRegisteredAmbiguousState(top3)
             lastMonitorStateKey = stateKey
@@ -730,6 +848,16 @@ class MainActivity : AppCompatActivity() {
                 try {
                     val face = pickLargestFace(faces)
                     val page = currentPage()
+                    if (!isDbServerConnected) {
+                        if (page == PAGE_MONITOR) {
+                            val stateKey = "server:disconnected"
+                            if (stateKey != lastMonitorStateKey) {
+                                runOnUiThread { applyServerDisconnectedState() }
+                                lastMonitorStateKey = stateKey
+                            }
+                        }
+                        return@addOnSuccessListener
+                    }
                     if (face == null) {
                         if (page == PAGE_MONITOR) {
                             val stateKey = "idle"
@@ -828,9 +956,11 @@ class MainActivity : AppCompatActivity() {
                 folderPickerLauncher.launch(initial)
             },
             onSave = { updated ->
-                settings = updated
-                settingsStore.save(updated)
+                val requireReauth = updated.dbServerBaseUrl != settings.dbServerBaseUrl || updated.dbClientId != settings.dbClientId
+                settings = if (requireReauth) updated.copy(dbAuthToken = "") else updated
+                settingsStore.save(settings)
                 faceDb = createFaceDatabase(settings)
+                dbSyncClient.start(settings)
                 applyEllipseSettings()
                 setRegisterCount()
                 resetRegistrationState()
@@ -838,6 +968,23 @@ class MainActivity : AppCompatActivity() {
                 restartCamera()
             },
         )
+    }
+
+    private fun ensureSyncIdentity() {
+        var next = settings
+        var changed = false
+        if (next.dbClientId.isBlank()) {
+            next = next.copy(dbClientId = "client-" + UUID.randomUUID().toString().take(8))
+            changed = true
+        }
+        if (next.dbDeviceName.isBlank()) {
+            next = next.copy(dbDeviceName = "${Build.MANUFACTURER}-${Build.MODEL}")
+            changed = true
+        }
+        if (changed) {
+            settings = next
+            settingsStore.save(next)
+        }
     }
 
     private fun resolveInitialFaceDataTreeUri(): Uri {
@@ -863,6 +1010,64 @@ class MainActivity : AppCompatActivity() {
 
     private fun applyPreviewMirror(lensFacing: Int?) {
         previewView.scaleX = if (lensFacing == CameraSelector.LENS_FACING_FRONT) -1f else 1f
+    }
+
+    private fun createDbSyncClient(): FaceDbSyncClient {
+        return FaceDbSyncClient(
+            object : FaceDbSyncClient.Callbacks {
+                override fun onStatus(message: String, busy: Boolean) {
+                    runOnUiThread {
+                        updateSyncIndicators(message, busy)
+                    }
+                }
+
+                override fun exportLocalDbJson(): String {
+                    return faceDb.exportJson(pretty = false)
+                }
+
+                override fun exportLocalDbSummaryJson(): String {
+                    return faceDb.exportDiffSummaryJson()
+                }
+
+                override fun applyRemoteDbJson(rawJson: String): Boolean {
+                    val applied = faceDb.replaceWithJson(rawJson)
+                    if (applied) {
+                        lastMonitorStateKey = null
+                        runOnUiThread {
+                            monitorDetailText.text = "서버 DB 변경사항을 반영했습니다."
+                        }
+                    }
+                    return applied
+                }
+
+                override fun applyRemoteDbDiff(upsertsRaw: String, deletesRaw: String): Boolean {
+                    val applied = faceDb.applyDiffPatch(upsertsRaw, deletesRaw)
+                    if (applied) {
+                        lastMonitorStateKey = null
+                        runOnUiThread {
+                            monitorDetailText.text = "서버 DB 변경분을 반영했습니다."
+                        }
+                    }
+                    return applied
+                }
+
+                override fun localFaceCount(): Int {
+                    return faceDb.personCount()
+                }
+
+                override fun onAuthTokenIssued(token: String) {
+                    if (settings.dbAuthToken == token) return
+                    settings = settings.copy(dbAuthToken = token)
+                    settingsStore.save(settings)
+                }
+
+                override fun onAuthTokenCleared() {
+                    if (settings.dbAuthToken.isBlank()) return
+                    settings = settings.copy(dbAuthToken = "")
+                    settingsStore.save(settings)
+                }
+            },
+        )
     }
 
     private fun showError(message: String) {
@@ -898,8 +1103,117 @@ class MainActivity : AppCompatActivity() {
         return FaceDatabase(resolveFaceDbFile(settings))
     }
 
+    private fun updateSyncIndicators(message: String, busy: Boolean) {
+        if (message.isBlank()) return
+        val text = message.lowercase(Locale.KOREA)
+        var connectionChanged = false
+
+        when {
+            text.contains("db 서버 연결됨") -> {
+                connectionStatus = SyncLightStatus.SUCCESS
+                if (!isDbServerConnected) {
+                    isDbServerConnected = true
+                    connectionChanged = true
+                }
+            }
+            text.contains("연결 끊김") ||
+                text.contains("연결 종료") ||
+                text.contains("주소가 비어") ||
+                text.contains("인증 오류로 연결 재시도") -> {
+                connectionStatus = SyncLightStatus.ERROR
+                if (isDbServerConnected) {
+                    isDbServerConnected = false
+                    connectionChanged = true
+                }
+            }
+            text.contains("승인 요청") || text.contains("승인 대기중") || text.contains("재승인 요청") -> {
+                connectionStatus = SyncLightStatus.IN_PROGRESS
+                if (isDbServerConnected) {
+                    isDbServerConnected = false
+                    connectionChanged = true
+                }
+            }
+            text.contains("db 서버 동기화 비활성") -> {
+                connectionStatus = SyncLightStatus.ERROR
+                if (isDbServerConnected) {
+                    isDbServerConnected = false
+                    connectionChanged = true
+                }
+            }
+        }
+
+        when {
+            text.contains("db 동기화 완료") -> dbLoadStatus = SyncLightStatus.SUCCESS
+            text.contains("db 동기화 실패") -> dbLoadStatus = SyncLightStatus.ERROR
+            text.contains("db 동기화 대기중") || text.contains("db 동기화 중") -> dbLoadStatus = SyncLightStatus.IN_PROGRESS
+        }
+
+        when {
+            text.contains("db 서버 업데이트 완료") -> dbPushStatus = SyncLightStatus.SUCCESS
+            text.contains("db 서버 업데이트 실패") -> dbPushStatus = SyncLightStatus.ERROR
+            text.contains("db 서버 업데이트 중") -> dbPushStatus = SyncLightStatus.IN_PROGRESS
+        }
+
+        if (busy) {
+            if (text.contains("db 동기화")) dbLoadStatus = SyncLightStatus.IN_PROGRESS
+            if (text.contains("db 서버 업데이트")) dbPushStatus = SyncLightStatus.IN_PROGRESS
+        }
+
+        if (connectionChanged) {
+            lastMonitorStateKey = null
+            if (isDbServerConnected) {
+                if (currentPage() == PAGE_MONITOR) {
+                    applyMonitorIdleState()
+                }
+            } else {
+                if (currentPage() == PAGE_MONITOR) {
+                    applyServerDisconnectedState()
+                }
+            }
+        }
+
+        applySyncIndicatorColors()
+    }
+
+    private fun applySyncIndicatorColors() {
+        connectionStatusIndicator.text = statusTextForConnection(connectionStatus)
+        dbLoadStatusIndicator.text = statusTextForDbStatus(dbLoadStatus)
+        dbPushStatusIndicator.text = statusTextForDbStatus(dbPushStatus)
+        connectionStatusIndicator.setTextColor(colorForSyncStatus(connectionStatus))
+        dbLoadStatusIndicator.setTextColor(colorForSyncStatus(dbLoadStatus))
+        dbPushStatusIndicator.setTextColor(colorForSyncStatus(dbPushStatus))
+    }
+
+    private fun statusTextForConnection(status: SyncLightStatus): String {
+        return when (status) {
+            SyncLightStatus.IDLE -> "미연결"
+            SyncLightStatus.IN_PROGRESS -> "연결중"
+            SyncLightStatus.SUCCESS -> "연결됨"
+            SyncLightStatus.ERROR -> "오류"
+        }
+    }
+
+    private fun statusTextForDbStatus(status: SyncLightStatus): String {
+        return when (status) {
+            SyncLightStatus.IDLE -> "대기"
+            SyncLightStatus.IN_PROGRESS -> "진행중"
+            SyncLightStatus.SUCCESS -> "완료"
+            SyncLightStatus.ERROR -> "실패"
+        }
+    }
+
+    private fun colorForSyncStatus(status: SyncLightStatus): Int {
+        return when (status) {
+            SyncLightStatus.IDLE -> Color.parseColor("#9AA0A6")
+            SyncLightStatus.IN_PROGRESS -> Color.parseColor("#F9AB00")
+            SyncLightStatus.SUCCESS -> Color.parseColor("#1E8E3E")
+            SyncLightStatus.ERROR -> Color.parseColor("#D93025")
+        }
+    }
+
     override fun onDestroy() {
         cameraProvider?.unbindAll()
+        dbSyncClient.stop()
         faceEngine.close()
         cameraExecutor.shutdown()
         super.onDestroy()

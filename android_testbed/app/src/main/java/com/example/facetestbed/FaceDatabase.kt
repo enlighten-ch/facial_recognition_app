@@ -6,12 +6,20 @@ import androidx.documentfile.provider.DocumentFile
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.security.MessageDigest
 import kotlin.math.sqrt
 
 data class PersonRecord(
     val name: String,
+    val department: String,
     val centroid: FloatArray,
     val embeddings: MutableList<FloatArray>,
+)
+
+data class FaceMatch(
+    val name: String,
+    val department: String,
+    val score: Float,
 )
 
 class FaceDatabase private constructor(private val backend: StorageBackend) {
@@ -27,29 +35,42 @@ class FaceDatabase private constructor(private val backend: StorageBackend) {
         load()
     }
 
+    @Synchronized
     fun isEmpty(): Boolean = people.isEmpty()
 
-    fun upsertPerson(name: String, samples: List<FloatArray>, maxEmbeddingsPerPerson: Int = 100) {
+    @Synchronized
+    fun personCount(): Int = people.size
+
+    @Synchronized
+    fun upsertPerson(name: String, department: String, samples: List<FloatArray>, maxEmbeddingsPerPerson: Int = 100) {
         if (samples.isEmpty()) return
 
         val cleanedName = sanitizeName(name)
+        val cleanedDepartment = sanitizeDepartment(department)
         val pruned = pruneToLimit(samples.map { it.copyOf() }.toMutableList(), maxEmbeddingsPerPerson)
         val centroid = l2Normalize(meanVector(pruned))
 
         people.removeAll { it.name == cleanedName }
-        people.add(PersonRecord(cleanedName, centroid, pruned.toMutableList()))
+        people.add(PersonRecord(cleanedName, cleanedDepartment, centroid, pruned.toMutableList()))
         save()
     }
 
-    fun rank(embedding: FloatArray, topK: Int = 3): List<Pair<String, Float>> {
+    @Synchronized
+    fun rank(embedding: FloatArray, topK: Int = 3): List<FaceMatch> {
         if (people.isEmpty()) return emptyList()
 
         return people
-            .map { it.name to dot(it.centroid, embedding) }
-            .sortedByDescending { it.second }
+            .map { FaceMatch(it.name, it.department, dot(it.centroid, embedding)) }
+            .sortedByDescending { it.score }
             .take(topK.coerceAtLeast(1))
     }
 
+    @Synchronized
+    fun departmentOf(name: String): String {
+        return people.firstOrNull { it.name == name }?.department.orEmpty()
+    }
+
+    @Synchronized
     fun appendSampleToPerson(name: String, embedding: FloatArray, maxEmbeddingsPerPerson: Int = 100): Boolean {
         val person = people.firstOrNull { it.name == name } ?: return false
         person.embeddings.add(embedding.copyOf())
@@ -64,36 +85,80 @@ class FaceDatabase private constructor(private val backend: StorageBackend) {
         return true
     }
 
+    @Synchronized
+    fun exportJson(pretty: Boolean = true): String {
+        val root = toJsonObject()
+        return if (pretty) root.toString(2) else root.toString()
+    }
+
+    @Synchronized
+    fun exportDiffSummaryJson(): String {
+        val arr = JSONArray()
+        people.sortedBy { it.name }.forEach { person ->
+            arr.put(
+                JSONObject()
+                    .put("name", person.name)
+                    .put("hash", personHash(person)),
+            )
+        }
+        return JSONObject().put("people", arr).toString()
+    }
+
+    @Synchronized
+    fun replaceWithJson(rawJson: String): Boolean {
+        val parsed = runCatching { JSONObject(rawJson) }.getOrNull() ?: return false
+        val nextPeople = parsePeople(parsed) ?: return false
+        people.clear()
+        people.addAll(nextPeople)
+        save()
+        return true
+    }
+
+    @Synchronized
+    fun applyDiffPatch(upsertsRaw: String, deletesRaw: String): Boolean {
+        val upserts = runCatching { JSONArray(upsertsRaw) }.getOrNull() ?: return false
+        val deletes = runCatching { JSONArray(deletesRaw) }.getOrDefault(JSONArray())
+        val next = people.associateBy { it.name }.toMutableMap()
+
+        for (i in 0 until deletes.length()) {
+            val name = deletes.optString(i, "").trim()
+            if (name.isNotBlank()) {
+                next.remove(name)
+            }
+        }
+
+        for (i in 0 until upserts.length()) {
+            val item = upserts.optJSONObject(i) ?: continue
+            val parsed = parsePerson(item) ?: continue
+            next[parsed.name] = parsed
+        }
+
+        people.clear()
+        people.addAll(next.values.sortedBy { it.name })
+        save()
+        return true
+    }
+
     private fun load() {
         val raw = backend.readText() ?: return
         val root = runCatching { JSONObject(raw) }.getOrNull() ?: return
-        val arr = root.optJSONArray("people") ?: return
-
+        val loaded = parsePeople(root) ?: return
         people.clear()
-        for (i in 0 until arr.length()) {
-            val item = arr.optJSONObject(i) ?: continue
-            val name = item.optString("name", "").trim()
-            if (name.isEmpty()) continue
-
-            val embeddingsJson = item.optJSONArray("embeddings") ?: JSONArray()
-            val embeddings = mutableListOf<FloatArray>()
-            for (j in 0 until embeddingsJson.length()) {
-                val embJson = embeddingsJson.optJSONArray(j) ?: continue
-                embeddings.add(jsonArrayToFloatArray(embJson))
-            }
-            if (embeddings.isEmpty()) continue
-
-            val centroid = l2Normalize(meanVector(embeddings))
-            people.add(PersonRecord(name, centroid, embeddings))
-        }
+        people.addAll(loaded)
     }
 
     private fun save() {
+        val root = toJsonObject()
+        backend.writeText(root.toString(2))
+    }
+
+    private fun toJsonObject(): JSONObject {
         val root = JSONObject()
         val arr = JSONArray()
         for (p in people) {
             val obj = JSONObject()
             obj.put("name", p.name)
+            obj.put("department", p.department)
             obj.put("centroid", floatArrayToJsonArray(p.centroid))
             val embs = JSONArray()
             for (e in p.embeddings) {
@@ -103,7 +168,34 @@ class FaceDatabase private constructor(private val backend: StorageBackend) {
             arr.put(obj)
         }
         root.put("people", arr)
-        backend.writeText(root.toString(2))
+        return root
+    }
+
+    private fun parsePeople(root: JSONObject): MutableList<PersonRecord>? {
+        val arr = root.optJSONArray("people") ?: return mutableListOf()
+        val out = mutableListOf<PersonRecord>()
+        for (i in 0 until arr.length()) {
+            val item = arr.optJSONObject(i) ?: continue
+            val person = parsePerson(item) ?: continue
+            out.add(person)
+        }
+        return out
+    }
+
+    private fun parsePerson(item: JSONObject): PersonRecord? {
+        val name = item.optString("name", "").trim()
+        if (name.isEmpty()) return null
+        val department = item.optString("department", item.optString("folder", "")).trim()
+
+        val embeddingsJson = item.optJSONArray("embeddings") ?: JSONArray()
+        val embeddings = mutableListOf<FloatArray>()
+        for (j in 0 until embeddingsJson.length()) {
+            val embJson = embeddingsJson.optJSONArray(j) ?: continue
+            embeddings.add(jsonArrayToFloatArray(embJson))
+        }
+        if (embeddings.isEmpty()) return null
+        val centroid = l2Normalize(meanVector(embeddings))
+        return PersonRecord(name, department, centroid, embeddings)
     }
 
     private fun pruneToLimit(embeddings: MutableList<FloatArray>, limit: Int): List<FloatArray> {
@@ -135,6 +227,10 @@ class FaceDatabase private constructor(private val backend: StorageBackend) {
             }
         }
         return if (cleaned.isBlank()) "unknown" else cleaned
+    }
+
+    private fun sanitizeDepartment(raw: String): String {
+        return raw.trim().replace(Regex("\\s+"), " ")
     }
 
     private fun meanVector(vectors: List<FloatArray>): FloatArray {
@@ -174,6 +270,29 @@ class FaceDatabase private constructor(private val backend: StorageBackend) {
             out[i] = arr.optDouble(i, 0.0).toFloat()
         }
         return out
+    }
+
+    private fun personHash(person: PersonRecord): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        digest.update(person.name.trim().toByteArray(Charsets.UTF_8))
+        digest.update(0)
+        digest.update(person.department.trim().toByteArray(Charsets.UTF_8))
+        digest.update(0)
+        updateDigestInt(digest, person.embeddings.size)
+        person.embeddings.forEach { emb ->
+            updateDigestInt(digest, emb.size)
+            emb.forEach { v ->
+                updateDigestInt(digest, java.lang.Float.floatToIntBits(v))
+            }
+        }
+        return digest.digest().joinToString("") { b -> "%02x".format(b) }
+    }
+
+    private fun updateDigestInt(digest: MessageDigest, value: Int) {
+        digest.update(((value ushr 24) and 0xFF).toByte())
+        digest.update(((value ushr 16) and 0xFF).toByte())
+        digest.update(((value ushr 8) and 0xFF).toByte())
+        digest.update((value and 0xFF).toByte())
     }
 
     private interface StorageBackend {
