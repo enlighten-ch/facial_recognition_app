@@ -38,6 +38,15 @@ android {
     androidResources {
         noCompress += "onnx"
     }
+
+    applicationVariants.all {
+        if (buildType.name == "debug") {
+            outputs.all {
+                val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
+                output.outputFileName = "faith_id.apk"
+            }
+        }
+    }
 }
 
 dependencies {

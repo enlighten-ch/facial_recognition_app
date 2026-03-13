@@ -687,8 +687,9 @@ class MainActivity : AppCompatActivity() {
 
             try {
                 provider.unbindAll()
-                provider.bindToLifecycle(this, selector, preview, analysis)
+                val camera = provider.bindToLifecycle(this, selector, preview, analysis)
                 runOnUiThread {
+                    applyPreviewMirror(camera.cameraInfo.lensFacing)
                     val modelLabel = if (faceEngine.isBuffaloReady()) "buffalo_l ONNX" else "geometry fallback"
                     monitorDetailText.text = "모델: $modelLabel"
                 }
@@ -823,7 +824,7 @@ class MainActivity : AppCompatActivity() {
             current = settings,
             onPickFolderRequested = { onPicked ->
                 pendingFolderPickerCallback = onPicked
-                val initial = settings.faceDataDir.takeIf { it.startsWith("content://") }?.let(Uri::parse)
+                val initial = resolveInitialFaceDataTreeUri()
                 folderPickerLauncher.launch(initial)
             },
             onSave = { updated ->
@@ -839,6 +840,14 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
+    private fun resolveInitialFaceDataTreeUri(): Uri {
+        val selected = settings.faceDataDir.trim()
+        if (selected.startsWith("content://")) {
+            return Uri.parse(selected)
+        }
+        return Uri.parse("content://com.android.externalstorage.documents/tree/primary%3ADocuments")
+    }
+
     private fun updateEllipseOverlay() {
         val visible = currentPage() == PAGE_REGISTER_CAPTURE || currentPage() == PAGE_MONITOR
         ellipseOverlay.visibility = if (visible) View.VISIBLE else View.GONE
@@ -850,6 +859,10 @@ class MainActivity : AppCompatActivity() {
         ellipseOverlay.centerYOffsetRatio = settings.registerEllipseCenterYOffsetRatio
         ellipseOverlay.outsideDimAlpha = settings.registerEllipseOutsideDimAlpha
         updateEllipseOverlay()
+    }
+
+    private fun applyPreviewMirror(lensFacing: Int?) {
+        previewView.scaleX = if (lensFacing == CameraSelector.LENS_FACING_FRONT) -1f else 1f
     }
 
     private fun showError(message: String) {
