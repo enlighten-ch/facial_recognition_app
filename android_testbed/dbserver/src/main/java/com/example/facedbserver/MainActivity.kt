@@ -1,9 +1,15 @@
 package com.example.facedbserver
 
 import android.app.AlertDialog
+import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
+import android.content.ServiceConnection
 import android.graphics.Color
 import android.os.Bundle
+import android.os.Handler
+import android.os.IBinder
+import android.os.Looper
 import android.text.InputType
 import android.view.View
 import android.widget.Button
@@ -16,6 +22,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import java.net.NetworkInterface
 import java.util.Collections
+import kotlin.concurrent.thread
 
 class MainActivity : AppCompatActivity() {
     private lateinit var loginContainer: LinearLayout
@@ -42,11 +49,54 @@ class MainActivity : AppCompatActivity() {
     private lateinit var quitButton: Button
     private lateinit var dbTable: TableLayout
 
-    private lateinit var serverEngine: FaceDbServerEngine
     private lateinit var configStore: ServerConfigStore
     private var config = ServerUiConfig()
     private val logs = mutableListOf<String>()
     private var pendingStoragePickerCallback: ((String?) -> Unit)? = null
+    private val uiHandler = Handler(Looper.getMainLooper())
+    private var refreshScheduled = false
+    private var lastRenderedRows: List<DbPersonRow> = emptyList()
+
+    @Volatile
+    private var isDbLoading: Boolean = false
+
+    private var serverService: FaceDbServerService? = null
+    private var isServiceBound = false
+    private val pendingServiceTasks = mutableListOf<(FaceDbServerService) -> Unit>()
+
+    private val serviceListener =
+        object : FaceDbServerService.Listener {
+            override fun onLog(line: String) {
+                runOnUiThread { appendLog(line) }
+            }
+
+            override fun onStateChanged() {
+                runOnUiThread { scheduleRefreshStatus(0L) }
+            }
+        }
+
+    private val serviceConnection =
+        object : ServiceConnection {
+            override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
+                val local = binder as? FaceDbServerService.LocalBinder ?: return
+                serverService = local.getService()
+                isServiceBound = true
+                serverService?.registerListener(serviceListener)
+                serverService?.applyStorageDir(config.dbStorageDir)
+                if (logs.isEmpty()) {
+                    serverService?.snapshotLogs()?.forEach { appendLog(it) }
+                }
+                flushPendingServiceTasks()
+                scheduleRefreshStatus(0L)
+            }
+
+            override fun onServiceDisconnected(name: ComponentName?) {
+                serverService?.unregisterListener(serviceListener)
+                serverService = null
+                isServiceBound = false
+                scheduleRefreshStatus(0L)
+            }
+        }
 
     private val storagePickerLauncher =
         registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
@@ -71,11 +121,6 @@ class MainActivity : AppCompatActivity() {
         config = configStore.load()
         portInput.setText(config.defaultPort.toString())
 
-        serverEngine = FaceDbServerEngine(this) { line ->
-            runOnUiThread { appendLog(line) }
-        }
-        serverEngine.setDbStorageDir(config.dbStorageDir)
-
         loginButton.setOnClickListener { tryLogin() }
         startButton.setOnClickListener { startServer() }
         stopButton.setOnClickListener { stopServer() }
@@ -85,7 +130,19 @@ class MainActivity : AppCompatActivity() {
         settingsButton.setOnClickListener { openSettingsDialog() }
         quitButton.setOnClickListener { quitApp() }
 
+        bindServerService()
         showLoginView()
+        autoLoadDbOnAppLaunch()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        bindServerService()
+    }
+
+    override fun onStop() {
+        unbindServerService()
+        super.onStop()
     }
 
     private fun bindViews() {
@@ -114,10 +171,60 @@ class MainActivity : AppCompatActivity() {
         dbTable = findViewById(R.id.dbTable)
     }
 
-    private fun quitApp() {
-        if (serverEngine.isRunning()) {
-            serverEngine.stop()
+    private fun bindServerService() {
+        if (isServiceBound) return
+        bindService(
+            Intent(this, FaceDbServerService::class.java),
+            serviceConnection,
+            Context.BIND_AUTO_CREATE,
+        )
+    }
+
+    private fun unbindServerService() {
+        if (!isServiceBound) return
+        runCatching { serverService?.unregisterListener(serviceListener) }
+        runCatching { unbindService(serviceConnection) }
+        serverService = null
+        isServiceBound = false
+    }
+
+    private fun flushPendingServiceTasks() {
+        val service = serverService ?: return
+        if (pendingServiceTasks.isEmpty()) return
+        val tasks = pendingServiceTasks.toList()
+        pendingServiceTasks.clear()
+        tasks.forEach { task ->
+            runCatching { task(service) }
         }
+    }
+
+    private fun withService(task: (FaceDbServerService) -> Unit) {
+        val service = serverService
+        if (service != null) {
+            task(service)
+            return
+        }
+        pendingServiceTasks += task
+        bindServerService()
+    }
+
+    private fun withServiceAsync(name: String, task: (FaceDbServerService) -> Unit) {
+        withService { service ->
+            thread(name = name) { task(service) }
+        }
+    }
+
+    private fun ensureServiceStarted() {
+        runCatching {
+            startService(Intent(this, FaceDbServerService::class.java))
+        }
+    }
+
+    private fun quitApp() {
+        val shutdownIntent = Intent(this, FaceDbServerService::class.java)
+            .setAction(FaceDbServerService.ACTION_SHUTDOWN_SERVICE)
+        runCatching { startService(shutdownIntent) }
+        runCatching { stopService(Intent(this, FaceDbServerService::class.java)) }
         finish()
     }
 
@@ -132,7 +239,24 @@ class MainActivity : AppCompatActivity() {
     private fun showMainView() {
         loginContainer.visibility = View.GONE
         mainContainer.visibility = View.VISIBLE
-        refreshStatus()
+        scheduleRefreshStatus(0L)
+    }
+
+    private fun autoLoadDbOnAppLaunch() {
+        if (isDbLoading) return
+        if (config.dbStorageDir.isBlank()) {
+            appendLog("경고: DB 경로 설정이 없어 자동 로드를 건너뜁니다. 설정에서 DB 디렉토리를 지정해 주세요.")
+            return
+        }
+        setDbLoading(true)
+        withServiceAsync("dbserver-auto-load") { service ->
+            service.applyStorageDir(config.dbStorageDir)
+            val ok = service.reloadDbFromStorage(config.dbStorageDir)
+            runOnUiThread {
+                setDbLoading(false)
+                appendLog(if (ok) "앱 시작시 DB 자동 로드 완료" else "앱 시작시 DB 자동 로드 실패")
+            }
+        }
     }
 
     private fun tryLogin() {
@@ -141,6 +265,8 @@ class MainActivity : AppCompatActivity() {
         if (id == config.adminId && password == config.adminPassword) {
             appendLog("관리자 로그인 성공: $id")
             showMainView()
+            appendLog("로그인 후 서버 자동 시작 시도")
+            startServer()
         } else {
             loginMessageText.text = "ID 또는 PW가 올바르지 않습니다."
         }
@@ -170,7 +296,7 @@ class MainActivity : AppCompatActivity() {
             inputType = InputType.TYPE_CLASS_NUMBER
         }
         val dbStorageInput = EditText(this).apply {
-            hint = "DB 저장 디렉토리(content:// 또는 절대경로)"
+            hint = "DB 저장 디렉토리(face_db.csv 생성)"
             setText(config.dbStorageDir)
             setSingleLine(true)
             isFocusable = false
@@ -207,8 +333,10 @@ class MainActivity : AppCompatActivity() {
                 )
                 val ok = configStore.save(next)
                 config = configStore.load()
-                serverEngine.setDbStorageDir(config.dbStorageDir)
-                if (!serverEngine.isRunning()) {
+                withService { service ->
+                    service.applyStorageDir(config.dbStorageDir)
+                }
+                if (serverService?.isRunning() != true) {
                     portInput.setText(config.defaultPort.toString())
                 }
                 appendLog(if (ok) "설정 저장 완료(config.yaml, DB 디렉토리 포함)" else "설정 저장 실패")
@@ -217,27 +345,65 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startServer() {
+        if (isDbLoading) return
         val port = portInput.text.toString().trim().toIntOrNull()?.coerceIn(1, 65535) ?: config.defaultPort
-        serverEngine.setDbStorageDir(config.dbStorageDir)
-        val started = serverEngine.start(port)
-        if (started) {
-            appendLog("서버 앱 시작 완료 (DB 경로: ${config.dbStorageDir.ifBlank { "기본 내부저장소" }})")
+        ensureServiceStarted()
+        setDbLoading(true)
+        withServiceAsync("dbserver-start") { service ->
+            service.applyStorageDir(config.dbStorageDir)
+            val started = service.startServer(port, config.dbStorageDir)
+            runOnUiThread {
+                setDbLoading(false)
+                if (started) {
+                    appendLog("서버 앱 시작 완료 (DB 경로: ${config.dbStorageDir.ifBlank { "기본 내부저장소" }})")
+                } else {
+                    appendLog("서버 시작 요청 처리됨(이미 실행중이거나 시작 실패)")
+                    scheduleRefreshStatus(0L)
+                }
+            }
         }
-        refreshStatus()
+        scheduleRefreshStatus(0L)
     }
 
     private fun stopServer() {
-        serverEngine.stop()
-        refreshStatus()
+        setDbLoading(true)
+        withServiceAsync("dbserver-stop") { service ->
+            val wasRunning = service.stopServer()
+            runOnUiThread {
+                setDbLoading(false)
+                appendLog(if (wasRunning) "서버 중지 완료" else "서버가 이미 중지 상태입니다.")
+            }
+        }
     }
 
     private fun reloadDb() {
-        val ok = serverEngine.reloadDbFromStorage()
-        if (ok) {
-            appendLog("DB 재로드 완료")
+        if (isDbLoading) return
+        setDbLoading(true)
+        withServiceAsync("dbserver-reload") { service ->
+            service.applyStorageDir(config.dbStorageDir)
+            val ok = service.reloadDbFromStorage(config.dbStorageDir)
+            runOnUiThread {
+                setDbLoading(false)
+                if (ok) {
+                    appendLog("DB 재로드 완료")
+                } else {
+                    appendLog("DB 재로드 실패")
+                    scheduleRefreshStatus(0L)
+                }
+            }
+        }
+    }
+
+    private fun setDbLoading(loading: Boolean) {
+        isDbLoading = loading
+        if (loading) {
+            statusText.text = "DB 로드중..."
+            endpointText.text = "엔드포인트: -"
+            startButton.isEnabled = false
+            stopButton.isEnabled = false
+            reloadDbButton.isEnabled = false
         } else {
-            appendLog("DB 재로드 실패")
-            refreshStatus()
+            scheduleRefreshStatus(0L)
         }
     }
 
@@ -247,25 +413,67 @@ class MainActivity : AppCompatActivity() {
             appendLog("승인할 clientId를 입력해 주세요.")
             return
         }
-        val ok = serverEngine.approveClient(target)
-        if (ok) {
-            appendLog("클라이언트 승인: $target")
-        } else {
-            appendLog("승인 실패(대기중 아님): $target")
+        withServiceAsync("dbserver-approve-one") { service ->
+            val ok = service.approveClient(target)
+            runOnUiThread {
+                appendLog(if (ok) "클라이언트 승인: $target" else "승인 실패(대기중 아님): $target")
+                scheduleRefreshStatus(0L)
+            }
         }
-        refreshStatus()
     }
 
     private fun approveAllClients() {
-        val count = serverEngine.approveAllPending()
-        appendLog("전체 승인 완료: ${count}건")
-        refreshStatus()
+        withServiceAsync("dbserver-approve-all") { service ->
+            val count = service.approveAllPending()
+            runOnUiThread {
+                appendLog("전체 승인 완료: ${count}건")
+                scheduleRefreshStatus(0L)
+            }
+        }
+    }
+
+    private fun scheduleRefreshStatus(delayMs: Long = 120L) {
+        if (refreshScheduled) return
+        refreshScheduled = true
+        uiHandler.postDelayed(
+            {
+                refreshScheduled = false
+                refreshStatus()
+            },
+            delayMs.coerceAtLeast(0L),
+        )
     }
 
     private fun refreshStatus() {
-        val running = serverEngine.isRunning()
+        if (isDbLoading) {
+            statusText.text = "DB 로드중..."
+            endpointText.text = "엔드포인트: -"
+            startButton.isEnabled = false
+            stopButton.isEnabled = false
+            reloadDbButton.isEnabled = false
+            return
+        }
+
+        val service = serverService
+        if (service == null) {
+            statusText.text = "서버 서비스 연결중..."
+            endpointText.text = "엔드포인트: -"
+            startButton.isEnabled = true
+            stopButton.isEnabled = false
+            reloadDbButton.isEnabled = false
+            pendingText.text = "승인 대기: -"
+            approvedText.text = "승인 완료: -"
+            clientStatusText.text = "연결된 클라이언트 없음"
+            if (lastRenderedRows.isNotEmpty()) {
+                renderDbTable(emptyList())
+                lastRenderedRows = emptyList()
+            }
+            return
+        }
+
+        val running = service.isRunning()
         if (running) {
-            val port = serverEngine.endpointPort()
+            val port = service.endpointPort()
             val ip = detectLocalIpAddress()
             statusText.text = "서버 실행중"
             endpointText.text = "엔드포인트: http://$ip:$port"
@@ -274,15 +482,16 @@ class MainActivity : AppCompatActivity() {
             endpointText.text = "엔드포인트: -"
         }
 
-        startButton.isEnabled = !running
+        startButton.isEnabled = true
         stopButton.isEnabled = running
+        reloadDbButton.isEnabled = true
 
-        val pending = serverEngine.pendingClientIds()
-        val approved = serverEngine.approvedClientIds()
+        val pending = service.pendingClientIds()
+        val approved = service.approvedClientIds()
         pendingText.text = "승인 대기: " + if (pending.isEmpty()) "없음" else pending.joinToString(", ")
         approvedText.text = "승인 완료: " + if (approved.isEmpty()) "없음" else approved.joinToString(", ")
 
-        val statuses = serverEngine.clientStatuses()
+        val statuses = service.clientStatuses()
         clientStatusText.text = if (statuses.isEmpty()) {
             "연결된 클라이언트 없음"
         } else {
@@ -291,7 +500,11 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        renderDbTable(serverEngine.dbRowsSnapshot())
+        val rows = service.dbRowsSnapshot()
+        if (rows != lastRenderedRows) {
+            renderDbTable(rows)
+            lastRenderedRows = rows.toList()
+        }
     }
 
     private fun renderDbTable(rows: List<DbPersonRow>) {
@@ -301,7 +514,8 @@ class MainActivity : AppCompatActivity() {
         addCell(header, "이름", isHeader = true)
         addCell(header, "부서", isHeader = true)
         addCell(header, "임베딩 수", isHeader = true)
-        addCell(header, "작업", isHeader = true)
+        addCell(header, "수정", isHeader = true)
+        addCell(header, "삭제", isHeader = true)
         dbTable.addView(header)
 
         if (rows.isEmpty()) {
@@ -309,6 +523,7 @@ class MainActivity : AppCompatActivity() {
             addCell(row, "데이터 없음", isHeader = false)
             addCell(row, "-", isHeader = false)
             addCell(row, "0", isHeader = false)
+            addCell(row, "-", isHeader = false)
             addCell(row, "-", isHeader = false)
             dbTable.addView(row)
             return
@@ -321,6 +536,9 @@ class MainActivity : AppCompatActivity() {
             addCell(row, person.embeddingCount.toString(), isHeader = false)
             addActionCell(row, "수정") {
                 openEditPersonDialog(person)
+            }
+            addActionCell(row, "삭제") {
+                openDeletePersonDialog(person)
             }
             dbTable.addView(row)
         }
@@ -384,14 +602,41 @@ class MainActivity : AppCompatActivity() {
             .setView(root)
             .setNegativeButton("취소", null)
             .setPositiveButton("저장") { _, _ ->
-                val ok = serverEngine.updatePersonRow(
-                    personIndex = person.personIndex,
-                    name = nameInput.text.toString(),
-                    department = departmentInput.text.toString(),
-                )
-                appendLog(if (ok) "DB 항목 수정 완료: ${person.name}" else "DB 항목 수정 실패")
-                if (!ok) {
-                    refreshStatus()
+                setDbLoading(true)
+                withServiceAsync("dbserver-edit-row") { service ->
+                    val ok = service.updatePersonRow(
+                        personIndex = person.personIndex,
+                        name = nameInput.text.toString(),
+                        department = departmentInput.text.toString(),
+                    )
+                    runOnUiThread {
+                        setDbLoading(false)
+                        appendLog(if (ok) "DB 항목 수정 완료: ${person.name}" else "DB 항목 수정 실패")
+                    }
+                }
+            }
+            .show()
+    }
+
+    private fun openDeletePersonDialog(person: DbPersonRow) {
+        val desc = buildString {
+            append("아래 DB 항목을 삭제할까요?\n\n")
+            append("이름: ${person.name}\n")
+            append("부서: ${person.department.ifBlank { "-" }}\n")
+            append("임베딩 수: ${person.embeddingCount}")
+        }
+        AlertDialog.Builder(this)
+            .setTitle("DB 항목 삭제")
+            .setMessage(desc)
+            .setNegativeButton("취소", null)
+            .setPositiveButton("삭제") { _, _ ->
+                setDbLoading(true)
+                withServiceAsync("dbserver-delete-row") { service ->
+                    val ok = service.deletePersonRow(person.personIndex)
+                    runOnUiThread {
+                        setDbLoading(false)
+                        appendLog(if (ok) "DB 항목 삭제 완료: ${person.name}" else "DB 항목 삭제 실패")
+                    }
                 }
             }
             .show()
@@ -402,7 +647,7 @@ class MainActivity : AppCompatActivity() {
         while (logs.size > 200) logs.removeAt(0)
         logText.text = logs.joinToString("\n")
         if (mainContainer.visibility == View.VISIBLE) {
-            refreshStatus()
+            scheduleRefreshStatus()
         }
     }
 
@@ -423,7 +668,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        serverEngine.release()
+        uiHandler.removeCallbacksAndMessages(null)
         super.onDestroy()
     }
 }

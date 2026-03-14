@@ -27,6 +27,9 @@ data class AppSettings(
     val adaptiveUpdateIdleSeconds: Int = 5,
     val dbSyncEnabled: Boolean = true,
     val dbServerBaseUrl: String = "http://127.0.0.1:18080",
+    val dbConnectRetryCount: Int = 10,
+    val dbConnectRetryDelaySeconds: Int = 3,
+    val dbConnectTimeoutSeconds: Int = 6,
     val dbClientId: String = "",
     val dbAuthToken: String = "",
     val dbDeviceName: String = "",
@@ -44,6 +47,8 @@ data class AppSettings(
     val outputDepartmentTextSizeSp: Int = 24,
     val outputDepartmentOffsetX: Int = 0,
     val outputDepartmentOffsetY: Int = 0,
+    val outputReturnDelaySeconds: Int = 3,
+    val outputReturnMessageTemplate: String = "{seconds}초 후 기본 화면으로 복귀합니다",
 )
 
 object PrinterModel {
@@ -89,6 +94,9 @@ class AppSettingsStore(context: Context) {
                 adaptiveUpdateIdleSeconds = o.optInt("ADAPTIVE_UPDATE_IDLE_SECONDS", 5),
                 dbSyncEnabled = o.optBoolean("DB_SYNC_ENABLED", true),
                 dbServerBaseUrl = o.optString("DB_SERVER_BASE_URL", "http://127.0.0.1:18080"),
+                dbConnectRetryCount = o.optInt("DB_CONNECT_RETRY_COUNT", 10),
+                dbConnectRetryDelaySeconds = o.optInt("DB_CONNECT_RETRY_DELAY_SECONDS", 3),
+                dbConnectTimeoutSeconds = o.optInt("DB_CONNECT_TIMEOUT_SECONDS", 6),
                 dbClientId = o.optString("DB_CLIENT_ID", ""),
                 dbAuthToken = o.optString("DB_AUTH_TOKEN", ""),
                 dbDeviceName = o.optString("DB_DEVICE_NAME", ""),
@@ -106,6 +114,8 @@ class AppSettingsStore(context: Context) {
                 outputDepartmentTextSizeSp = o.optInt("OUTPUT_DEPARTMENT_TEXT_SIZE_SP", 24),
                 outputDepartmentOffsetX = o.optInt("OUTPUT_DEPARTMENT_OFFSET_X", 0),
                 outputDepartmentOffsetY = o.optInt("OUTPUT_DEPARTMENT_OFFSET_Y", 0),
+                outputReturnDelaySeconds = o.optInt("OUTPUT_RETURN_DELAY_SECONDS", 3),
+                outputReturnMessageTemplate = o.optString("OUTPUT_RETURN_MESSAGE_TEMPLATE", "{seconds}초 후 기본 화면으로 복귀합니다"),
             )
         }.getOrDefault(AppSettings())
     }
@@ -135,6 +145,9 @@ class AppSettingsStore(context: Context) {
         o.put("ADAPTIVE_UPDATE_IDLE_SECONDS", settings.adaptiveUpdateIdleSeconds)
         o.put("DB_SYNC_ENABLED", settings.dbSyncEnabled)
         o.put("DB_SERVER_BASE_URL", settings.dbServerBaseUrl)
+        o.put("DB_CONNECT_RETRY_COUNT", settings.dbConnectRetryCount)
+        o.put("DB_CONNECT_RETRY_DELAY_SECONDS", settings.dbConnectRetryDelaySeconds)
+        o.put("DB_CONNECT_TIMEOUT_SECONDS", settings.dbConnectTimeoutSeconds)
         o.put("DB_CLIENT_ID", settings.dbClientId)
         o.put("DB_AUTH_TOKEN", settings.dbAuthToken)
         o.put("DB_DEVICE_NAME", settings.dbDeviceName)
@@ -152,6 +165,8 @@ class AppSettingsStore(context: Context) {
         o.put("OUTPUT_DEPARTMENT_TEXT_SIZE_SP", settings.outputDepartmentTextSizeSp)
         o.put("OUTPUT_DEPARTMENT_OFFSET_X", settings.outputDepartmentOffsetX)
         o.put("OUTPUT_DEPARTMENT_OFFSET_Y", settings.outputDepartmentOffsetY)
+        o.put("OUTPUT_RETURN_DELAY_SECONDS", settings.outputReturnDelaySeconds)
+        o.put("OUTPUT_RETURN_MESSAGE_TEMPLATE", settings.outputReturnMessageTemplate)
         prefs.edit().putString(KEY_JSON, o.toString()).apply()
     }
 

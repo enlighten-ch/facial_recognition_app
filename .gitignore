@@ -4,3 +4,4 @@
 /__pycache__
 /android_testbed/app/build
 /android_testbed/dbserver/build
+/android_testbed/app/src/main/assets/models

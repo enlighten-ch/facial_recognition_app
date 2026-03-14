@@ -53,6 +53,13 @@
             android:text="⚙" />
 
         <Button
+            android:id="@+id/errorLogButton"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:layout_marginStart="8dp"
+            android:text="오류로그" />
+
+        <Button
             android:id="@+id/quitButton"
             android:layout_width="wrap_content"
             android:layout_height="40dp"

@@ -76,6 +76,9 @@ object SettingsDialog {
         section(content, context, "DB 서버 동기화")
         val dbSyncEnabled = boolField(content, context, "서버 동기화 사용", current.dbSyncEnabled)
         val dbServerBaseUrl = textField(content, context, "DB 서버 주소", current.dbServerBaseUrl)
+        val dbConnectRetryCount = numberField(content, context, "연결 재시도 횟수", current.dbConnectRetryCount.toString(), true)
+        val dbConnectRetryDelaySeconds = numberField(content, context, "연결 재시도 대기시간(초)", current.dbConnectRetryDelaySeconds.toString(), true)
+        val dbConnectTimeoutSeconds = numberField(content, context, "연결 시도 타임아웃(초)", current.dbConnectTimeoutSeconds.toString(), true)
         val dbClientId = textField(content, context, "클라이언트 ID (비우면 자동 생성)", current.dbClientId)
         val dbDeviceName = textField(content, context, "디바이스 이름 (비우면 자동 생성)", current.dbDeviceName)
         val dbAuthToken = textField(content, context, "DB 인증 토큰", current.dbAuthToken)
@@ -101,6 +104,8 @@ object SettingsDialog {
         val outputDepartmentSize = numberField(content, context, "출력 화면 부서 글자 크기(sp)", current.outputDepartmentTextSizeSp.toString(), true)
         val outputDepartmentOffsetX = numberField(content, context, "출력 화면 부서 X 오프셋", current.outputDepartmentOffsetX.toString(), true)
         val outputDepartmentOffsetY = numberField(content, context, "출력 화면 부서 Y 오프셋", current.outputDepartmentOffsetY.toString(), true)
+        val outputReturnDelaySeconds = numberField(content, context, "출력 후 기본 화면 복귀시간(초)", current.outputReturnDelaySeconds.toString(), true)
+        val outputReturnMessageTemplate = textField(content, context, "복귀 안내문구 템플릿 ({seconds} 또는 N 사용)", current.outputReturnMessageTemplate)
 
         AlertDialog.Builder(context)
             .setTitle("설정")
@@ -131,6 +136,9 @@ object SettingsDialog {
                     adaptiveUpdateIdleSeconds = adaptiveIdleSeconds.asInt(current.adaptiveUpdateIdleSeconds).coerceAtLeast(1),
                     dbSyncEnabled = dbSyncEnabled.isChecked,
                     dbServerBaseUrl = dbServerBaseUrl.text.toString().trim(),
+                    dbConnectRetryCount = dbConnectRetryCount.asInt(current.dbConnectRetryCount).coerceAtLeast(1),
+                    dbConnectRetryDelaySeconds = dbConnectRetryDelaySeconds.asInt(current.dbConnectRetryDelaySeconds).coerceAtLeast(1),
+                    dbConnectTimeoutSeconds = dbConnectTimeoutSeconds.asInt(current.dbConnectTimeoutSeconds).coerceAtLeast(2),
                     dbClientId = dbClientId.text.toString().trim(),
                     dbAuthToken = dbAuthToken.text.toString().trim(),
                     dbDeviceName = dbDeviceName.text.toString().trim(),
@@ -148,6 +156,8 @@ object SettingsDialog {
                     outputDepartmentTextSizeSp = outputDepartmentSize.asInt(current.outputDepartmentTextSizeSp).coerceIn(10, 100),
                     outputDepartmentOffsetX = outputDepartmentOffsetX.asInt(current.outputDepartmentOffsetX).coerceIn(-300, 300),
                     outputDepartmentOffsetY = outputDepartmentOffsetY.asInt(current.outputDepartmentOffsetY).coerceIn(-300, 300),
+                    outputReturnDelaySeconds = outputReturnDelaySeconds.asInt(current.outputReturnDelaySeconds).coerceAtLeast(1),
+                    outputReturnMessageTemplate = outputReturnMessageTemplate.text.toString().ifBlank { current.outputReturnMessageTemplate },
                 )
                 onSave(updated)
             }

@@ -9,6 +9,8 @@ import android.graphics.Color
 import android.os.Build
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
@@ -16,6 +18,7 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ProgressBar
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.ViewFlipper
 import android.view.View
@@ -39,6 +42,8 @@ import com.mangoslab.nemonicsdk.constants.NPrintQuality
 import com.mangoslab.nemonicsdk.constants.NPrinterType
 import com.mangoslab.nemonicsdk.constants.NResult
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.Executors
@@ -73,6 +78,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var dbPushStatusIndicator: TextView
     private lateinit var backButton: Button
     private lateinit var settingsButton: Button
+    private var errorLogButton: Button? = null
     private lateinit var quitButton: Button
     private lateinit var previewView: PreviewView
     private lateinit var ellipseOverlay: EllipseMaskOverlayView
@@ -104,6 +110,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var dbSyncClient: FaceDbSyncClient
 
     private val cameraExecutor = Executors.newSingleThreadExecutor()
+    private val dbUpdateExecutor = Executors.newSingleThreadExecutor()
+    private val logExecutor = Executors.newSingleThreadExecutor()
     private val frameInFlight = AtomicBoolean(false)
     private var cameraProvider: ProcessCameraProvider? = null
 
@@ -117,6 +125,8 @@ class MainActivity : AppCompatActivity() {
     private var selectedDepartment: String = ""
     private var latestRankings: List<FaceMatch> = emptyList()
     private var lastMonitorStateKey: String? = null
+    @Volatile
+    private var currentPageIndex: Int = PAGE_MONITOR
 
     private var adaptiveLastFrame = -1_000_000_000L
     private var adaptiveUpdateCount = 0
@@ -126,7 +136,25 @@ class MainActivity : AppCompatActivity() {
     private var connectionStatus = SyncLightStatus.IDLE
     private var dbLoadStatus = SyncLightStatus.IDLE
     private var dbPushStatus = SyncLightStatus.IDLE
+    @Volatile
     private var isDbServerConnected = false
+    @Volatile
+    private var lastRecognitionAtMs: Long = System.currentTimeMillis()
+    private val adaptivePendingLock = Any()
+    private val pendingAdaptiveEmbeddings = mutableMapOf<String, MutableList<FloatArray>>()
+    private val syncStatusDedupLock = Any()
+    private var lastSyncStatusMessage: String = ""
+    private var lastSyncStatusBusy: Boolean = false
+    private val syncLogLock = Any()
+    private val syncLogBuffer = ArrayDeque<String>()
+    private var connectionRetryLabel: String? = null
+    private lateinit var syncLogFile: File
+    @Volatile
+    private var adaptiveFlushScheduled: Boolean = false
+    private val uiHandler = Handler(Looper.getMainLooper())
+    private var outputAutoReturnRunnable: Runnable? = null
+    private var outputCountdownRemainingSeconds: Int = 0
+    private var outputPrintStatusMessage: String = ""
 
     private val registerDirectionEmbeddings = mutableMapOf(
         "left" to mutableListOf<FloatArray>(),
@@ -141,6 +169,22 @@ class MainActivity : AppCompatActivity() {
         SUCCESS,
         ERROR,
     }
+
+    private enum class MonitorDecisionType {
+        IDLE_OUTSIDE,
+        UNREGISTERED,
+        CLEAR,
+        AMBIGUOUS,
+    }
+
+    private data class MonitorDecision(
+        val stateKey: String,
+        val type: MonitorDecisionType,
+        val rankings: List<FaceMatch> = emptyList(),
+        val topMatch: FaceMatch? = null,
+        val topScore: Float = 0f,
+        val margin: Float = 0f,
+    )
 
     private val cameraPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -169,7 +213,7 @@ class MainActivity : AppCompatActivity() {
             if (targetName.isNullOrBlank()) return@registerForActivityResult
             val granted = grants.entries.all { it.value }
             if (!granted) {
-                outputSubLabel.text = "네모닉 출력 권한이 거부되었습니다."
+                setOutputPrintStatus("네모닉 출력 권한이 거부되었습니다.")
                 return@registerForActivityResult
             }
             printWithNemonic(targetName, targetDepartment)
@@ -183,6 +227,8 @@ class MainActivity : AppCompatActivity() {
 
         settingsStore = AppSettingsStore(this)
         settings = settingsStore.load()
+        syncLogFile = File(filesDir, "logs/db_sync_client.log").also { it.parentFile?.mkdirs() }
+        appendSyncLog("앱 시작")
         ensureSyncIdentity()
         faceDb = createFaceDatabase(settings)
         dbSyncClient = createDbSyncClient()
@@ -195,6 +241,7 @@ class MainActivity : AppCompatActivity() {
         saveNameButton.setOnClickListener { saveRegistration() }
         backButton.setOnClickListener { goInitialState() }
         settingsButton.setOnClickListener { openSettingsDialog() }
+        errorLogButton?.setOnClickListener { showSyncLogDialog() }
         quitButton.setOnClickListener { finish() }
 
         goInitialState()
@@ -214,6 +261,7 @@ class MainActivity : AppCompatActivity() {
         dbPushStatusIndicator = findViewById(R.id.dbPushStatusIndicator)
         backButton = findViewById(R.id.backButton)
         settingsButton = findViewById(R.id.settingsButton)
+        errorLogButton = findViewById(R.id.errorLogButton)
         quitButton = findViewById(R.id.quitButton)
         previewView = findViewById(R.id.previewView)
         ellipseOverlay = findViewById(R.id.ellipseOverlay)
@@ -239,9 +287,10 @@ class MainActivity : AppCompatActivity() {
         outputSubLabel = findViewById(R.id.outputSubLabel)
     }
 
-    private fun currentPage(): Int = pageFlipper.displayedChild
+    private fun currentPage(): Int = currentPageIndex
 
     private fun goTo(page: Int) {
+        currentPageIndex = page
         pageFlipper.displayedChild = page
         updateEllipseOverlay()
         when (page) {
@@ -314,6 +363,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun goInitialState() {
+        cancelOutputAutoReturnCountdown(clearTextState = true)
         resetRegistrationState()
         selectedName = null
         selectedDepartment = ""
@@ -427,18 +477,19 @@ class MainActivity : AppCompatActivity() {
         outputDepartmentLabel.translationX = settings.outputDepartmentOffsetX.toFloat()
         outputDepartmentLabel.translationY = settings.outputDepartmentOffsetY.toFloat()
         outputDepartmentLabel.visibility = if (department.isBlank()) View.GONE else View.VISIBLE
-        outputSubLabel.text = "출력 처리 중..."
+        setOutputPrintStatus("출력 처리 중...")
         goTo(PAGE_OUTPUT)
         dispatchPrint(name, department)
+        startOutputAutoReturnCountdown()
     }
 
     private fun dispatchPrint(name: String, department: String) {
         if (!settings.printEnabled) {
-            outputSubLabel.text = if (department.isBlank()) {
+            setOutputPrintStatus(if (department.isBlank()) {
                 "이름이 출력되었습니다."
             } else {
                 "이름/부서가 출력되었습니다."
-            }
+            })
             return
         }
 
@@ -447,18 +498,18 @@ class MainActivity : AppCompatActivity() {
                 pendingNemonicPrintName = name
                 pendingNemonicPrintDepartment = department
                 nemonicPermissionLauncher.launch(requiredNemonicPermissions())
-                outputSubLabel.text = "네모닉 권한 요청 중..."
+                setOutputPrintStatus("네모닉 권한 요청 중...")
                 return
             }
             printWithNemonic(name, department)
             return
         }
 
-        outputSubLabel.text = if (department.isBlank()) {
+        setOutputPrintStatus(if (department.isBlank()) {
             "기본 프린터로 출력 전송됨: $name"
         } else {
             "기본 프린터로 출력 전송됨: $name / $department"
-        }
+        })
     }
 
     private fun hasNemonicPermissions(): Boolean {
@@ -481,12 +532,12 @@ class MainActivity : AppCompatActivity() {
     private fun printWithNemonic(name: String, department: String) {
         val macAddress = settings.nemonicPrinterMacAddress.trim()
         if (macAddress.isBlank()) {
-            outputSubLabel.text = "네모닉 MAC 주소를 설정해 주세요."
+            setOutputPrintStatus("네모닉 MAC 주소를 설정해 주세요.")
             return
         }
 
         val printerName = settings.printerName.trim().ifBlank { "Nemonic" }
-        outputSubLabel.text = "네모닉 프린터로 전송 중..."
+        setOutputPrintStatus("네모닉 프린터로 전송 중...")
 
         Thread {
             val controller = NPrinterController(
@@ -504,7 +555,7 @@ class MainActivity : AppCompatActivity() {
                 val connectResult = controller.connect(printer)
                 if (connectResult != NResult.OK && connectResult != NResult.ALREADY_CONNECTED) {
                     runOnUiThread {
-                        outputSubLabel.text = "네모닉 연결 실패: 코드 $connectResult"
+                        setOutputPrintStatus("네모닉 연결 실패: 코드 $connectResult")
                     }
                     return@Thread
                 }
@@ -520,15 +571,15 @@ class MainActivity : AppCompatActivity() {
                 bitmap.recycle()
 
                 runOnUiThread {
-                    outputSubLabel.text = if (printResult == NResult.OK) {
+                    setOutputPrintStatus(if (printResult == NResult.OK) {
                         if (department.isBlank()) "네모닉 출력 전송 완료: $name" else "네모닉 출력 전송 완료: $name / $department"
                     } else {
                         "네모닉 출력 실패: 코드 $printResult"
-                    }
+                    })
                 }
             } catch (t: Throwable) {
                 runOnUiThread {
-                    outputSubLabel.text = "네모닉 출력 오류: ${t.javaClass.simpleName}"
+                    setOutputPrintStatus("네모닉 출력 오류: ${t.javaClass.simpleName}")
                 }
             } finally {
                 runCatching { controller.disconnect() }
@@ -694,82 +745,208 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        faceDb.upsertPerson(name, department, embeddings, settings.maxEmbeddingsPerPerson)
-        dbSyncClient.pushLatest("신규 얼굴 등록")
-        goInitialState()
-    }
-
-    private fun tryAdaptiveUpdate(personName: String, topScore: Float, embedding: FloatArray) {
-        if (!settings.adaptiveUpdateEnabled) return
-        if (topScore < settings.authSimThreshold || topScore > settings.adaptiveUpdateMaxSim) return
-        if (adaptiveUpdateCount >= settings.adaptiveUpdateMaxSamplesPerSession) return
-        if ((analyzeFrameTick - adaptiveLastFrame) < settings.adaptiveUpdateMinIntervalFrames) return
-
-        if (faceDb.appendSampleToPerson(personName, embedding, settings.maxEmbeddingsPerPerson)) {
-            adaptiveLastFrame = analyzeFrameTick
-            adaptiveUpdateCount += 1
-            monitorDetailText.text = "동일 인물의 얼굴 변화가 감지되었습니다. 데이터를 업데이트 합니다."
-            dbSyncClient.pushLatest("자동 임베딩 업데이트")
+        saveNameButton.isEnabled = false
+        registerCompleteText.text = "저장 중입니다. 잠시만 기다려주세요..."
+        dbUpdateExecutor.execute {
+            runCatching {
+                faceDb.upsertPerson(name, department, embeddings, settings.maxEmbeddingsPerPerson)
+                dbSyncClient.pushLatest("신규 얼굴 등록")
+            }.onSuccess {
+                runOnUiThread {
+                    saveNameButton.isEnabled = true
+                    goInitialState()
+                }
+            }.onFailure {
+                runOnUiThread {
+                    saveNameButton.isEnabled = true
+                    showError("등록 저장 실패: ${it.javaClass.simpleName}")
+                }
+            }
         }
     }
 
-    private fun applyMonitorStateFromFace(face: Face, embedding: FloatArray) {
+    private fun tryAdaptiveUpdate(personName: String, topScore: Float, embedding: FloatArray): Boolean {
+        if (!settings.adaptiveUpdateEnabled) return false
+        if (topScore < settings.authSimThreshold || topScore > settings.adaptiveUpdateMaxSim) return false
+        if (adaptiveUpdateCount >= settings.adaptiveUpdateMaxSamplesPerSession) return false
+        if ((analyzeFrameTick - adaptiveLastFrame) < settings.adaptiveUpdateMinIntervalFrames) return false
+
+        synchronized(adaptivePendingLock) {
+            val bucket = pendingAdaptiveEmbeddings.getOrPut(personName) { mutableListOf() }
+            bucket.add(embedding.copyOf())
+        }
+        adaptiveLastFrame = analyzeFrameTick
+        adaptiveUpdateCount += 1
+        scheduleAdaptiveFlush()
+        return true
+    }
+
+    private fun scheduleAdaptiveFlush() {
+        if (adaptiveFlushScheduled) return
+        adaptiveFlushScheduled = true
+        dbUpdateExecutor.execute {
+            try {
+                while (true) {
+                    val snapshot = synchronized(adaptivePendingLock) {
+                        if (pendingAdaptiveEmbeddings.isEmpty()) return@execute
+                        pendingAdaptiveEmbeddings.mapValues { (_, list) -> list.toList() }.also { pendingAdaptiveEmbeddings.clear() }
+                    }
+
+                    while (!isRecognitionIdle(settings.adaptiveUpdateIdleSeconds.coerceAtLeast(1))) {
+                        Thread.sleep(300)
+                    }
+
+                    var appliedCount = 0
+                    snapshot.forEach { (personName, samples) ->
+                        appliedCount += faceDb.appendSamplesToPerson(
+                            name = personName,
+                            embeddings = samples,
+                            maxEmbeddingsPerPerson = settings.maxEmbeddingsPerPerson,
+                        )
+                    }
+                    if (appliedCount > 0) {
+                        dbSyncClient.pushLatest("자동 임베딩 업데이트(유휴 적용)")
+                    }
+                }
+            } finally {
+                adaptiveFlushScheduled = false
+                val hasPending = synchronized(adaptivePendingLock) { pendingAdaptiveEmbeddings.isNotEmpty() }
+                if (hasPending) {
+                    scheduleAdaptiveFlush()
+                }
+            }
+        }
+    }
+
+    private fun isRecognitionIdle(idleSeconds: Int): Boolean {
+        val idleMs = idleSeconds.coerceAtLeast(1) * 1000L
+        return System.currentTimeMillis() - lastRecognitionAtMs >= idleMs
+    }
+
+    private fun setOutputPrintStatus(message: String) {
+        outputPrintStatusMessage = message
+        refreshOutputSubLabel()
+    }
+
+    private fun refreshOutputSubLabel() {
+        val countdownText = if (outputCountdownRemainingSeconds > 0) {
+            buildReturnCountdownText(outputCountdownRemainingSeconds)
+        } else {
+            ""
+        }
+        outputSubLabel.text = when {
+            outputPrintStatusMessage.isBlank() -> countdownText
+            countdownText.isBlank() -> outputPrintStatusMessage
+            else -> "$outputPrintStatusMessage\n$countdownText"
+        }
+    }
+
+    private fun buildReturnCountdownText(seconds: Int): String {
+        val template = settings.outputReturnMessageTemplate.ifBlank { "{seconds}초 후 기본 화면으로 복귀합니다" }
+        val sec = seconds.coerceAtLeast(0).toString()
+        return template
+            .replace("{seconds}", sec)
+            .replace("N", sec)
+    }
+
+    private fun startOutputAutoReturnCountdown() {
+        cancelOutputAutoReturnCountdown(clearTextState = false)
+        outputCountdownRemainingSeconds = settings.outputReturnDelaySeconds.coerceAtLeast(1)
+        val runnable = object : Runnable {
+            override fun run() {
+                if (currentPage() != PAGE_OUTPUT) {
+                    cancelOutputAutoReturnCountdown(clearTextState = false)
+                    return
+                }
+                if (outputCountdownRemainingSeconds <= 0) {
+                    goInitialState()
+                    return
+                }
+                refreshOutputSubLabel()
+                outputCountdownRemainingSeconds -= 1
+                uiHandler.postDelayed(this, 1000L)
+            }
+        }
+        outputAutoReturnRunnable = runnable
+        uiHandler.post(runnable)
+    }
+
+    private fun cancelOutputAutoReturnCountdown(clearTextState: Boolean) {
+        outputAutoReturnRunnable?.let { uiHandler.removeCallbacks(it) }
+        outputAutoReturnRunnable = null
+        outputCountdownRemainingSeconds = 0
+        if (clearTextState) {
+            outputPrintStatusMessage = ""
+        }
+    }
+
+    private fun computeMonitorDecision(face: Face, embedding: FloatArray): MonitorDecision {
         if (settings.recognitionUseEllipseMask) {
             val center = face.boundingBox.centerX() to face.boundingBox.centerY()
             val ellipse = getRegisterEllipse(lastImageWidth, lastImageHeight)
             if (!isInsideEllipse(center.first, center.second, ellipse.first.first, ellipse.first.second, ellipse.second.first, ellipse.second.second)) {
-                val stateKey = "idle:outside"
-                if (stateKey != lastMonitorStateKey) {
-                    applyMonitorIdleState()
-                    lastMonitorStateKey = stateKey
-                }
-                return
+                return MonitorDecision(
+                    stateKey = "idle:outside",
+                    type = MonitorDecisionType.IDLE_OUTSIDE,
+                )
             }
         }
 
         val rankings = faceDb.rank(embedding, settings.topK.coerceAtLeast(1))
-        latestRankings = rankings
 
         if (rankings.isEmpty()) {
-            val stateKey = "unknown:none"
-            if (stateKey != lastMonitorStateKey) {
-                applyUnregisteredState()
-                lastMonitorStateKey = stateKey
-            }
-            return
+            return MonitorDecision(
+                stateKey = "unknown:none",
+                type = MonitorDecisionType.UNREGISTERED,
+            )
         }
 
         val topMatch = rankings[0]
-        val topName = topMatch.name
         val topScore = topMatch.score
         if (topScore < settings.authSimThreshold) {
-            val stateKey = "unknown:score:${String.format(Locale.US, "%.3f", topScore)}"
-            if (stateKey != lastMonitorStateKey) {
-                applyUnregisteredState()
-                lastMonitorStateKey = stateKey
-            }
-            return
+            return MonitorDecision(
+                stateKey = "unknown:score:${String.format(Locale.US, "%.3f", topScore)}",
+                type = MonitorDecisionType.UNREGISTERED,
+                rankings = rankings,
+            )
         }
 
         val secondScore = rankings.getOrNull(1)?.score ?: -1f
         val margin = if (secondScore >= 0f) topScore - secondScore else topScore
 
         if (margin >= settings.authMarginThreshold) {
-            tryAdaptiveUpdate(topName, topScore, embedding)
-            val stateKey = "known:clear:${topMatch.name}:${topMatch.department}:${String.format(Locale.US, "%.3f", topScore)}:${String.format(Locale.US, "%.3f", margin)}"
-            if (stateKey != lastMonitorStateKey) {
-                applyRegisteredClearState(topMatch, topScore, margin)
-                lastMonitorStateKey = stateKey
-            }
-            return
+            tryAdaptiveUpdate(topMatch.name, topScore, embedding)
+            return MonitorDecision(
+                stateKey = "known:clear:${topMatch.name}:${topMatch.department}:${String.format(Locale.US, "%.3f", topScore)}:${String.format(Locale.US, "%.3f", margin)}",
+                type = MonitorDecisionType.CLEAR,
+                rankings = rankings,
+                topMatch = topMatch,
+                topScore = topScore,
+                margin = margin,
+            )
         }
 
         val top3 = rankings.take(3)
-        val stateKey = "known:ambiguous:" + top3.joinToString("|") { "${it.name}:${it.department}:${String.format(Locale.US, "%.3f", it.score)}" }
-        if (stateKey != lastMonitorStateKey) {
-            applyRegisteredAmbiguousState(top3)
-            lastMonitorStateKey = stateKey
+        return MonitorDecision(
+            stateKey = "known:ambiguous:" + top3.joinToString("|") { "${it.name}:${it.department}:${String.format(Locale.US, "%.3f", it.score)}" },
+            type = MonitorDecisionType.AMBIGUOUS,
+            rankings = top3,
+        )
+    }
+
+    private fun applyMonitorDecision(decision: MonitorDecision) {
+        latestRankings = decision.rankings
+        if (decision.stateKey == lastMonitorStateKey) return
+        when (decision.type) {
+            MonitorDecisionType.IDLE_OUTSIDE -> applyMonitorIdleState()
+            MonitorDecisionType.UNREGISTERED -> applyUnregisteredState()
+            MonitorDecisionType.CLEAR -> {
+                val top = decision.topMatch ?: return
+                applyRegisteredClearState(top, decision.topScore, decision.margin)
+            }
+            MonitorDecisionType.AMBIGUOUS -> applyRegisteredAmbiguousState(decision.rankings)
         }
+        lastMonitorStateKey = decision.stateKey
     }
 
     private fun startCamera() {
@@ -844,16 +1021,18 @@ class MainActivity : AppCompatActivity() {
         lastImageHeight = inputImage.height
 
         faceEngine.detectLargestFace(inputImage)
-            .addOnSuccessListener { faces ->
+            .addOnSuccessListener(cameraExecutor) { faces ->
                 try {
                     val face = pickLargestFace(faces)
                     val page = currentPage()
                     if (!isDbServerConnected) {
                         if (page == PAGE_MONITOR) {
                             val stateKey = "server:disconnected"
-                            if (stateKey != lastMonitorStateKey) {
-                                runOnUiThread { applyServerDisconnectedState() }
-                                lastMonitorStateKey = stateKey
+                            runOnUiThread {
+                                if (stateKey != lastMonitorStateKey) {
+                                    applyServerDisconnectedState()
+                                    lastMonitorStateKey = stateKey
+                                }
                             }
                         }
                         return@addOnSuccessListener
@@ -861,9 +1040,11 @@ class MainActivity : AppCompatActivity() {
                     if (face == null) {
                         if (page == PAGE_MONITOR) {
                             val stateKey = "idle"
-                            if (stateKey != lastMonitorStateKey) {
-                                runOnUiThread { applyMonitorIdleState() }
-                                lastMonitorStateKey = stateKey
+                            runOnUiThread {
+                                if (stateKey != lastMonitorStateKey) {
+                                    applyMonitorIdleState()
+                                    lastMonitorStateKey = stateKey
+                                }
                             }
                         } else if (page == PAGE_REGISTER_CAPTURE) {
                             runOnUiThread {
@@ -875,13 +1056,15 @@ class MainActivity : AppCompatActivity() {
                         }
                         return@addOnSuccessListener
                     }
+                    lastRecognitionAtMs = System.currentTimeMillis()
 
                     val embedding = faceEngine.makeEmbedding(face, bitmap)
                     when (page) {
                         PAGE_MONITOR -> {
                             analyzeFrameTick += 1
                             if (analyzeFrameTick % settings.analyzeEveryNFrames.coerceAtLeast(1) == 0L) {
-                                runOnUiThread { applyMonitorStateFromFace(face, embedding) }
+                                val decision = computeMonitorDecision(face, embedding)
+                                runOnUiThread { applyMonitorDecision(decision) }
                             }
                         }
                         PAGE_REGISTER_CAPTURE -> {
@@ -892,11 +1075,11 @@ class MainActivity : AppCompatActivity() {
                     bitmap.recycle()
                 }
             }
-            .addOnFailureListener { err ->
+            .addOnFailureListener(cameraExecutor) { err ->
                 bitmap.recycle()
                 runOnUiThread { showError("얼굴 분석 실패: ${err.javaClass.simpleName}") }
             }
-            .addOnCompleteListener {
+            .addOnCompleteListener(cameraExecutor) {
                 frameInFlight.set(false)
                 imageProxy.close()
             }
@@ -1016,9 +1199,30 @@ class MainActivity : AppCompatActivity() {
         return FaceDbSyncClient(
             object : FaceDbSyncClient.Callbacks {
                 override fun onStatus(message: String, busy: Boolean) {
+                    appendSyncLog("상태: $message")
+                    val shouldDispatch = synchronized(syncStatusDedupLock) {
+                        if (message == lastSyncStatusMessage && busy == lastSyncStatusBusy) {
+                            false
+                        } else {
+                            lastSyncStatusMessage = message
+                            lastSyncStatusBusy = busy
+                            true
+                        }
+                    }
+                    if (!shouldDispatch) return
                     runOnUiThread {
                         updateSyncIndicators(message, busy)
                     }
+                }
+
+                override fun onDiagnosticLog(message: String) {
+                    appendSyncLog("진단: $message")
+                }
+
+                override fun onClientIdIssued(clientId: String) {
+                    if (clientId.isBlank() || settings.dbClientId == clientId) return
+                    settings = settings.copy(dbClientId = clientId)
+                    settingsStore.save(settings)
                 }
 
                 override fun exportLocalDbJson(): String {
@@ -1055,6 +1259,10 @@ class MainActivity : AppCompatActivity() {
                     return faceDb.personCount()
                 }
 
+                override fun isRecognitionIdle(idleSeconds: Int): Boolean {
+                    return this@MainActivity.isRecognitionIdle(idleSeconds)
+                }
+
                 override fun onAuthTokenIssued(token: String) {
                     if (settings.dbAuthToken == token) return
                     settings = settings.copy(dbAuthToken = token)
@@ -1078,6 +1286,66 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
+    private fun appendSyncLog(message: String) {
+        val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.KOREA).format(Date())
+        val line = "[$timestamp] $message"
+        synchronized(syncLogLock) {
+            syncLogBuffer.addLast(line)
+            while (syncLogBuffer.size > 400) {
+                syncLogBuffer.removeFirst()
+            }
+        }
+        if (!::syncLogFile.isInitialized) return
+        logExecutor.execute {
+            runCatching {
+                syncLogFile.parentFile?.mkdirs()
+                syncLogFile.appendText("$line\n")
+            }
+        }
+    }
+
+    private fun showSyncLogDialog() {
+        val raw = if (::syncLogFile.isInitialized && syncLogFile.exists()) {
+            runCatching { syncLogFile.readText() }.getOrDefault("")
+        } else {
+            ""
+        }
+        val text = if (raw.isNotBlank()) {
+            raw
+        } else {
+            synchronized(syncLogLock) {
+                if (syncLogBuffer.isEmpty()) "저장된 로그가 없습니다." else syncLogBuffer.joinToString("\n")
+            }
+        }
+        val scroll = ScrollView(this)
+        val tv = TextView(this).apply {
+            setTextIsSelectable(true)
+            textSize = 13f
+            setPadding(24, 24, 24, 24)
+            this.text = text
+        }
+        scroll.addView(tv)
+        AlertDialog.Builder(this)
+            .setTitle("DB 서버 연결 오류 로그")
+            .setView(scroll)
+            .setNeutralButton("로그 지우기") { _, _ -> clearSyncLogs() }
+            .setPositiveButton("닫기", null)
+            .show()
+    }
+
+    private fun clearSyncLogs() {
+        synchronized(syncLogLock) {
+            syncLogBuffer.clear()
+        }
+        if (!::syncLogFile.isInitialized) return
+        logExecutor.execute {
+            runCatching {
+                syncLogFile.parentFile?.mkdirs()
+                syncLogFile.writeText("")
+            }
+        }
+    }
+
     private fun resolveFaceDbFile(settings: AppSettings): File {
         val raw = settings.faceDataDir.trim()
         val dir = if (raw.isEmpty()) {
@@ -1089,7 +1357,7 @@ class MainActivity : AppCompatActivity() {
         if (!dir.exists()) {
             dir.mkdirs()
         }
-        return File(dir, "face_db.json")
+        return File(dir, "face_db.csv")
     }
 
     private fun createFaceDatabase(settings: AppSettings): FaceDatabase {
@@ -1106,35 +1374,90 @@ class MainActivity : AppCompatActivity() {
     private fun updateSyncIndicators(message: String, busy: Boolean) {
         if (message.isBlank()) return
         val text = message.lowercase(Locale.KOREA)
+        val retryMatch = Regex("""(\d+)\s*/\s*(\d+)""").find(message)
         var connectionChanged = false
 
         when {
             text.contains("db 서버 연결됨") -> {
                 connectionStatus = SyncLightStatus.SUCCESS
+                connectionRetryLabel = null
                 if (!isDbServerConnected) {
                     isDbServerConnected = true
+                    connectionChanged = true
+                }
+            }
+            text.contains("db 서버 연결 재시도 중") -> {
+                connectionStatus = SyncLightStatus.IN_PROGRESS
+                val stage =
+                    when {
+                        text.contains("헬스체크") -> "헬스체크"
+                        text.contains("승인요청") -> "승인요청"
+                        text.contains("ws") -> "WS"
+                        else -> "재시도"
+                    }
+                connectionRetryLabel =
+                    retryMatch?.let { "$stage ${it.groupValues[1]}/${it.groupValues[2]}" } ?: stage
+                if (isDbServerConnected) {
+                    isDbServerConnected = false
                     connectionChanged = true
                 }
             }
             text.contains("연결 끊김") ||
                 text.contains("연결 종료") ||
                 text.contains("주소가 비어") ||
-                text.contains("인증 오류로 연결 재시도") -> {
+                text.contains("타임아웃") ||
+                text.contains("인증 오류로 연결 재시도") ||
+                text.contains("db 서버 연결 실패") ||
+                text.contains("서버 승인 대기 타임아웃") ||
+                text.contains("인증 요청 실패") -> {
                 connectionStatus = SyncLightStatus.ERROR
+                connectionRetryLabel = null
                 if (isDbServerConnected) {
                     isDbServerConnected = false
                     connectionChanged = true
                 }
             }
-            text.contains("승인 요청") || text.contains("승인 대기중") || text.contains("재승인 요청") -> {
+            text.contains("db 서버 헬스체크 중") -> {
                 connectionStatus = SyncLightStatus.IN_PROGRESS
+                connectionRetryLabel = "헬스체크"
                 if (isDbServerConnected) {
                     isDbServerConnected = false
                     connectionChanged = true
                 }
+            }
+            text.contains("db 서버 승인요청 중") -> {
+                connectionStatus = SyncLightStatus.IN_PROGRESS
+                connectionRetryLabel = "승인요청"
+                if (isDbServerConnected) {
+                    isDbServerConnected = false
+                    connectionChanged = true
+                }
+            }
+            text.contains("승인 요청") ||
+                text.contains("승인 대기중") ||
+                text.contains("승인대기중") ||
+                text.contains("재승인 요청") ||
+                text.contains("db 서버 연결 시도중") ||
+                text.contains("db 서버 ws 연결 시도중") -> {
+                connectionStatus = SyncLightStatus.IN_PROGRESS
+                connectionRetryLabel =
+                    when {
+                        text.contains("승인대기중") || text.contains("승인 대기중") -> "승인대기"
+                        text.contains("ws 연결 시도중") -> "WS연결"
+                        else -> null
+                    }
+                if (isDbServerConnected) {
+                    isDbServerConnected = false
+                    connectionChanged = true
+                }
+            }
+            text.contains("저장된 인증으로 연결됨") || text.contains("서버 승인 완료") -> {
+                connectionStatus = SyncLightStatus.IN_PROGRESS
+                connectionRetryLabel = null
             }
             text.contains("db 서버 동기화 비활성") -> {
                 connectionStatus = SyncLightStatus.ERROR
+                connectionRetryLabel = null
                 if (isDbServerConnected) {
                     isDbServerConnected = false
                     connectionChanged = true
@@ -1176,7 +1499,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun applySyncIndicatorColors() {
-        connectionStatusIndicator.text = statusTextForConnection(connectionStatus)
+        connectionStatusIndicator.text = connectionRetryLabel ?: statusTextForConnection(connectionStatus)
         dbLoadStatusIndicator.text = statusTextForDbStatus(dbLoadStatus)
         dbPushStatusIndicator.text = statusTextForDbStatus(dbPushStatus)
         connectionStatusIndicator.setTextColor(colorForSyncStatus(connectionStatus))
@@ -1213,9 +1536,12 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         cameraProvider?.unbindAll()
+        cancelOutputAutoReturnCountdown(clearTextState = true)
         dbSyncClient.stop()
         faceEngine.close()
         cameraExecutor.shutdown()
+        dbUpdateExecutor.shutdown()
+        logExecutor.shutdown()
         super.onDestroy()
     }
 }

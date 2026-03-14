@@ -33,15 +33,11 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
-}
-
-tasks.configureEach {
-    if (name == "assembleDebug") {
-        doLast {
-            copy {
-                from(layout.buildDirectory.file("outputs/apk/debug/dbserver-debug.apk"))
-                into(layout.buildDirectory.dir("outputs/apk/debug"))
-                rename { "dbserver.apk" }
+    applicationVariants.all {
+        if (buildType.name == "debug") {
+            outputs.all {
+                val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
+                output.outputFileName = "faith_db.apk"
             }
         }
     }
