@@ -92,6 +92,14 @@
             android:textSize="15sp"
             android:textStyle="bold" />
 
+        <Button
+            android:id="@+id/dbReconnectButton"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:layout_marginStart="8dp"
+            android:text="복구"
+            android:textSize="13sp" />
+
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -111,6 +119,14 @@
             android:textSize="15sp"
             android:textStyle="bold" />
 
+        <Button
+            android:id="@+id/dbDownloadButton"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:layout_marginStart="8dp"
+            android:text="다운로드"
+            android:textSize="13sp" />
+
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -129,6 +145,14 @@
             android:textColor="#9AA0A6"
             android:textSize="15sp"
             android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/dbUploadButton"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:layout_marginStart="8dp"
+            android:text="업로드"
+            android:textSize="13sp" />
     </LinearLayout>
 
     <LinearLayout

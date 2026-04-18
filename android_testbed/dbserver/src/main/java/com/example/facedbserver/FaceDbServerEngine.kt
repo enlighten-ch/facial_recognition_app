@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.database.sqlite.SQLiteDatabase
 import android.content.ContentValues
+import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
@@ -12,8 +13,11 @@ import io.ktor.server.application.install
 import io.ktor.server.cio.CIO
 import io.ktor.server.engine.ApplicationEngine
 import io.ktor.server.engine.embeddedServer
+import io.ktor.server.request.receiveStream
 import io.ktor.server.request.receiveText
+import io.ktor.server.response.respondBytes
 import io.ktor.server.response.respondText
+import io.ktor.server.response.respondTextWriter
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
@@ -125,27 +129,23 @@ class FaceDbServerEngine(
                 }
 
                 post("/api/auth/request") {
-                    val req = parseRequestBody(call.receiveText())
-                    val clientId = req.optString("clientId", "").trim()
-                    val deviceName = req.optString("deviceName", "unknown").trim()
+                    val req = parsePlainFields(call.receiveText())
+                    val clientId = req["clientId"].orEmpty().trim()
+                    val deviceName = req["deviceName"].orEmpty().trim().ifBlank { "unknown" }
                     if (clientId.isBlank()) {
-                        call.respondText(
-                            "{\"error\":\"missing_client_id\"}",
-                            ContentType.Application.Json,
-                            HttpStatusCode.BadRequest,
-                        )
+                        call.respondText("error=missing_client_id", ContentType.Text.Plain, HttpStatusCode.BadRequest)
                         return@post
                     }
 
                     val token = approvedTokensByClient[clientId]
                     if (!token.isNullOrBlank()) {
                         call.respondText(
-                            JSONObject()
-                                .put("status", "approved")
-                                .put("clientId", clientId)
-                                .put("token", token)
-                                .toString(),
-                            ContentType.Application.Json,
+                            buildPlainFields(
+                                "status" to "approved",
+                                "clientId" to clientId,
+                                "token" to token,
+                            ),
+                            ContentType.Text.Plain,
                         )
                         return@post
                     }
@@ -153,22 +153,18 @@ class FaceDbServerEngine(
                     pendingClients[clientId] = deviceName
                     log("승인 요청 수신: clientId=$clientId, device=$deviceName")
                     call.respondText(
-                        JSONObject()
-                            .put("status", "pending")
-                            .put("clientId", clientId)
-                            .toString(),
-                        ContentType.Application.Json,
+                        buildPlainFields(
+                            "status" to "pending",
+                            "clientId" to clientId,
+                        ),
+                        ContentType.Text.Plain,
                     )
                 }
 
                 get("/api/auth/status") {
                     val clientId = call.request.queryParameters["clientId"].orEmpty().trim()
                     if (clientId.isBlank()) {
-                        call.respondText(
-                            "{\"error\":\"missing_client_id\"}",
-                            ContentType.Application.Json,
-                            HttpStatusCode.BadRequest,
-                        )
+                        call.respondText("error=missing_client_id", ContentType.Text.Plain, HttpStatusCode.BadRequest)
                         return@get
                     }
 
@@ -178,9 +174,14 @@ class FaceDbServerEngine(
                         pendingClients.containsKey(clientId) -> "pending"
                         else -> "unknown"
                     }
-                    val out = JSONObject().put("status", status).put("clientId", clientId)
-                    if (!token.isNullOrBlank()) out.put("token", token)
-                    call.respondText(out.toString(), ContentType.Application.Json)
+                    call.respondText(
+                        buildPlainFields(
+                            "status" to status,
+                            "clientId" to clientId,
+                            "token" to (token ?: ""),
+                        ),
+                        ContentType.Text.Plain,
+                    )
                 }
 
                 post("/api/auth/approve") {
@@ -250,6 +251,70 @@ class FaceDbServerEngine(
                     call.respondText(payload.toString(), ContentType.Application.Json)
                 }
 
+                get("/api/db/structured/meta") {
+                    val authClient = authorizedClientId(call.request.headers["Authorization"], call.request.queryParameters["token"])
+                    if (authClient == null) {
+                        call.respondText("error=unauthorized", ContentType.Text.Plain, HttpStatusCode.Unauthorized)
+                        return@get
+                    }
+                    dbStorageBackend.readDb()
+                    val metaBytes = dbStorageBackend.readStructuredMetaBytes()
+                    if (metaBytes == null) {
+                        call.respondText("error=structured_meta_missing", ContentType.Text.Plain, HttpStatusCode.NotFound)
+                        return@get
+                    }
+                    log("구조화 meta 다운로드: client=$authClient, bytes=${metaBytes.size}")
+                    call.respondBytes(metaBytes, ContentType.Application.OctetStream)
+                }
+
+                get("/api/db/structured/bin") {
+                    val authClient = authorizedClientId(call.request.headers["Authorization"], call.request.queryParameters["token"])
+                    if (authClient == null) {
+                        call.respondText("error=unauthorized", ContentType.Text.Plain, HttpStatusCode.Unauthorized)
+                        return@get
+                    }
+                    dbStorageBackend.readDb()
+                    val binBytes = dbStorageBackend.readStructuredEmbeddingsBytes()
+                    if (binBytes == null) {
+                        call.respondText("error=structured_bin_missing", ContentType.Text.Plain, HttpStatusCode.NotFound)
+                        return@get
+                    }
+                    log("구조화 bin 다운로드: client=$authClient, bytes=${binBytes.size}")
+                    call.respondBytes(binBytes, ContentType.Application.OctetStream)
+                }
+
+                post("/api/db/structured/push") {
+                    val authClient = authorizedClientId(call.request.headers["Authorization"], call.request.queryParameters["token"])
+                    if (authClient == null) {
+                        call.respondText("error=unauthorized", ContentType.Text.Plain, HttpStatusCode.Unauthorized)
+                        return@post
+                    }
+                    val payload = runCatching { call.receiveStream().readBytes() }.getOrNull()
+                    val bundle = payload?.let { parseStructuredBundle(it) }
+                    if (bundle == null) {
+                        call.respondText("error=invalid_bundle", ContentType.Text.Plain, HttpStatusCode.BadRequest)
+                        return@post
+                    }
+                    if (!dbStorageBackend.writeStructured(bundle.first, bundle.second)) {
+                        call.respondText("error=write_failed", ContentType.Text.Plain, HttpStatusCode.InternalServerError)
+                        return@post
+                    }
+                    loadDbFromDisk()
+                    val nextRevision = revision.incrementAndGet()
+                    broadcastDbUpdate(nextRevision, authClient)
+                    log(
+                        "구조화 DB 업로드 반영: client=$authClient, revision=$nextRevision, " +
+                            "meta=${bundle.first.size}B, bin=${bundle.second.size}B",
+                    )
+                    call.respondText(
+                        buildPlainFields(
+                            "status" to "ok",
+                            "revision" to nextRevision.toString(),
+                        ),
+                        ContentType.Text.Plain,
+                    )
+                }
+
                 post("/api/db/diff") {
                     val authClient = authorizedClientId(call.request.headers["Authorization"], call.request.queryParameters["token"])
                     if (authClient == null) {
@@ -261,49 +326,62 @@ class FaceDbServerEngine(
                         return@post
                     }
 
+                    val diffStartedAt = System.currentTimeMillis()
                     val req = parseRequestBody(call.receiveText())
                     val summary = req.optJSONObject("summary") ?: JSONObject().put("people", JSONArray())
                     val clientHashes = parseClientHashes(summary)
                     val people = extractPeopleArray(currentDb)
 
-                    val serverPeople = mutableListOf<Pair<String, JSONObject>>()
                     val serverHashByName = mutableMapOf<String, String>()
+                    val upserts = JSONArray()
                     for (i in 0 until people.length()) {
                         val person = people.optJSONObject(i) ?: continue
                         val name = person.optString("name", "").trim()
                         if (name.isBlank()) continue
-                        val normalized = JSONObject(person.toString())
-                        normalized.put("name", name)
-                        serverPeople.add(name to normalized)
-                        val cachedHash = normalized.optString("hash", "").trim()
-                        serverHashByName[name] = if (cachedHash.isNotBlank()) cachedHash else personHash(normalized)
-                    }
-
-                    val upserts = JSONArray()
-                    serverPeople.sortedBy { it.first }.forEach { (name, obj) ->
-                        val serverHash = serverHashByName[name]
+                        val cachedHash = person.optString("hash", "").trim()
+                        val serverHash = if (cachedHash.isNotBlank()) cachedHash else personHash(person)
+                        serverHashByName[name] = serverHash
                         val clientHash = clientHashes[name]
                         if (serverHash != clientHash) {
-                            upserts.put(obj)
+                            upserts.put(person)
                         }
                     }
 
                     val deletes = JSONArray()
-                    clientHashes.keys.sorted().forEach { name ->
+                    clientHashes.keys.forEach { name ->
                         if (!serverHashByName.containsKey(name)) {
                             deletes.put(name)
                         }
                     }
 
                     val hasChanges = upserts.length() > 0 || deletes.length() > 0
-                    val payload = JSONObject()
-                        .put("revision", revision.get())
-                        .put("hasChanges", hasChanges)
-                        .put("upserts", upserts)
-                        .put("deletes", deletes)
-                        .put("serverPeopleCount", serverPeople.size)
-
-                    call.respondText(payload.toString(), ContentType.Application.Json)
+                    val currentRevision = revision.get()
+                    val diffElapsedMs = System.currentTimeMillis() - diffStartedAt
+                    log(
+                        "DB diff 응답: client=$authClient, clientPeople=${clientHashes.size}, " +
+                            "serverPeople=${serverHashByName.size}, upserts=${upserts.length()}, " +
+                            "deletes=${deletes.length()}, total=${diffElapsedMs}ms",
+                    )
+                    call.respondTextWriter(ContentType.Application.Json) {
+                        write("{")
+                        write("\"revision\":")
+                        write(currentRevision.toString())
+                        write(",\"hasChanges\":")
+                        write(if (hasChanges) "true" else "false")
+                        write(",\"upserts\":[")
+                        for (i in 0 until upserts.length()) {
+                            if (i > 0) write(",")
+                            write(upserts.optJSONObject(i)?.toString() ?: "null")
+                        }
+                        write("],\"deletes\":[")
+                        for (i in 0 until deletes.length()) {
+                            if (i > 0) write(",")
+                            write(JSONObject.quote(deletes.optString(i, "")))
+                        }
+                        write("],\"serverPeopleCount\":")
+                        write(serverHashByName.size.toString())
+                        write("}")
+                    }
                 }
 
                 post("/api/db/push") {
@@ -357,11 +435,11 @@ class FaceDbServerEngine(
 
                     send(
                         Frame.Text(
-                            JSONObject()
-                                .put("type", "db_update")
-                                .put("revision", revision.get())
-                                .put("sourceClientId", "server_bootstrap")
-                                .toString(),
+                            buildPlainFields(
+                                "type" to "db_update",
+                                "revision" to revision.get().toString(),
+                                "sourceClientId" to "server_bootstrap",
+                            ),
                         ),
                     )
 
@@ -387,15 +465,12 @@ class FaceDbServerEngine(
         return runCatching {
             engine.start(wait = false)
             server = engine
-            if (awaitHealthReady(port, 5000L)) {
+            if (awaitHealthReady(port, 20000L)) {
                 log("서버 시작: 0.0.0.0:$port")
-                true
             } else {
-                log("서버 시작 검증 실패: /api/health 응답 없음 (port=$port)")
-                runCatching { engine.stop(500, 1000) }
-                server = null
-                false
+                log("서버 시작 검증 지연: /api/health 응답 대기 지속 (port=$port)")
             }
+            true
         }.getOrElse {
             log("서버 시작 실패: ${it.javaClass.simpleName}")
             false
@@ -478,22 +553,21 @@ class FaceDbServerEngine(
         }
     }
 
+    @Synchronized
     fun dbRowsSnapshot(): List<DbPersonRow> {
-        val root = runCatching { JSONObject(currentDb.toString()) }.getOrNull() ?: return emptyList()
-        val arr = extractPeopleArray(root)
-        val rows = mutableListOf<DbPersonRow>()
+        val arr = extractPeopleArray(currentDb)
+        if (arr.length() <= 0) return emptyList()
+        val rows = ArrayList<DbPersonRow>(arr.length())
         for (i in 0 until arr.length()) {
             val person = arr.optJSONObject(i) ?: continue
             val name = person.optString("name", "").trim()
             if (name.isBlank()) continue
-            val department = person.optString("department", person.optString("folder", "")).trim()
-            val embeddingCount = extractEmbeddingCount(person)
             rows.add(
                 DbPersonRow(
                     personIndex = i,
                     name = name,
-                    department = department,
-                    embeddingCount = embeddingCount,
+                    department = person.optString("department", person.optString("folder", "")).trim(),
+                    embeddingCount = extractEmbeddingCount(person),
                 ),
             )
         }
@@ -690,11 +764,11 @@ class FaceDbServerEngine(
     }
 
     private fun broadcastDbUpdate(nextRevision: Int, sourceClientId: String) {
-        val msg = JSONObject()
-            .put("type", "db_update")
-            .put("revision", nextRevision)
-            .put("sourceClientId", sourceClientId)
-            .toString()
+        val msg = buildPlainFields(
+            "type" to "db_update",
+            "revision" to nextRevision.toString(),
+            "sourceClientId" to sourceClientId,
+        )
 
         sessions.values.forEach { session ->
             scope.launch {
@@ -704,25 +778,32 @@ class FaceDbServerEngine(
     }
 
     private fun loadDbFromDisk() {
+        val startedAt = System.currentTimeMillis()
+        log("DB 로드 시작: ${dbStorageBackend.description()}")
         if (!dbStorageBackend.hasStructuredDb()) {
             log("경고: DB 파일(.db/.bin)이 없습니다. (${dbStorageBackend.structuredDbDescription()})")
         }
+        val readStartedAt = System.currentTimeMillis()
         val loaded = dbStorageBackend.readDb()
+        val readElapsedMs = System.currentTimeMillis() - readStartedAt
         if (loaded == null) {
             currentDb = JSONObject().put("people", JSONArray())
             revision.set(0)
-            log("DB 초기화: ${dbStorageBackend.description()}")
+            val totalElapsedMs = System.currentTimeMillis() - startedAt
+            log("DB 초기화: ${dbStorageBackend.description()} (read=${readElapsedMs}ms, total=${totalElapsedMs}ms)")
             return
         }
+        val normalizeStartedAt = System.currentTimeMillis()
         val normalized = normalizeDbRoot(loaded)
         normalizePeopleMetadata(normalized, preserveUpdatedAt = true)
+        val normalizeElapsedMs = System.currentTimeMillis() - normalizeStartedAt
         currentDb = normalized
         revision.set(1)
-        val saveOk = dbStorageBackend.writeDb(currentDb)
-        if (!saveOk) {
-            log("DB CSV 변환 저장 실패: ${dbStorageBackend.description()}")
-        }
-        log("DB 로드 완료: ${dbStorageBackend.description()}")
+        val totalElapsedMs = System.currentTimeMillis() - startedAt
+        log(
+            "DB 로드 완료: ${dbStorageBackend.description()} " +
+                "(read=${readElapsedMs}ms, normalize=${normalizeElapsedMs}ms, total=${totalElapsedMs}ms)",
+        )
     }
 
     private fun saveDbToDisk() {
@@ -769,13 +850,12 @@ class FaceDbServerEngine(
     }
 
     private fun normalizeDbRoot(root: JSONObject): JSONObject {
+        root.optJSONArray("people")?.let { return root }
+        root.optJSONArray("persons")?.let { return JSONObject().put("people", it) }
+        root.optJSONArray("faces")?.let { return JSONObject().put("people", it) }
+
         val arr = extractPeopleArray(root)
-        val people = JSONArray()
-        for (i in 0 until arr.length()) {
-            val person = arr.optJSONObject(i) ?: continue
-            people.put(JSONObject(person.toString()))
-        }
-        return JSONObject().put("people", people)
+        return JSONObject().put("people", arr)
     }
 
     private fun normalizePeopleMetadata(root: JSONObject, preserveUpdatedAt: Boolean) {
@@ -793,7 +873,12 @@ class FaceDbServerEngine(
             if (!preserveUpdatedAt || person.optLong("updatedAt", 0L) <= 0L) {
                 person.put("updatedAt", now)
             }
-            person.put("hash", personHash(person))
+            val existingHash = person.optString("hash", "").trim()
+            if (existingHash.isBlank()) {
+                person.put("hash", personHash(person))
+            } else {
+                person.put("hash", existingHash)
+            }
         }
     }
 
@@ -839,7 +924,47 @@ class FaceDbServerEngine(
         return runCatching { JSONObject(raw) }.getOrDefault(JSONObject())
     }
 
+    private fun parsePlainFields(raw: String): Map<String, String> {
+        return raw
+            .lineSequence()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() && it.contains('=') }
+            .associate { line ->
+                val idx = line.indexOf('=')
+                line.substring(0, idx).trim() to line.substring(idx + 1).trim()
+            }
+    }
+
+    private fun buildPlainFields(vararg pairs: Pair<String, String>): String {
+        return pairs.joinToString("\n") { (key, value) -> "$key=${value.replace("\n", " ").trim()}" }
+    }
+
+    private fun parseStructuredBundle(payload: ByteArray): Pair<ByteArray, ByteArray>? {
+        if (payload.size < 12) return null
+        if (payload[0] != 'F'.code.toByte() || payload[1] != 'D'.code.toByte() || payload[2] != 'B'.code.toByte() || payload[3] != '1'.code.toByte()) {
+            return null
+        }
+        val metaLength = readIntLe(payload, 4)
+        val binLength = readIntLe(payload, 8)
+        if (metaLength < 0 || binLength < 0) return null
+        val totalLength = 12L + metaLength.toLong() + binLength.toLong()
+        if (totalLength != payload.size.toLong()) return null
+        val metaStart = 12
+        val metaEnd = metaStart + metaLength
+        val binEnd = metaEnd + binLength
+        return payload.copyOfRange(metaStart, metaEnd) to payload.copyOfRange(metaEnd, binEnd)
+    }
+
+    private fun readIntLe(bytes: ByteArray, offset: Int): Int {
+        if (offset < 0 || offset + 4 > bytes.size) return -1
+        return (bytes[offset].toInt() and 0xFF) or
+            ((bytes[offset + 1].toInt() and 0xFF) shl 8) or
+            ((bytes[offset + 2].toInt() and 0xFF) shl 16) or
+            ((bytes[offset + 3].toInt() and 0xFF) shl 24)
+    }
+
     private fun log(message: String) {
+        Log.i(LOGCAT_TAG, message)
         val ts = SimpleDateFormat("HH:mm:ss", Locale.US).format(Date())
         onLog("[$ts] $message")
     }
@@ -852,9 +977,12 @@ class FaceDbServerEngine(
     private interface DbStorageBackend {
         fun readDb(): JSONObject?
         fun writeDb(root: JSONObject): Boolean
+        fun writeStructured(metaDbBytes: ByteArray, embeddingsBinBytes: ByteArray): Boolean
         fun description(): String
         fun hasStructuredDb(): Boolean
         fun structuredDbDescription(): String
+        fun readStructuredMetaBytes(): ByteArray?
+        fun readStructuredEmbeddingsBytes(): ByteArray?
     }
 
     private class FileDbStorageBackend(
@@ -882,6 +1010,9 @@ class FaceDbServerEngine(
             if (csvNeedsImport) {
                 val raw = runCatching { csvFile.readText() }.getOrNull()
                 if (raw != null) {
+                    if (structuredExists && !csvCodec.hasEmbeddingsColumn(raw)) {
+                        StructuredDbCodec.loadFromStructured(metaDbFile, embeddingsBinFile)?.let { return it }
+                    }
                     val root =
                         if (structuredExists) {
                             val base = StructuredDbCodec.loadFromStructured(metaDbFile, embeddingsBinFile)
@@ -911,8 +1042,27 @@ class FaceDbServerEngine(
             return writeCsvSnapshot(root)
         }
 
+        override fun writeStructured(metaDbBytes: ByteArray, embeddingsBinBytes: ByteArray): Boolean {
+            return runCatching {
+                metaDbFile.parentFile?.mkdirs()
+                embeddingsBinFile.parentFile?.mkdirs()
+                metaDbFile.writeBytes(metaDbBytes)
+                embeddingsBinFile.writeBytes(embeddingsBinBytes)
+                val meta = StructuredDbCodec.loadMetadataOnly(metaDbFile) ?: return@runCatching false
+                writeCsvSnapshot(meta)
+            }.getOrDefault(false)
+        }
+
         override fun description(): String {
             return "${csvFile.absolutePath} (meta=${metaDbFile.absolutePath}, bin=${embeddingsBinFile.absolutePath})"
+        }
+
+        override fun readStructuredMetaBytes(): ByteArray? {
+            return runCatching { metaDbFile.readBytes() }.getOrNull()
+        }
+
+        override fun readStructuredEmbeddingsBytes(): ByteArray? {
+            return runCatching { embeddingsBinFile.readBytes() }.getOrNull()
         }
 
         private fun writeCsvSnapshot(root: JSONObject): Boolean {
@@ -960,6 +1110,9 @@ class FaceDbServerEngine(
                     context.contentResolver.openInputStream(csvDoc!!.uri)?.bufferedReader()?.use { it.readText() }
                 }.getOrNull()
                 if (csvRaw != null) {
+                    if (structuredExists && !csvCodec.hasEmbeddingsColumn(csvRaw)) {
+                        StructuredDbCodec.loadFromStructured(metaDbFile, embeddingsBinFile)?.let { return it }
+                    }
                     val root =
                         if (structuredExists) {
                             val base = StructuredDbCodec.loadFromStructured(metaDbFile, embeddingsBinFile)
@@ -991,8 +1144,42 @@ class FaceDbServerEngine(
             return writeDocumentText(csvFileName, csvCodec.encode(root))
         }
 
+        override fun writeStructured(metaDbBytes: ByteArray, embeddingsBinBytes: ByteArray): Boolean {
+            val localOk = runCatching {
+                metaDbFile.parentFile?.mkdirs()
+                embeddingsBinFile.parentFile?.mkdirs()
+                metaDbFile.writeBytes(metaDbBytes)
+                embeddingsBinFile.writeBytes(embeddingsBinBytes)
+                true
+            }.getOrDefault(false)
+            if (!localOk) return false
+            val meta = StructuredDbCodec.loadMetadataOnly(metaDbFile) ?: return false
+            syncStructuredToDocuments()
+            return writeDocumentText(csvFileName, csvCodec.encode(meta))
+        }
+
         override fun description(): String {
             return "$treeUri (csv=$csvFileName, meta=$metaDbFileName, bin=$embeddingsBinFileName)"
+        }
+
+        override fun readStructuredMetaBytes(): ByteArray? {
+            if (metaDbFile.exists()) {
+                runCatching { metaDbFile.readBytes() }.getOrNull()?.let { return it }
+            }
+            val metaDoc = resolveDocumentFile(metaDbFileName, createIfMissing = false) ?: return null
+            return runCatching {
+                context.contentResolver.openInputStream(metaDoc.uri)?.use { it.readBytes() }
+            }.getOrNull()
+        }
+
+        override fun readStructuredEmbeddingsBytes(): ByteArray? {
+            if (embeddingsBinFile.exists()) {
+                runCatching { embeddingsBinFile.readBytes() }.getOrNull()?.let { return it }
+            }
+            val binDoc = resolveDocumentFile(embeddingsBinFileName, createIfMissing = false) ?: return null
+            return runCatching {
+                context.contentResolver.openInputStream(binDoc.uri)?.use { it.readBytes() }
+            }.getOrNull()
         }
 
         private fun readDocumentText(fileName: String): String? {
@@ -1005,7 +1192,7 @@ class FaceDbServerEngine(
         private fun writeDocumentText(fileName: String, raw: String): Boolean {
             val file = resolveDocumentFile(fileName, createIfMissing = true) ?: return false
             return runCatching {
-                context.contentResolver.openOutputStream(file.uri, "wt")?.bufferedWriter()?.use { it.write(raw) } != null
+                context.contentResolver.openOutputStream(file.uri, "rwt")?.bufferedWriter()?.use { it.write(raw) } != null
             }.getOrDefault(false)
         }
 
@@ -1092,6 +1279,37 @@ class FaceDbServerEngine(
                 out.put(obj)
             }
             return JSONObject().put("people", out)
+        }
+
+        fun loadMetadataOnly(metaDbFile: File): JSONObject? {
+            if (!metaDbFile.exists()) return null
+            val db = runCatching { SQLiteDatabase.openDatabase(metaDbFile.absolutePath, null, SQLiteDatabase.OPEN_READONLY) }
+                .getOrNull() ?: return null
+            return runCatching {
+                val arr = JSONArray()
+                db.query(
+                    TABLE,
+                    arrayOf("name", "department", "embedding_count", "updated_at"),
+                    null, null, null, null, "name ASC",
+                ).use { cursor ->
+                    while (cursor.moveToNext()) {
+                        val name = cursor.getString(0)?.trim().orEmpty()
+                        if (name.isBlank()) continue
+                        val department = cursor.getString(1)?.trim().orEmpty()
+                        val count = cursor.getInt(2).coerceAtLeast(0)
+                        val updatedAt = cursor.getLong(3)
+                        val stubs = JSONArray()
+                        repeat(count) { stubs.put(JSONArray()) }
+                        val obj = JSONObject()
+                            .put("name", name)
+                            .put("department", department)
+                            .put("embeddings", stubs)
+                        if (updatedAt > 0L) obj.put("updatedAt", updatedAt)
+                        arr.put(obj)
+                    }
+                }
+                JSONObject().put("people", arr)
+            }.getOrNull().also { db.close() }
         }
 
         fun loadFromStructured(metaDbFile: File, embeddingsBinFile: File): JSONObject? {
@@ -1327,5 +1545,9 @@ class FaceDbServerEngine(
             val rows: List<RowMeta>,
             val bytes: ByteArray,
         )
+    }
+
+    private companion object {
+        const val LOGCAT_TAG = "FaceDbServer"
     }
 }

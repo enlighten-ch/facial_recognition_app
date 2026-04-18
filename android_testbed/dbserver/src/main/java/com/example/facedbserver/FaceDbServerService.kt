@@ -10,6 +10,7 @@ import android.os.Binder
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import kotlin.concurrent.thread
 import java.util.concurrent.CopyOnWriteArraySet
 
 class FaceDbServerService : Service() {
@@ -28,6 +29,8 @@ class FaceDbServerService : Service() {
 
     private lateinit var serverEngine: FaceDbServerEngine
     private var activePort: Int = 18080
+    @Volatile
+    private var autoStartTriggered = false
 
     override fun onCreate() {
         super.onCreate()
@@ -214,6 +217,25 @@ class FaceDbServerService : Service() {
             setShowBadge(false)
         }
         manager.createNotificationChannel(channel)
+    }
+
+    private fun triggerAutoStartIfNeeded() {
+        if (autoStartTriggered || serverEngine.isRunning()) return
+        autoStartTriggered = true
+        val config = ServerConfigStore(this).load()
+        if (config.dbStorageDir.isBlank()) {
+            appendLog("경고: DB 경로 설정이 없어 서비스 자동 시작을 건너뜁니다.")
+            return
+        }
+        thread(name = "dbserver-service-autostart") {
+            val started = runCatching { startServer(config.defaultPort, config.dbStorageDir) }.getOrDefault(false)
+            if (!started) {
+                autoStartTriggered = false
+                appendLog("서비스 자동 시작 보류: 이미 실행중이거나 시작 실패")
+            } else {
+                appendLog("서비스 자동 시작 완료")
+            }
+        }
     }
 
     companion object {

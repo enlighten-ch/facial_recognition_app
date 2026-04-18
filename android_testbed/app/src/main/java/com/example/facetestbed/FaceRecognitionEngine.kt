@@ -45,7 +45,7 @@ class FaceRecognitionEngine(private val context: Context) {
         return makeGeometryEmbedding(face, frameBitmap.width, frameBitmap.height)
     }
 
-    fun classifyDirection(face: Face): String? {
+    fun classifyDirection(face: Face, mirroredPreview: Boolean = false): String? {
         val leftEye = face.getLandmark(FaceLandmark.LEFT_EYE)?.position ?: return null
         val rightEye = face.getLandmark(FaceLandmark.RIGHT_EYE)?.position ?: return null
         val nose = face.getLandmark(FaceLandmark.NOSE_BASE)?.position ?: return null
@@ -62,7 +62,10 @@ class FaceRecognitionEngine(private val context: Context) {
         val eyeToMouth = mouthCenterY - eyeCenterY
         if (abs(eyeToMouth) < 1e-6f) return null
 
-        val yaw = (nose.x - eyeCenterX) / eyeDist
+        var yaw = (nose.x - eyeCenterX) / eyeDist
+        if (mirroredPreview) {
+            yaw = -yaw
+        }
         val pitch = (nose.y - eyeCenterY) / eyeToMouth
 
         return when {

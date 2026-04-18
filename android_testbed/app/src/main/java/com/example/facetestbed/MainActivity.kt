@@ -4,8 +4,12 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Matrix
+import android.graphics.Path
+import android.graphics.RectF
 import android.os.Build
 import android.net.Uri
 import android.os.Bundle
@@ -42,6 +46,8 @@ import com.mangoslab.nemonicsdk.constants.NPrintQuality
 import com.mangoslab.nemonicsdk.constants.NPrinterType
 import com.mangoslab.nemonicsdk.constants.NResult
 import java.io.File
+import java.io.FileInputStream
+import java.io.InputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -76,6 +82,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var connectionStatusIndicator: TextView
     private lateinit var dbLoadStatusIndicator: TextView
     private lateinit var dbPushStatusIndicator: TextView
+    private lateinit var dbReconnectButton: Button
+    private lateinit var dbDownloadButton: Button
+    private lateinit var dbUploadButton: Button
     private lateinit var backButton: Button
     private lateinit var settingsButton: Button
     private var errorLogButton: Button? = null
@@ -131,6 +140,7 @@ class MainActivity : AppCompatActivity() {
     private var adaptiveLastFrame = -1_000_000_000L
     private var adaptiveUpdateCount = 0
     private var pendingFolderPickerCallback: ((String?) -> Unit)? = null
+    private var pendingTemplatePickerCallback: ((String?) -> Unit)? = null
     private var pendingNemonicPrintName: String? = null
     private var pendingNemonicPrintDepartment: String = ""
     private var connectionStatus = SyncLightStatus.IDLE
@@ -151,10 +161,14 @@ class MainActivity : AppCompatActivity() {
     private lateinit var syncLogFile: File
     @Volatile
     private var adaptiveFlushScheduled: Boolean = false
+    @Volatile
+    private var uploadProgressText: String = ""
     private val uiHandler = Handler(Looper.getMainLooper())
     private var outputAutoReturnRunnable: Runnable? = null
     private var outputCountdownRemainingSeconds: Int = 0
     private var outputPrintStatusMessage: String = ""
+    @Volatile
+    private var isPreviewMirrored: Boolean = false
 
     private val registerDirectionEmbeddings = mutableMapOf(
         "left" to mutableListOf<FloatArray>(),
@@ -204,6 +218,19 @@ class MainActivity : AppCompatActivity() {
             callback?.invoke(uri.toString())
         }
 
+    private val templatePickerLauncher =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            val callback = pendingTemplatePickerCallback
+            pendingTemplatePickerCallback = null
+            if (uri == null) {
+                callback?.invoke(null)
+                return@registerForActivityResult
+            }
+            val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+            runCatching { contentResolver.takePersistableUriPermission(uri, flags) }
+            callback?.invoke(uri.toString())
+        }
+
     private val nemonicPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
             val targetName = pendingNemonicPrintName
@@ -242,6 +269,9 @@ class MainActivity : AppCompatActivity() {
         backButton.setOnClickListener { goInitialState() }
         settingsButton.setOnClickListener { openSettingsDialog() }
         errorLogButton?.setOnClickListener { showSyncLogDialog() }
+        dbReconnectButton.setOnClickListener { requestDbReconnect() }
+        dbDownloadButton.setOnClickListener { requestDbDownload() }
+        dbUploadButton.setOnClickListener { requestDbUpload() }
         quitButton.setOnClickListener { finish() }
 
         goInitialState()
@@ -259,6 +289,9 @@ class MainActivity : AppCompatActivity() {
         connectionStatusIndicator = findViewById(R.id.connectionStatusIndicator)
         dbLoadStatusIndicator = findViewById(R.id.dbLoadStatusIndicator)
         dbPushStatusIndicator = findViewById(R.id.dbPushStatusIndicator)
+        dbReconnectButton = findViewById(R.id.dbReconnectButton)
+        dbDownloadButton = findViewById(R.id.dbDownloadButton)
+        dbUploadButton = findViewById(R.id.dbUploadButton)
         backButton = findViewById(R.id.backButton)
         settingsButton = findViewById(R.id.settingsButton)
         errorLogButton = findViewById(R.id.errorLogButton)
@@ -403,6 +436,30 @@ class MainActivity : AppCompatActivity() {
         registerStartButton.isEnabled = false
         outputNameButton.isEnabled = false
         clearCandidates()
+    }
+
+    private fun ensureDbSyncEnabledForManualAction(actionName: String): Boolean {
+        if (settings.dbSyncEnabled) return true
+        showError("설정에서 DB 서버 동기화를 활성화한 뒤 '$actionName'을 사용해 주세요.")
+        return false
+    }
+
+    private fun requestDbReconnect() {
+        if (!ensureDbSyncEnabledForManualAction("DB 서버 연결 복구")) return
+        monitorDetailText.text = "수동 복구 요청: DB 서버 연결을 다시 시도합니다."
+        dbSyncClient.start(settings)
+    }
+
+    private fun requestDbDownload() {
+        if (!ensureDbSyncEnabledForManualAction("DB 다운로드")) return
+        monitorDetailText.text = "수동 다운로드 요청: 서버 DB를 가져옵니다."
+        dbSyncClient.pullLatest("수동 다운로드")
+    }
+
+    private fun requestDbUpload() {
+        if (!ensureDbSyncEnabledForManualAction("DB 업로드")) return
+        monitorDetailText.text = "수동 업로드 요청: 로컬 DB를 서버로 전송합니다."
+        dbSyncClient.pushLatest("수동 업로드")
     }
 
     private fun applyUnregisteredState() {
@@ -587,18 +644,26 @@ class MainActivity : AppCompatActivity() {
         }.start()
     }
 
-    private fun resolvePrintText(name: String, department: String): String {
-        val template = settings.printerContentTemplate.ifBlank { "Name: {name}\nDepartment: {department}\n" }
+    private fun resolvePrintText(name: String, department: String, activeSettings: AppSettings = settings): String {
+        val template = activeSettings.printerContentTemplate.ifBlank { "Name: {name}\nDepartment: {department}\n" }
         return template
             .replace("{name}", name)
             .replace("{department}", department)
     }
 
-    private fun buildNemonicPrintBitmap(name: String, department: String): Bitmap {
-        val printWidth = 576
-        val scale = settings.printTextScaleMultiplier.coerceAtLeast(1)
-        val nameFontSize = (settings.outputNameTextSizeSp * scale).coerceIn(16, 240)
-        val departmentFontSize = (settings.outputDepartmentTextSizeSp * scale).coerceIn(12, 180)
+    private fun buildNemonicPrintBitmap(
+        name: String,
+        department: String,
+        activeSettings: AppSettings = settings,
+        applyLandscapeRotation: Boolean = true,
+    ): Bitmap {
+        val paper = resolveSelectedPaper(activeSettings)
+        val pixelsPerMm = 8.0f // 203dpi thermal printer ~= 8 dot/mm
+        val printWidth = (paper.widthMm * pixelsPerMm).toInt().coerceIn(200, 1200)
+        val printHeight = (paper.heightMm * pixelsPerMm).toInt().coerceIn(120, 1600)
+        val scale = activeSettings.printTextScaleMultiplier.coerceAtLeast(1)
+        val nameFontSize = (activeSettings.outputNameTextSizeSp * scale).coerceIn(16, 240)
+        val departmentFontSize = (activeSettings.outputDepartmentTextSizeSp * scale).coerceIn(12, 180)
 
         val namePaint = TextPaint().apply {
             color = Color.BLACK
@@ -614,15 +679,32 @@ class MainActivity : AppCompatActivity() {
             isFakeBoldText = true
         }
 
-        val baseX = 24f
-        val baselineY = (nameFontSize + 28).toFloat()
-        val departmentX = baseX + namePaint.measureText(name) + (settings.outputDepartmentOffsetX * scale)
-        val departmentY = baselineY + (settings.outputDepartmentOffsetY * scale)
+        val textRegion = resolveTemplateTextRegion(activeSettings, printWidth, printHeight)
+        val baseX = textRegion.left + 8f
+        val baselineY = (textRegion.top + nameFontSize + 8f).coerceAtMost(textRegion.bottom - 8f)
+        val departmentX = baseX + (activeSettings.outputDepartmentOffsetX * scale)
+        val departmentY = (baselineY + departmentFontSize + 10f + (activeSettings.outputDepartmentOffsetY * scale))
+            .coerceAtMost(textRegion.bottom - 6f)
 
-        val extraTemplateText = resolvePrintText(name, department).trim()
+        val templateBitmap = loadTemplateBitmap(
+            uriString = activeSettings.printerTemplateImageUri,
+            printWidth = printWidth,
+            printHeight = printHeight,
+            shrinkToPaperIfOversized = activeSettings.templateShrinkToPaperIfOversized,
+        )
+        if (templateBitmap != null && templateBitmap.width == printWidth && templateBitmap.height == printHeight) {
+            val canvas = Canvas(templateBitmap)
+            canvas.drawText(name, baseX, baselineY, namePaint)
+            if (department.isNotBlank()) {
+                canvas.drawText(department, departmentX, departmentY, departmentPaint)
+            }
+            return rotateForLandscapeIfNeeded(templateBitmap, activeSettings, applyLandscapeRotation)
+        }
+
+        val extraTemplateText = resolvePrintText(name, department, activeSettings).trim()
         val extraPaint = TextPaint().apply {
             color = Color.DKGRAY
-            textSize = (settings.printTextBaseFontSize.coerceAtLeast(12) * 0.9f)
+            textSize = (activeSettings.printTextBaseFontSize.coerceAtLeast(12) * 0.9f)
             isAntiAlias = true
         }
         val extraLayout = StaticLayout.Builder
@@ -633,11 +715,12 @@ class MainActivity : AppCompatActivity() {
             .build()
 
         val contentBottom = maxOf(
-            baselineY + nameFontSize,
-            if (department.isBlank()) baselineY else departmentY + departmentFontSize,
+            textRegion.bottom,
+            if (department.isBlank()) baselineY + nameFontSize else departmentY + departmentFontSize,
         )
         val textTop = (contentBottom + 20).toInt()
-        val bitmapHeight = (textTop + extraLayout.height + 24).coerceAtLeast(180)
+        val fallbackHeight = (textTop + extraLayout.height + 24).coerceAtLeast(180)
+        val bitmapHeight = maxOf(printHeight, fallbackHeight)
         val bitmap = Bitmap.createBitmap(printWidth, bitmapHeight, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         canvas.drawColor(Color.WHITE)
@@ -649,7 +732,101 @@ class MainActivity : AppCompatActivity() {
         canvas.translate(24f, textTop.toFloat())
         extraLayout.draw(canvas)
         canvas.restore()
-        return bitmap
+        return rotateForLandscapeIfNeeded(bitmap, activeSettings, applyLandscapeRotation)
+    }
+
+    private fun rotateForLandscapeIfNeeded(
+        bitmap: Bitmap,
+        activeSettings: AppSettings,
+        applyLandscapeRotation: Boolean,
+    ): Bitmap {
+        if (!applyLandscapeRotation || !activeSettings.printLandscape) return bitmap
+        val matrix = Matrix().apply { postRotate(90f) }
+        val rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+        if (rotated !== bitmap) {
+            bitmap.recycle()
+        }
+        return rotated
+    }
+
+    private fun loadTemplateBitmap(
+        uriString: String,
+        printWidth: Int,
+        printHeight: Int,
+        shrinkToPaperIfOversized: Boolean,
+    ): Bitmap? {
+        val sourceUri = uriString.trim()
+        if (sourceUri.isBlank()) return null
+        return runCatching {
+            val uri = Uri.parse(sourceUri)
+            val decoded = openTemplateImageStream(uri.toString())?.use { BitmapFactory.decodeStream(it) } ?: return null
+            if (decoded.width <= 0 || decoded.height <= 0) {
+                decoded.recycle()
+                return null
+            }
+            val target = Bitmap.createBitmap(printWidth, printHeight, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(target)
+            canvas.drawColor(Color.WHITE)
+
+            val scale = if (shrinkToPaperIfOversized) {
+                minOf(
+                    1f,
+                    printWidth.toFloat() / decoded.width.toFloat(),
+                    printHeight.toFloat() / decoded.height.toFloat(),
+                )
+            } else {
+                1f
+            }
+            val drawWidth = (decoded.width * scale).toInt().coerceAtLeast(1)
+            val drawHeight = (decoded.height * scale).toInt().coerceAtLeast(1)
+            val left = ((printWidth - drawWidth) / 2f)
+            val top = ((printHeight - drawHeight) / 2f)
+            val scaled = Bitmap.createScaledBitmap(decoded, drawWidth, drawHeight, true)
+            canvas.drawBitmap(scaled, left, top, null)
+            if (scaled !== decoded) scaled.recycle()
+            decoded.recycle()
+
+            val mutable = target.copy(Bitmap.Config.ARGB_8888, true)
+            if (mutable !== target) target.recycle()
+            mutable
+        }.getOrNull()
+    }
+
+    private fun openTemplateImageStream(sourceUri: String): InputStream? {
+        val raw = sourceUri.trim()
+        if (raw.isBlank()) return null
+        return runCatching {
+            when {
+                raw.startsWith("content://") || raw.startsWith("file://") -> {
+                    contentResolver.openInputStream(Uri.parse(raw))
+                }
+                else -> {
+                    val file = File(raw)
+                    if (file.exists() && file.isFile) {
+                        FileInputStream(file)
+                    } else {
+                        contentResolver.openInputStream(Uri.parse(raw))
+                    }
+                }
+            }
+        }.getOrNull()
+    }
+
+    private fun resolveSelectedPaper(activeSettings: AppSettings): PaperProfile {
+        val selected = activeSettings.paperProfiles.firstOrNull { it.id == activeSettings.selectedPaperId }
+        if (selected != null) return selected
+        return activeSettings.paperProfiles.firstOrNull()
+            ?: PaperProfile(id = "fallback_72x50", name = "Fallback 72x50", widthMm = 72f, heightMm = 50f)
+    }
+
+    private fun resolveTemplateTextRegion(activeSettings: AppSettings, width: Int, height: Int): RectF {
+        val x = activeSettings.templateTextRegionOffsetX.coerceIn(0, (width - 1).coerceAtLeast(0))
+        val y = activeSettings.templateTextRegionOffsetY.coerceIn(0, (height - 1).coerceAtLeast(0))
+        val right = (x + activeSettings.templateTextRegionWidth.coerceAtLeast(1)).coerceAtMost(width)
+        val bottom = (y + activeSettings.templateTextRegionHeight.coerceAtLeast(1)).coerceAtMost(height)
+        val safeRight = if (right <= x) (x + 1).coerceAtMost(width) else right
+        val safeBottom = if (bottom <= y) (y + 1).coerceAtMost(height) else bottom
+        return RectF(x.toFloat(), y.toFloat(), safeRight.toFloat(), safeBottom.toFloat())
     }
 
     private fun startAutoRegistration() {
@@ -700,7 +877,7 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        val detectedDirection = faceEngine.classifyDirection(face)
+        val detectedDirection = faceEngine.classifyDirection(face, mirroredPreview = isPreviewMirrored)
         if (detectedDirection != targetDirection) {
             val detectedLabel = DIRECTION_LABELS[detectedDirection] ?: "정면"
             registerStatusText.text =
@@ -805,7 +982,8 @@ class MainActivity : AppCompatActivity() {
                         )
                     }
                     if (appliedCount > 0) {
-                        dbSyncClient.pushLatest("자동 임베딩 업데이트(유휴 적용)")
+                        // 이미 유휴 상태에서 DB 업데이트가 완료된 후이므로 waitForIdle=false
+                        dbSyncClient.pushLatest("자동 임베딩 업데이트(유휴 적용)", waitForIdle = false)
                     }
                 }
             } finally {
@@ -881,15 +1059,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun computeMonitorDecision(face: Face, embedding: FloatArray): MonitorDecision {
-        if (settings.recognitionUseEllipseMask) {
-            val center = face.boundingBox.centerX() to face.boundingBox.centerY()
-            val ellipse = getRegisterEllipse(lastImageWidth, lastImageHeight)
-            if (!isInsideEllipse(center.first, center.second, ellipse.first.first, ellipse.first.second, ellipse.second.first, ellipse.second.second)) {
-                return MonitorDecision(
-                    stateKey = "idle:outside",
-                    type = MonitorDecisionType.IDLE_OUTSIDE,
-                )
-            }
+        val center = face.boundingBox.centerX() to face.boundingBox.centerY()
+        val ellipse = getRegisterEllipse(lastImageWidth, lastImageHeight)
+        if (!isInsideEllipse(center.first, center.second, ellipse.first.first, ellipse.first.second, ellipse.second.first, ellipse.second.second)) {
+            return MonitorDecision(
+                stateKey = "idle:outside",
+                type = MonitorDecisionType.IDLE_OUTSIDE,
+            )
         }
 
         val rankings = faceDb.rank(embedding, settings.topK.coerceAtLeast(1))
@@ -1023,8 +1199,11 @@ class MainActivity : AppCompatActivity() {
         faceEngine.detectLargestFace(inputImage)
             .addOnSuccessListener(cameraExecutor) { faces ->
                 try {
-                    val face = pickLargestFace(faces)
                     val page = currentPage()
+                    val face = when (page) {
+                        PAGE_MONITOR, PAGE_REGISTER_CAPTURE -> pickLargestFaceInsideEllipse(faces, inputImage.width, inputImage.height)
+                        else -> pickLargestFace(faces)
+                    }
                     if (!isDbServerConnected) {
                         if (page == PAGE_MONITOR) {
                             val stateKey = "server:disconnected"
@@ -1058,7 +1237,12 @@ class MainActivity : AppCompatActivity() {
                     }
                     lastRecognitionAtMs = System.currentTimeMillis()
 
-                    val embedding = faceEngine.makeEmbedding(face, bitmap)
+                    val embeddingBitmap = buildEllipseMaskedBitmap(bitmap)
+                    val embedding = try {
+                        faceEngine.makeEmbedding(face, embeddingBitmap)
+                    } finally {
+                        embeddingBitmap.recycle()
+                    }
                     when (page) {
                         PAGE_MONITOR -> {
                             analyzeFrameTick += 1
@@ -1088,6 +1272,55 @@ class MainActivity : AppCompatActivity() {
     private fun pickLargestFace(faces: List<Face>): Face? {
         if (faces.isEmpty()) return null
         return faces.maxByOrNull { it.boundingBox.width() * it.boundingBox.height() }
+    }
+
+    private fun pickLargestFaceInsideEllipse(faces: List<Face>, width: Int, height: Int): Face? {
+        if (faces.isEmpty()) return null
+        val ellipse = getRegisterEllipse(width, height)
+        val cx = ellipse.first.first
+        val cy = ellipse.first.second
+        val ax = ellipse.second.first
+        val ay = ellipse.second.second
+        return faces
+            .asSequence()
+            .filter { face ->
+                val centerX = face.boundingBox.centerX()
+                val centerY = face.boundingBox.centerY()
+                isInsideEllipse(centerX, centerY, cx, cy, ax, ay)
+            }
+            .maxByOrNull { it.boundingBox.width() * it.boundingBox.height() }
+    }
+
+    private fun buildEllipseMaskedBitmap(source: Bitmap): Bitmap {
+        val base = source.copy(Bitmap.Config.ARGB_8888, true)
+            ?: Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888).also {
+                Canvas(it).drawBitmap(source, 0f, 0f, null)
+            }
+        val ellipse = getRegisterEllipse(base.width, base.height)
+        val cx = ellipse.first.first
+        val cy = ellipse.first.second
+        val ax = ellipse.second.first
+        val ay = ellipse.second.second
+        val oval = RectF(
+            (cx - ax).toFloat(),
+            (cy - ay).toFloat(),
+            (cx + ax).toFloat(),
+            (cy + ay).toFloat(),
+        )
+        val outside = Path().apply {
+            fillType = Path.FillType.EVEN_ODD
+            addRect(0f, 0f, base.width.toFloat(), base.height.toFloat(), Path.Direction.CW)
+            addOval(oval, Path.Direction.CCW)
+        }
+        Canvas(base).drawPath(
+            outside,
+            android.graphics.Paint().apply {
+                color = Color.BLACK
+                style = android.graphics.Paint.Style.FILL
+                isAntiAlias = true
+            },
+        )
+        return base
     }
 
     private fun pickCameraSelector(provider: ProcessCameraProvider): CameraSelector? {
@@ -1137,6 +1370,25 @@ class MainActivity : AppCompatActivity() {
                 pendingFolderPickerCallback = onPicked
                 val initial = resolveInitialFaceDataTreeUri()
                 folderPickerLauncher.launch(initial)
+            },
+            onPickTemplateRequested = { onPicked ->
+                pendingTemplatePickerCallback = onPicked
+                templatePickerLauncher.launch(
+                    arrayOf(
+                        "image/png",
+                        "image/jpeg",
+                        "image/webp",
+                        "image/*",
+                    ),
+                )
+            },
+            onRenderPrintPreview = { previewSettings ->
+                buildNemonicPrintBitmap(
+                    name = "홍길동",
+                    department = "올스타반",
+                    activeSettings = previewSettings,
+                    applyLandscapeRotation = false,
+                )
             },
             onSave = { updated ->
                 val requireReauth = updated.dbServerBaseUrl != settings.dbServerBaseUrl || updated.dbClientId != settings.dbClientId
@@ -1192,7 +1444,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun applyPreviewMirror(lensFacing: Int?) {
-        previewView.scaleX = if (lensFacing == CameraSelector.LENS_FACING_FRONT) -1f else 1f
+        isPreviewMirrored = lensFacing == CameraSelector.LENS_FACING_FRONT
+        previewView.scaleX = if (isPreviewMirrored) -1f else 1f
     }
 
     private fun createDbSyncClient(): FaceDbSyncClient {
@@ -1225,31 +1478,16 @@ class MainActivity : AppCompatActivity() {
                     settingsStore.save(settings)
                 }
 
-                override fun exportLocalDbJson(): String {
-                    return faceDb.exportJson(pretty = false)
+                override fun exportLocalStructuredDb(): Pair<ByteArray, ByteArray>? {
+                    return faceDb.exportStructuredBytes()
                 }
 
-                override fun exportLocalDbSummaryJson(): String {
-                    return faceDb.exportDiffSummaryJson()
-                }
-
-                override fun applyRemoteDbJson(rawJson: String): Boolean {
-                    val applied = faceDb.replaceWithJson(rawJson)
+                override fun applyRemoteStructuredDb(metaDbBytes: ByteArray, embeddingsBinBytes: ByteArray): Boolean {
+                    val applied = faceDb.replaceWithStructuredBytes(metaDbBytes, embeddingsBinBytes)
                     if (applied) {
                         lastMonitorStateKey = null
                         runOnUiThread {
-                            monitorDetailText.text = "서버 DB 변경사항을 반영했습니다."
-                        }
-                    }
-                    return applied
-                }
-
-                override fun applyRemoteDbDiff(upsertsRaw: String, deletesRaw: String): Boolean {
-                    val applied = faceDb.applyDiffPatch(upsertsRaw, deletesRaw)
-                    if (applied) {
-                        lastMonitorStateKey = null
-                        runOnUiThread {
-                            monitorDetailText.text = "서버 DB 변경분을 반영했습니다."
+                            monitorDetailText.text = "서버 구조화 DB를 반영했습니다."
                         }
                     }
                     return applied
@@ -1257,6 +1495,18 @@ class MainActivity : AppCompatActivity() {
 
                 override fun localFaceCount(): Int {
                     return faceDb.personCount()
+                }
+
+                override fun localEmbeddingCount(): Int {
+                    return faceDb.totalEmbeddingCount()
+                }
+
+                override fun onUploadProgress(uploaded: Int, total: Int) {
+                    val text = if (total > 0) "$uploaded/$total" else ""
+                    runOnUiThread {
+                        uploadProgressText = text
+                        applySyncIndicatorColors()
+                    }
                 }
 
                 override fun isRecognitionIdle(idleSeconds: Int): Boolean {
@@ -1295,11 +1545,13 @@ class MainActivity : AppCompatActivity() {
                 syncLogBuffer.removeFirst()
             }
         }
-        if (!::syncLogFile.isInitialized) return
-        logExecutor.execute {
-            runCatching {
-                syncLogFile.parentFile?.mkdirs()
-                syncLogFile.appendText("$line\n")
+        if (!::syncLogFile.isInitialized || logExecutor.isShutdown) return
+        runCatching {
+            logExecutor.execute {
+                runCatching {
+                    syncLogFile.parentFile?.mkdirs()
+                    syncLogFile.appendText("$line\n")
+                }
             }
         }
     }
@@ -1472,14 +1724,22 @@ class MainActivity : AppCompatActivity() {
         }
 
         when {
-            text.contains("db 서버 업데이트 완료") -> dbPushStatus = SyncLightStatus.SUCCESS
-            text.contains("db 서버 업데이트 실패") -> dbPushStatus = SyncLightStatus.ERROR
-            text.contains("db 서버 업데이트 중") -> dbPushStatus = SyncLightStatus.IN_PROGRESS
+            text.contains("db 서버 업데이트 완료") -> {
+                dbPushStatus = SyncLightStatus.SUCCESS
+                uploadProgressText = ""
+            }
+            text.contains("db 서버 업데이트 실패") -> {
+                dbPushStatus = SyncLightStatus.ERROR
+                uploadProgressText = ""
+            }
+            text.contains("db 서버 업데이트 중") || text.contains("db 업로드 대기중") -> {
+                dbPushStatus = SyncLightStatus.IN_PROGRESS
+            }
         }
 
         if (busy) {
             if (text.contains("db 동기화")) dbLoadStatus = SyncLightStatus.IN_PROGRESS
-            if (text.contains("db 서버 업데이트")) dbPushStatus = SyncLightStatus.IN_PROGRESS
+            if (text.contains("db 서버 업데이트") || text.contains("db 업로드 대기중")) dbPushStatus = SyncLightStatus.IN_PROGRESS
         }
 
         if (connectionChanged) {
@@ -1501,7 +1761,10 @@ class MainActivity : AppCompatActivity() {
     private fun applySyncIndicatorColors() {
         connectionStatusIndicator.text = connectionRetryLabel ?: statusTextForConnection(connectionStatus)
         dbLoadStatusIndicator.text = statusTextForDbStatus(dbLoadStatus)
-        dbPushStatusIndicator.text = statusTextForDbStatus(dbPushStatus)
+        dbPushStatusIndicator.text = when {
+            dbPushStatus == SyncLightStatus.IN_PROGRESS && uploadProgressText.isNotBlank() -> uploadProgressText
+            else -> statusTextForDbStatus(dbPushStatus)
+        }
         connectionStatusIndicator.setTextColor(colorForSyncStatus(connectionStatus))
         dbLoadStatusIndicator.setTextColor(colorForSyncStatus(dbLoadStatus))
         dbPushStatusIndicator.setTextColor(colorForSyncStatus(dbPushStatus))

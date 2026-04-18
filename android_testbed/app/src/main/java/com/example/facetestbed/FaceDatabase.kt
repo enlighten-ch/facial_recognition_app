@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.content.ContentValues
 import android.database.sqlite.SQLiteDatabase
+import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import org.json.JSONArray
 import org.json.JSONObject
@@ -69,6 +70,9 @@ class FaceDatabase private constructor(private val backend: StorageBackend) {
     fun isEmpty(): Boolean = rankIndex.isEmpty()
 
     fun personCount(): Int = rankIndex.size
+
+    @Synchronized
+    fun totalEmbeddingCount(): Int = people.sumOf { it.embeddings.size }
 
     @Synchronized
     fun upsertPerson(name: String, department: String, samples: List<FloatArray>, maxEmbeddingsPerPerson: Int = 100) {
@@ -169,6 +173,25 @@ class FaceDatabase private constructor(private val backend: StorageBackend) {
         return true
     }
 
+    fun replaceWithStructuredBytes(metaDbBytes: ByteArray, embeddingsBinBytes: ByteArray): Boolean {
+        if (metaDbBytes.isEmpty() || embeddingsBinBytes.isEmpty()) return false
+        if (!backend.writeStructured(metaDbBytes, embeddingsBinBytes)) return false
+        val nextPeople = backend.readPeople() ?: return false
+        synchronized(this) {
+            people.clear()
+            people.addAll(nextPeople)
+            rebuildIndexesLocked()
+        }
+        return true
+    }
+
+    fun exportStructuredBytes(): Pair<ByteArray, ByteArray>? {
+        val metaBytes = backend.readStructuredMetaBytes() ?: return null
+        val embeddingsBytes = backend.readStructuredEmbeddingsBytes() ?: return null
+        if (metaBytes.isEmpty() || embeddingsBytes.isEmpty()) return null
+        return metaBytes to embeddingsBytes
+    }
+
     fun applyDiffPatch(upsertsRaw: String, deletesRaw: String): Boolean {
         val upserts = runCatching { JSONArray(upsertsRaw) }.getOrNull() ?: return false
         val deletes = runCatching { JSONArray(deletesRaw) }.getOrDefault(JSONArray())
@@ -202,13 +225,20 @@ class FaceDatabase private constructor(private val backend: StorageBackend) {
     }
 
     private fun load() {
-        val root = backend.readDb() ?: return
-        val loaded = parsePeople(root) ?: return
+        val startedAt = System.currentTimeMillis()
+        logLoad("DB load start")
+        val loaded = backend.readPeople() ?: return
         synchronized(this) {
             people.clear()
             people.addAll(loaded)
             rebuildIndexesLocked()
         }
+        val totalElapsedMs = System.currentTimeMillis() - startedAt
+        logLoad("DB load complete: people=${loaded.size}, total=${totalElapsedMs}ms")
+    }
+
+    private fun logLoad(message: String) {
+        Log.i(LOGCAT_TAG, message)
     }
 
     private fun save() {
@@ -532,8 +562,11 @@ class FaceDatabase private constructor(private val backend: StorageBackend) {
     )
 
     private interface StorageBackend {
-        fun readDb(): JSONObject?
+        fun readPeople(): MutableList<PersonRecord>?
         fun writeDb(root: JSONObject): Boolean
+        fun writeStructured(metaDbBytes: ByteArray, embeddingsBinBytes: ByteArray): Boolean
+        fun readStructuredMetaBytes(): ByteArray?
+        fun readStructuredEmbeddingsBytes(): ByteArray?
     }
 
     private class FileStorageBackend(
@@ -541,7 +574,7 @@ class FaceDatabase private constructor(private val backend: StorageBackend) {
         private val metaDbFile: File,
         private val embeddingsBinFile: File,
     ) : StorageBackend {
-        override fun readDb(): JSONObject? {
+        override fun readPeople(): MutableList<PersonRecord>? {
             val structuredExists = metaDbFile.exists() && embeddingsBinFile.exists()
             val csvNeedsImport = csvFile.exists() &&
                 (
@@ -552,6 +585,9 @@ class FaceDatabase private constructor(private val backend: StorageBackend) {
             if (csvNeedsImport) {
                 val raw = runCatching { csvFile.readText() }.getOrNull()
                 if (raw != null) {
+                    if (structuredExists && !StructuredCodec.hasEmbeddingsColumn(raw)) {
+                        StructuredCodec.loadPeopleFromStructured(metaDbFile, embeddingsBinFile)?.let { return it }
+                    }
                     val root =
                         if (structuredExists) {
                             val base = StructuredCodec.loadFromStructured(metaDbFile, embeddingsBinFile)
@@ -560,13 +596,13 @@ class FaceDatabase private constructor(private val backend: StorageBackend) {
                             StructuredCodec.parseCsvRoot(raw)
                         }
                     if (root != null && StructuredCodec.saveToStructured(root, metaDbFile, embeddingsBinFile)) {
-                        return root
+                        StructuredCodec.loadPeopleFromStructured(metaDbFile, embeddingsBinFile)?.let { return it }
                     }
                 }
             }
 
             if (structuredExists) {
-                StructuredCodec.loadFromStructured(metaDbFile, embeddingsBinFile)?.let { return it }
+                StructuredCodec.loadPeopleFromStructured(metaDbFile, embeddingsBinFile)?.let { return it }
             }
             return null
         }
@@ -574,6 +610,24 @@ class FaceDatabase private constructor(private val backend: StorageBackend) {
         override fun writeDb(root: JSONObject): Boolean {
             if (!StructuredCodec.saveToStructured(root, metaDbFile, embeddingsBinFile)) return false
             return writeCsvSnapshot(root)
+        }
+
+        override fun writeStructured(metaDbBytes: ByteArray, embeddingsBinBytes: ByteArray): Boolean {
+            return runCatching {
+                metaDbFile.parentFile?.mkdirs()
+                embeddingsBinFile.parentFile?.mkdirs()
+                metaDbFile.writeBytes(metaDbBytes)
+                embeddingsBinFile.writeBytes(embeddingsBinBytes)
+                true
+            }.getOrDefault(false)
+        }
+
+        override fun readStructuredMetaBytes(): ByteArray? {
+            return runCatching { metaDbFile.readBytes() }.getOrNull()
+        }
+
+        override fun readStructuredEmbeddingsBytes(): ByteArray? {
+            return runCatching { embeddingsBinFile.readBytes() }.getOrNull()
         }
 
         private fun writeCsvSnapshot(root: JSONObject): Boolean {
@@ -594,10 +648,12 @@ class FaceDatabase private constructor(private val backend: StorageBackend) {
         private val metaDbFile: File,
         private val embeddingsBinFile: File,
     ) : StorageBackend {
-        override fun readDb(): JSONObject? {
+        override fun readPeople(): MutableList<PersonRecord>? {
             val metaDoc = resolveDocumentFile(metaDbFileName, createIfMissing = false)
             val binDoc = resolveDocumentFile(embeddingsBinFileName, createIfMissing = false)
-            val structuredExists = (metaDoc != null && binDoc != null) && syncStructuredFromDocuments(metaDoc, binDoc)
+            val docStructuredExists = (metaDoc != null && binDoc != null) && syncStructuredFromDocuments(metaDoc, binDoc)
+            val localStructuredExists = metaDbFile.exists() && embeddingsBinFile.exists()
+            val structuredExists = docStructuredExists || localStructuredExists
             val csvDoc = resolveDocumentFile(csvFileName, createIfMissing = false)
             val csvNeedsImport = csvDoc != null &&
                 (
@@ -610,6 +666,9 @@ class FaceDatabase private constructor(private val backend: StorageBackend) {
                     context.contentResolver.openInputStream(csvDoc!!.uri)?.bufferedReader()?.use { it.readText() }
                 }.getOrNull()
                 if (csvRaw != null) {
+                    if (structuredExists && !StructuredCodec.hasEmbeddingsColumn(csvRaw)) {
+                        StructuredCodec.loadPeopleFromStructured(metaDbFile, embeddingsBinFile)?.let { return it }
+                    }
                     val root =
                         if (structuredExists) {
                             val base = StructuredCodec.loadFromStructured(metaDbFile, embeddingsBinFile)
@@ -619,21 +678,54 @@ class FaceDatabase private constructor(private val backend: StorageBackend) {
                         }
                     if (root != null && StructuredCodec.saveToStructured(root, metaDbFile, embeddingsBinFile)) {
                         syncStructuredToDocuments()
-                        return root
+                        StructuredCodec.loadPeopleFromStructured(metaDbFile, embeddingsBinFile)?.let { return it }
                     }
                 }
             }
 
             if (structuredExists) {
-                StructuredCodec.loadFromStructured(metaDbFile, embeddingsBinFile)?.let { return it }
+                StructuredCodec.loadPeopleFromStructured(metaDbFile, embeddingsBinFile)?.let { return it }
             }
             return null
         }
 
         override fun writeDb(root: JSONObject): Boolean {
             if (!StructuredCodec.saveToStructured(root, metaDbFile, embeddingsBinFile)) return false
-            if (!syncStructuredToDocuments()) return false
+            syncStructuredToDocuments()
             return writeDocumentText(csvFileName, StructuredCodec.toCsv(root))
+        }
+
+        override fun writeStructured(metaDbBytes: ByteArray, embeddingsBinBytes: ByteArray): Boolean {
+            val localOk = runCatching {
+                metaDbFile.parentFile?.mkdirs()
+                embeddingsBinFile.parentFile?.mkdirs()
+                metaDbFile.writeBytes(metaDbBytes)
+                embeddingsBinFile.writeBytes(embeddingsBinBytes)
+                true
+            }.getOrDefault(false)
+            if (!localOk) return false
+            syncStructuredToDocuments()
+            return true
+        }
+
+        override fun readStructuredMetaBytes(): ByteArray? {
+            if (metaDbFile.exists()) {
+                runCatching { metaDbFile.readBytes() }.getOrNull()?.let { return it }
+            }
+            val metaDoc = resolveDocumentFile(metaDbFileName, createIfMissing = false) ?: return null
+            return runCatching {
+                context.contentResolver.openInputStream(metaDoc.uri)?.use { it.readBytes() }
+            }.getOrNull()
+        }
+
+        override fun readStructuredEmbeddingsBytes(): ByteArray? {
+            if (embeddingsBinFile.exists()) {
+                runCatching { embeddingsBinFile.readBytes() }.getOrNull()?.let { return it }
+            }
+            val binDoc = resolveDocumentFile(embeddingsBinFileName, createIfMissing = false) ?: return null
+            return runCatching {
+                context.contentResolver.openInputStream(binDoc.uri)?.use { it.readBytes() }
+            }.getOrNull()
         }
 
         private fun readDocumentText(fileName: String): String? {
@@ -695,6 +787,13 @@ class FaceDatabase private constructor(private val backend: StorageBackend) {
 
     private object StructuredCodec {
         private const val TABLE = "people"
+
+        fun hasEmbeddingsColumn(raw: String): Boolean {
+            val rows = parseCsvRows(raw)
+            if (rows.isEmpty()) return false
+            val header = rows.first().map { it.trim().lowercase(Locale.US) }
+            return indexOfAny(header, listOf("embeddings_json", "embeddings", "embedding_json")) >= 0
+        }
 
         fun toCsv(root: JSONObject): String {
             val people = normalizeRoot(root).optJSONArray("people") ?: JSONArray()
@@ -783,6 +882,46 @@ class FaceDatabase private constructor(private val backend: StorageBackend) {
                     }
                 }
                 JSONObject().put("people", arr)
+            }.getOrNull().also { db.close() }
+        }
+
+        fun loadPeopleFromStructured(metaDbFile: File, embeddingsBinFile: File): MutableList<PersonRecord>? {
+            if (!metaDbFile.exists() || !embeddingsBinFile.exists()) return null
+            val embeddingsBytes = runCatching { embeddingsBinFile.readBytes() }.getOrNull() ?: return null
+            val db = runCatching { SQLiteDatabase.openDatabase(metaDbFile.absolutePath, null, SQLiteDatabase.OPEN_READONLY) }
+                .getOrNull() ?: return null
+            return runCatching {
+                val out = mutableListOf<PersonRecord>()
+                db.query(
+                    TABLE,
+                    arrayOf("name", "department", "offset_bytes", "length_bytes", "embedding_count", "embedding_dim"),
+                    null,
+                    null,
+                    null,
+                    null,
+                    "name ASC",
+                ).use { cursor ->
+                    while (cursor.moveToNext()) {
+                        val name = cursor.getString(0)?.trim().orEmpty()
+                        if (name.isBlank()) continue
+                        val department = cursor.getString(1)?.trim().orEmpty()
+                        val offset = cursor.getLong(2).toInt()
+                        val length = cursor.getLong(3).toInt()
+                        val count = cursor.getInt(4).coerceAtLeast(0)
+                        val dim = cursor.getInt(5).coerceAtLeast(0)
+                        val embeddings = decodeEmbeddingsToFloatArrays(embeddingsBytes, offset, length, count, dim)
+                        if (embeddings.isEmpty()) continue
+                        out.add(
+                            PersonRecord(
+                                name = name,
+                                department = department,
+                                centroid = l2NormalizeFloat(meanVectorFloat(embeddings)),
+                                embeddings = embeddings.toMutableList(),
+                            ),
+                        )
+                    }
+                }
+                out
             }.getOrNull().also { db.close() }
         }
 
@@ -935,13 +1074,30 @@ class FaceDatabase private constructor(private val backend: StorageBackend) {
         }
 
         private fun decodeEmbeddings(bytes: ByteArray, offset: Int, length: Int, count: Int, dim: Int): JSONArray {
-            if (offset < 0 || length < 0 || offset + length > bytes.size || count <= 0 || dim <= 0) return JSONArray()
+            val vectors = decodeEmbeddingsToFloatArrays(bytes, offset, length, count, dim)
             val arr = JSONArray()
+            vectors.forEach { vec ->
+                val emb = JSONArray()
+                vec.forEach { value -> emb.put(value.toDouble()) }
+                arr.put(emb)
+            }
+            return arr
+        }
+
+        private fun decodeEmbeddingsToFloatArrays(
+            bytes: ByteArray,
+            offset: Int,
+            length: Int,
+            count: Int,
+            dim: Int,
+        ): List<FloatArray> {
+            if (offset < 0 || length < 0 || offset + length > bytes.size || count <= 0 || dim <= 0) return emptyList()
+            val out = ArrayList<FloatArray>(count)
             var p = offset
             val limit = offset + length
             for (i in 0 until count) {
                 if (p + dim * 4 > limit) break
-                val emb = JSONArray()
+                val emb = FloatArray(dim)
                 for (j in 0 until dim) {
                     val bits =
                         (bytes[p].toInt() and 0xFF) or
@@ -949,11 +1105,29 @@ class FaceDatabase private constructor(private val backend: StorageBackend) {
                             ((bytes[p + 2].toInt() and 0xFF) shl 16) or
                             ((bytes[p + 3].toInt() and 0xFF) shl 24)
                     p += 4
-                    emb.put(Float.fromBits(bits).toDouble())
+                    emb[j] = Float.fromBits(bits)
                 }
-                arr.put(emb)
+                out.add(emb)
             }
-            return arr
+            return out
+        }
+
+        private fun meanVectorFloat(vectors: List<FloatArray>): FloatArray {
+            val dim = vectors.firstOrNull()?.size ?: 0
+            val out = FloatArray(dim)
+            if (dim == 0) return out
+            for (v in vectors) {
+                for (i in 0 until dim) out[i] += v[i]
+            }
+            for (i in 0 until dim) out[i] /= vectors.size.toFloat()
+            return out
+        }
+
+        private fun l2NormalizeFloat(v: FloatArray): FloatArray {
+            var sum = 0.0
+            for (x in v) sum += (x * x).toDouble()
+            val norm = sqrt(sum).toFloat().coerceAtLeast(1e-12f)
+            return FloatArray(v.size) { i -> v[i] / norm }
         }
 
         private fun parseCsvRows(raw: String): List<List<String>> {
@@ -1087,6 +1261,8 @@ class FaceDatabase private constructor(private val backend: StorageBackend) {
     }
 
     companion object {
+        private const val LOGCAT_TAG = "FaceTestDb"
+
         private fun resolveCsvFile(dbFile: File): File {
             val lowerName = dbFile.name.lowercase(Locale.US)
             if (lowerName.endsWith(".csv")) return dbFile

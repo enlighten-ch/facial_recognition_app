@@ -12,6 +12,13 @@ data class CsvMetaRow(
 )
 
 class FaceDbCsvCodec {
+    fun hasEmbeddingsColumn(rawCsv: String): Boolean {
+        val rows = parseCsv(rawCsv)
+        if (rows.isEmpty()) return false
+        val header = rows.first().map { it.trim().lowercase(Locale.US) }
+        return indexOfAny(header, listOf("embeddings_json", "embeddings", "embedding_json")) >= 0
+    }
+
     fun decode(rawCsv: String): JSONObject? {
         val rows = parseCsv(rawCsv)
         if (rows.isEmpty()) {

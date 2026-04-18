@@ -3,12 +3,12 @@ package com.example.facetestbed
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.RequestBody
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
-import org.json.JSONArray
-import org.json.JSONObject
+import okio.Buffer
+import okio.BufferedSink
 import java.net.Inet4Address
 import java.net.NetworkInterface
 import java.net.URI
@@ -25,14 +25,14 @@ class FaceDbSyncClient(
         fun onStatus(message: String, busy: Boolean)
         fun onDiagnosticLog(message: String)
         fun onClientIdIssued(clientId: String)
-        fun exportLocalDbJson(): String
-        fun exportLocalDbSummaryJson(): String
-        fun applyRemoteDbJson(rawJson: String): Boolean
-        fun applyRemoteDbDiff(upsertsRaw: String, deletesRaw: String): Boolean
+        fun exportLocalStructuredDb(): Pair<ByteArray, ByteArray>?
+        fun applyRemoteStructuredDb(metaDbBytes: ByteArray, embeddingsBinBytes: ByteArray): Boolean
         fun isRecognitionIdle(idleSeconds: Int): Boolean
         fun localFaceCount(): Int
+        fun localEmbeddingCount(): Int
         fun onAuthTokenIssued(token: String)
         fun onAuthTokenCleared()
+        fun onUploadProgress(uploaded: Int, total: Int)
     }
 
     @Volatile
@@ -42,6 +42,7 @@ class FaceDbSyncClient(
 
     private val executor = Executors.newSingleThreadExecutor()
     private val running = AtomicBoolean(false)
+    private val syncInFlight = AtomicBoolean(false)
 
     private var baseUrl: String = ""
     private var clientId: String = ""
@@ -85,6 +86,7 @@ class FaceDbSyncClient(
         replaceHttpClients(connectTimeoutSeconds)
         wsReconnectAttempt = 0
         initialSyncCompleted = false
+        syncInFlight.set(false)
         running.set(true)
 
         executor.execute {
@@ -113,9 +115,19 @@ class FaceDbSyncClient(
         webSocket = null
     }
 
-    fun pushLatest(reason: String) {
+    fun pushLatest(reason: String, waitForIdle: Boolean = true) {
         if (!running.get()) return
-        executor.execute { pushLatestInternal(reason) }
+        executor.execute {
+            if (!syncInFlight.compareAndSet(false, true)) {
+                callbacks.onDiagnosticLog("업로드 요청 병합: 이미 진행 중인 작업이 있어 건너뜀 ($reason)")
+                return@execute
+            }
+            try {
+                pushLatestCore(reason, waitForIdle = waitForIdle)
+            } finally {
+                syncInFlight.set(false)
+            }
+        }
     }
 
     fun pullLatest(reason: String) {
@@ -161,13 +173,13 @@ class FaceDbSyncClient(
     }
 
     private fun requestAuthorization(): AuthRequestResult {
-        val payload = JSONObject()
-            .put("clientId", clientId)
-            .put("deviceName", deviceName)
-
+        val payload = buildKeyValueBody(
+            "clientId" to clientId,
+            "deviceName" to deviceName,
+        )
         val req = Request.Builder()
             .url("$baseUrl/api/auth/request")
-            .post(payload.toString().toRequestBody(JSON_MEDIA))
+            .post(payload.toByteArray().toRequestBody(TEXT_MEDIA))
             .build()
 
         callbacks.onDiagnosticLog("인증 요청: ${req.url}")
@@ -176,12 +188,10 @@ class FaceDbSyncClient(
                 if (!res.isSuccessful) {
                     return AuthRequestResult(AuthState.ERROR, "HTTP ${res.code}")
                 }
-                val body = res.body?.string().orEmpty()
-                val root = runCatching { JSONObject(body) }.getOrNull()
-                    ?: return AuthRequestResult(AuthState.ERROR, "응답 JSON 파싱 실패")
-                val status = root.optString("status")
+                val body = parseKeyValueBody(res.body?.string().orEmpty())
+                val status = body["status"].orEmpty()
                 if (status == "approved") {
-                    val token = root.optString("token", "").trim()
+                    val token = body["token"].orEmpty().trim()
                     if (token.isBlank()) {
                         return AuthRequestResult(AuthState.ERROR, "승인 응답에 토큰 없음")
                     }
@@ -203,148 +213,129 @@ class FaceDbSyncClient(
     }
 
     private fun pullLatestInternal(reason: String, allowReauthRetry: Boolean = true) {
-        if (!ensureAuthorized()) return
-        callbacks.onStatus("DB 동기화 중: $reason", true)
-        val summaryObj = runCatching { JSONObject(callbacks.exportLocalDbSummaryJson()) }
-            .getOrDefault(JSONObject().put("people", JSONArray()))
-        val payload = JSONObject().put("summary", summaryObj)
-        val request = Request.Builder()
-            .url("$baseUrl/api/db/diff")
-            .header("Authorization", "Bearer $authToken")
-            .post(payload.toString().toRequestBody(JSON_MEDIA))
-            .build()
-
-        runCatching {
-            httpClient.newCall(request).execute().use { res ->
-                if (isAuthError(res.code) && allowReauthRetry) {
-                    callbacks.onStatus("인증 만료, 재승인 요청 중...", true)
-                    invalidateAuthToken()
-                    if (ensureAuthorized()) {
-                        pullLatestInternal(reason, allowReauthRetry = false)
-                    } else {
-                        callbacks.onStatus("DB 동기화 실패(승인 필요)", false)
-                    }
-                    return
-                }
-                if (res.code == 404 || res.code == 405) {
-                    pullLatestFullInternal(reason, allowReauthRetry)
-                    return
-                }
-                if (!res.isSuccessful) {
-                    callbacks.onDiagnosticLog("DB diff 실패: HTTP ${res.code}")
-                    callbacks.onStatus("DB 동기화 실패(HTTP ${res.code})", false)
-                    return
-                }
-                val body = res.body?.string().orEmpty()
-                val parsed = runCatching { JSONObject(body) }.getOrNull() ?: run {
-                    callbacks.onStatus("DB 동기화 실패(응답 파싱 오류)", false)
-                    return
-                }
-                val upserts = parsed.optJSONArray("upserts") ?: JSONArray()
-                val deletes = parsed.optJSONArray("deletes") ?: JSONArray()
-                val hasChanges = parsed.optBoolean("hasChanges", upserts.length() > 0 || deletes.length() > 0)
-                val applied = if (hasChanges) {
-                    if (!waitForRecognitionIdleBeforeDbApply()) {
-                        callbacks.onStatus("DB 동기화 취소(앱 중지)", false)
-                        return
-                    }
-                    callbacks.applyRemoteDbDiff(upserts.toString(), deletes.toString())
-                } else {
-                    true
-                }
-                if (applied) {
-                    initialSyncCompleted = true
-                    val count = callbacks.localFaceCount()
-                    if (hasChanges) {
-                        callbacks.onStatus("DB 동기화 완료 (변경 ${upserts.length() + deletes.length()}건, 얼굴 ${count}명)", false)
-                    } else {
-                        callbacks.onStatus("DB 동기화 완료 (변경 없음, 얼굴 ${count}명)", false)
-                    }
-                } else {
-                    callbacks.onStatus("DB 동기화 실패(DB 반영 오류)", false)
-                }
-            }
-        }.onFailure {
-            callbacks.onDiagnosticLog("DB diff 예외: ${it.javaClass.simpleName}: ${it.message.orEmpty()}")
-            callbacks.onStatus("DB 동기화 실패(${it.javaClass.simpleName})", false)
+        if (!syncInFlight.compareAndSet(false, true)) {
+            callbacks.onDiagnosticLog("동기화 요청 병합: 이미 진행 중인 작업에 합류 ($reason)")
+            return
+        }
+        try {
+            pullLatestStructuredInternal(reason, allowReauthRetry)
+        } finally {
+            syncInFlight.set(false)
         }
     }
 
-    private fun pullLatestFullInternal(reason: String, allowReauthRetry: Boolean = true) {
-        val request = Request.Builder()
-            .url("$baseUrl/api/db")
+    private fun pullLatestStructuredInternal(reason: String, allowReauthRetry: Boolean = true) {
+        if (!ensureAuthorized()) return
+        callbacks.onStatus("DB 동기화 중: $reason", true)
+        val startedAt = System.currentTimeMillis()
+        val metaRequest = Request.Builder()
+            .url("$baseUrl/api/db/structured/meta")
+            .header("Authorization", "Bearer $authToken")
+            .get()
+            .build()
+        val binRequest = Request.Builder()
+            .url("$baseUrl/api/db/structured/bin")
             .header("Authorization", "Bearer $authToken")
             .get()
             .build()
 
         runCatching {
-            httpClient.newCall(request).execute().use { res ->
-                if (isAuthError(res.code) && allowReauthRetry) {
-                    callbacks.onStatus("인증 만료, 재승인 요청 중...", true)
-                    invalidateAuthToken()
-                    if (ensureAuthorized()) {
-                        pullLatestFullInternal(reason, allowReauthRetry = false)
-                    } else {
-                        callbacks.onStatus("DB 동기화 실패(승인 필요)", false)
-                    }
-                    return
-                }
-                if (!res.isSuccessful) {
-                    callbacks.onDiagnosticLog("DB 전체 조회 실패: HTTP ${res.code}")
-                    callbacks.onStatus("DB 동기화 실패(HTTP ${res.code})", false)
-                    return
-                }
-                val body = res.body?.string().orEmpty()
-                val dbJson = extractDbJson(body) ?: run {
-                    callbacks.onStatus("DB 동기화 실패(응답 파싱 오류)", false)
-                    return
-                }
-                if (!waitForRecognitionIdleBeforeDbApply()) {
-                    callbacks.onStatus("DB 동기화 취소(앱 중지)", false)
-                    return
-                }
-                val applied = callbacks.applyRemoteDbJson(dbJson)
-                if (applied) {
-                    initialSyncCompleted = true
-                    callbacks.onStatus("DB 동기화 완료 (전체 다운로드, 얼굴 ${callbacks.localFaceCount()}명)", false)
-                } else {
-                    callbacks.onStatus("DB 동기화 실패(DB 반영 오류)", false)
-                }
+            val metaBytes = downloadStructuredPart(metaRequest, "meta", reason, allowReauthRetry) ?: return
+            val binBytes = downloadStructuredPart(binRequest, "bin", reason, allowReauthRetry) ?: return
+            if (!waitForRecognitionIdleBeforeDbApply()) {
+                callbacks.onStatus("DB 동기화 취소(앱 중지)", false)
+                return
+            }
+            val applied = callbacks.applyRemoteStructuredDb(metaBytes, binBytes)
+            if (applied) {
+                initialSyncCompleted = true
+                val elapsedMs = System.currentTimeMillis() - startedAt
+                callbacks.onDiagnosticLog(
+                    "구조화 DB 다운로드 완료: meta=${metaBytes.size}B, bin=${binBytes.size}B, total=${elapsedMs}ms",
+                )
+                callbacks.onStatus("DB 동기화 완료 (구조화 다운로드, 얼굴 ${callbacks.localFaceCount()}명)", false)
+            } else {
+                callbacks.onStatus("DB 동기화 실패(DB 반영 오류)", false)
             }
         }.onFailure {
-            callbacks.onDiagnosticLog("DB 전체 조회 예외: ${it.javaClass.simpleName}: ${it.message.orEmpty()}")
+            callbacks.onDiagnosticLog("구조화 DB 다운로드 예외: ${it.javaClass.simpleName}: ${it.message.orEmpty()}")
             callbacks.onStatus("DB 동기화 실패(${it.javaClass.simpleName})", false)
         }
     }
 
-    private fun pushLatestInternal(
+    private fun downloadStructuredPart(request: Request, label: String, reason: String, allowReauthRetry: Boolean): ByteArray? {
+        httpClient.newCall(request).execute().use { res ->
+            if (isAuthError(res.code) && allowReauthRetry) {
+                callbacks.onStatus("인증 만료, 재승인 요청 중...", true)
+                invalidateAuthToken()
+                if (ensureAuthorized()) {
+                    pullLatestStructuredInternal(reason, allowReauthRetry = false)
+                } else {
+                    callbacks.onStatus("DB 동기화 실패(승인 필요)", false)
+                }
+                return null
+            }
+            if (!res.isSuccessful) {
+                callbacks.onDiagnosticLog("구조화 $label 다운로드 실패: HTTP ${res.code}")
+                callbacks.onStatus("DB 동기화 실패(HTTP ${res.code})", false)
+                return null
+            }
+            return res.body?.bytes() ?: ByteArray(0)
+        }
+    }
+
+    // 실제 push 로직 - syncInFlight는 호출자가 관리
+    private fun pushLatestCore(
         reason: String,
+        waitForIdle: Boolean = true,
         allowReauthRetry: Boolean = true,
         retryCount: Int = 0,
     ) {
+        if (waitForIdle) {
+            if (!waitForRecognitionIdleBeforeUpload()) {
+                callbacks.onStatus("DB 업로드 취소(앱 중지)", false)
+                return
+            }
+        }
         if (!ensureAuthorized()) return
-        callbacks.onStatus("DB 서버 업데이트 중: $reason", true)
-        val dbRaw = callbacks.exportLocalDbJson()
-        val dbObj = runCatching { JSONObject(dbRaw) }.getOrNull()
-        if (dbObj == null) {
-            callbacks.onStatus("DB 서버 업데이트 실패(로컬 DB 직렬화 오류)", false)
+
+        val totalEmbeddings = callbacks.localEmbeddingCount()
+        callbacks.onUploadProgress(0, totalEmbeddings)
+        callbacks.onStatus("DB 서버 업데이트 중: $reason (0/$totalEmbeddings)", true)
+
+        val snapshot = callbacks.exportLocalStructuredDb()
+        if (snapshot == null) {
+            callbacks.onStatus("DB 서버 업데이트 실패(구조화 DB 읽기 오류)", false)
             return
         }
-        val payload = JSONObject().put("db", dbObj)
+        val payload = buildStructuredBundle(snapshot.first, snapshot.second)
+
+        // 1개 embedding당 500ms 기준 동적 callTimeout (최소 30초, 여유 15초 추가)
+        val dynamicCallTimeoutSeconds = maxOf(30L, totalEmbeddings * 500L / 1000L + 15L)
+
+        val progressBody = buildProgressTrackingBody(payload, totalEmbeddings) { uploaded, total ->
+            callbacks.onUploadProgress(uploaded, total)
+            callbacks.onStatus("DB 서버 업데이트 중: $reason ($uploaded/$total)", true)
+        }
 
         val req = Request.Builder()
-            .url("$baseUrl/api/db/push")
+            .url("$baseUrl/api/db/structured/push")
             .header("Authorization", "Bearer $authToken")
-            .post(payload.toString().toRequestBody(JSON_MEDIA))
+            .post(progressBody)
+            .build()
+
+        // 업로드용 동적 타임아웃 클라이언트 (connection pool 공유)
+        val uploadClient = httpClient.newBuilder()
+            .callTimeout(dynamicCallTimeoutSeconds, TimeUnit.SECONDS)
             .build()
 
         runCatching {
-            httpClient.newCall(req).execute().use { res ->
+            uploadClient.newCall(req).execute().use { res ->
                 if (isAuthError(res.code) && allowReauthRetry) {
                     callbacks.onStatus("인증 만료, 재승인 요청 중...", true)
                     invalidateAuthToken()
                     if (ensureAuthorized()) {
-                        pushLatestInternal(reason, allowReauthRetry = false)
+                        pushLatestCore(reason, waitForIdle = false, allowReauthRetry = false, retryCount = retryCount)
                     } else {
                         callbacks.onStatus("DB 서버 업데이트 실패(승인 필요)", false)
                     }
@@ -356,7 +347,7 @@ class FaceDbSyncClient(
                         val next = retryCount + 1
                         callbacks.onStatus("DB 서버 업데이트 재시도(${next}/2): HTTP ${res.code}", true)
                         Thread.sleep((1000L * next).coerceAtMost(2500L))
-                        pushLatestInternal(reason, allowReauthRetry = false, retryCount = next)
+                        pushLatestCore(reason, waitForIdle = false, allowReauthRetry = false, retryCount = next)
                         return
                     }
                     val detail = body.take(120).replace('\n', ' ').trim()
@@ -365,7 +356,8 @@ class FaceDbSyncClient(
                     callbacks.onStatus("DB 서버 업데이트 실패(HTTP ${res.code}$suffix)", false)
                     return
                 }
-                callbacks.onStatus("DB 서버 업데이트 완료", false)
+                callbacks.onUploadProgress(totalEmbeddings, totalEmbeddings)
+                callbacks.onStatus("DB 서버 업데이트 완료 ($totalEmbeddings/$totalEmbeddings)", false)
             }
         }.onFailure {
             callbacks.onDiagnosticLog("DB push 예외: ${it.javaClass.simpleName}: ${it.message.orEmpty()}")
@@ -373,10 +365,35 @@ class FaceDbSyncClient(
                 val next = retryCount + 1
                 callbacks.onStatus("DB 서버 업데이트 재시도(${next}/2): ${it.javaClass.simpleName}", true)
                 Thread.sleep((1000L * next).coerceAtMost(2500L))
-                pushLatestInternal(reason, allowReauthRetry = allowReauthRetry, retryCount = next)
+                pushLatestCore(reason, waitForIdle = false, allowReauthRetry = allowReauthRetry, retryCount = next)
                 return@onFailure
             }
             callbacks.onStatus("DB 서버 업데이트 실패(${it.javaClass.simpleName})", false)
+        }
+    }
+
+    private fun buildProgressTrackingBody(
+        bytes: ByteArray,
+        totalEmbeddings: Int,
+        onProgress: (Int, Int) -> Unit,
+    ): RequestBody {
+        return object : RequestBody() {
+            override fun contentType() = BINARY_MEDIA
+            override fun contentLength() = bytes.size.toLong()
+            override fun writeTo(sink: BufferedSink) {
+                val source = Buffer().also { it.write(bytes) }
+                var totalWritten = 0L
+                val buffer = Buffer()
+                while (true) {
+                    val read = source.read(buffer, 8192L)
+                    if (read == -1L) break
+                    sink.write(buffer, read)
+                    totalWritten += read
+                    val progress = if (bytes.isEmpty()) totalEmbeddings
+                    else (totalWritten.toDouble() / bytes.size * totalEmbeddings).toInt().coerceIn(0, totalEmbeddings)
+                    onProgress(progress, totalEmbeddings)
+                }
+            }
         }
     }
 
@@ -411,9 +428,9 @@ class FaceDbSyncClient(
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
-                val parsed = runCatching { JSONObject(text) }.getOrNull() ?: return
-                if (parsed.optString("type") != "db_update") return
-                val source = parsed.optString("sourceClientId")
+                val parsed = parseKeyValueBody(text)
+                if (parsed["type"].orEmpty() != "db_update") return
+                val source = parsed["sourceClientId"].orEmpty()
                 if (source == clientId) return
                 if (source == "server_bootstrap" && !initialSyncCompleted) {
                     executor.execute { pullLatestInternal("초기 동기화") }
@@ -494,12 +511,6 @@ class FaceDbSyncClient(
         return code == 401 || code == 403
     }
 
-    private fun extractDbJson(responseBody: String): String? {
-        val root = runCatching { JSONObject(responseBody) }.getOrNull() ?: return null
-        val db = root.optJSONObject("db") ?: return null
-        return db.toString()
-    }
-
     private fun toWebSocketUrl(httpBase: String): String {
         return when {
             httpBase.startsWith("https://") -> "wss://" + httpBase.removePrefix("https://")
@@ -524,6 +535,20 @@ class FaceDbSyncClient(
             val now = System.currentTimeMillis()
             if (now - lastStatusAt >= 1000L) {
                 callbacks.onStatus("DB 동기화 대기중(유휴시간 ${idleSeconds}초)", true)
+                lastStatusAt = now
+            }
+            Thread.sleep(300)
+        }
+        return running.get()
+    }
+
+    private fun waitForRecognitionIdleBeforeUpload(): Boolean {
+        val idleSeconds = dbLoadIdleSeconds.coerceAtLeast(1)
+        var lastStatusAt = 0L
+        while (running.get() && !callbacks.isRecognitionIdle(idleSeconds)) {
+            val now = System.currentTimeMillis()
+            if (now - lastStatusAt >= 1000L) {
+                callbacks.onStatus("DB 업로드 대기중(유휴시간 ${idleSeconds}초)", true)
                 lastStatusAt = now
             }
             Thread.sleep(300)
@@ -604,7 +629,6 @@ class FaceDbSyncClient(
         val port = if (uri.port > 0) uri.port else 80
         val out = linkedSetOf<String>()
 
-        // Loopback 입력은 같은 기기 서버를 명시한 것으로 보고 LAN 자동 전환을 금지한다.
         if (isLoopbackHost(host)) {
             out.add("$scheme://127.0.0.1:$port")
             out.add("$scheme://localhost:$port")
@@ -613,7 +637,6 @@ class FaceDbSyncClient(
             return out.toList().distinct()
         }
 
-        // Wildcard(0.0.0.0)일 때만 LAN 후보를 함께 탐색한다.
         localIpv4Candidates().forEach { ip ->
             out.add("$scheme://$ip:$port")
         }
@@ -720,8 +743,47 @@ class FaceDbSyncClient(
             .build()
     }
 
+    private fun buildKeyValueBody(vararg pairs: Pair<String, String>): String {
+        return pairs.joinToString("\n") { (key, value) -> "$key=${value.replace("\n", " ").trim()}" }
+    }
+
+    private fun ByteArray.toRequestBody(mediaType: okhttp3.MediaType?) = object : RequestBody() {
+        override fun contentType() = mediaType
+        override fun contentLength() = this@toRequestBody.size.toLong()
+        override fun writeTo(sink: BufferedSink) { sink.write(this@toRequestBody) }
+    }
+
+    private fun parseKeyValueBody(raw: String): Map<String, String> {
+        return raw
+            .lineSequence()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() && it.contains('=') }
+            .associate { line ->
+                val idx = line.indexOf('=')
+                line.substring(0, idx).trim() to line.substring(idx + 1).trim()
+            }
+    }
+
+    private fun buildStructuredBundle(metaDbBytes: ByteArray, embeddingsBinBytes: ByteArray): ByteArray {
+        val out = java.io.ByteArrayOutputStream(metaDbBytes.size + embeddingsBinBytes.size + 16)
+        out.write(byteArrayOf('F'.code.toByte(), 'D'.code.toByte(), 'B'.code.toByte(), '1'.code.toByte()))
+        writeIntLe(out, metaDbBytes.size)
+        writeIntLe(out, embeddingsBinBytes.size)
+        out.write(metaDbBytes)
+        out.write(embeddingsBinBytes)
+        return out.toByteArray()
+    }
+
+    private fun writeIntLe(out: java.io.ByteArrayOutputStream, value: Int) {
+        out.write(value and 0xFF)
+        out.write((value ushr 8) and 0xFF)
+        out.write((value ushr 16) and 0xFF)
+        out.write((value ushr 24) and 0xFF)
+    }
+
     companion object {
-        private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
+        private val TEXT_MEDIA = "text/plain; charset=utf-8".toMediaType()
+        private val BINARY_MEDIA = "application/octet-stream".toMediaType()
     }
 
     private enum class AuthState {

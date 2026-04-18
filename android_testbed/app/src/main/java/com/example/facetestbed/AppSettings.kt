@@ -1,7 +1,25 @@
 package com.example.facetestbed
 
 import android.content.Context
+import org.json.JSONArray
 import org.json.JSONObject
+
+data class PaperProfile(
+    val id: String,
+    val name: String,
+    val widthMm: Float,
+    val heightMm: Float,
+)
+
+private const val DEFAULT_PAPER_ID = "nemonic_72x50"
+private val DEFAULT_PAPER_PROFILES = listOf(
+    PaperProfile(
+        id = DEFAULT_PAPER_ID,
+        name = "Nemonic 72x50",
+        widthMm = 72f,
+        heightMm = 50f,
+    ),
+)
 
 data class AppSettings(
     val faceDataDir: String = "",
@@ -41,6 +59,15 @@ data class AppSettings(
     val printerCopies: Int = 1,
     val printerJobTitlePrefix: String = "FaceRecognition",
     val printerContentTemplate: String = "Name: {name}\nDepartment: {department}\n",
+    val printerTemplateImageUri: String = "",
+    val templateShrinkToPaperIfOversized: Boolean = true,
+    val paperProfiles: List<PaperProfile> = DEFAULT_PAPER_PROFILES,
+    val selectedPaperId: String = DEFAULT_PAPER_ID,
+    val printLandscape: Boolean = false,
+    val templateTextRegionOffsetX: Int = 24,
+    val templateTextRegionOffsetY: Int = 24,
+    val templateTextRegionWidth: Int = 360,
+    val templateTextRegionHeight: Int = 180,
     val printTextBaseFontSize: Int = 48,
     val printTextScaleMultiplier: Int = 5,
     val outputNameTextSizeSp: Int = 40,
@@ -108,6 +135,15 @@ class AppSettingsStore(context: Context) {
                 printerCopies = o.optInt("PRINTER_COPIES", 1),
                 printerJobTitlePrefix = o.optString("PRINTER_JOB_TITLE_PREFIX", "FaceRecognition"),
                 printerContentTemplate = o.optString("PRINTER_CONTENT_TEMPLATE", "Name: {name}\nDepartment: {department}\n"),
+                printerTemplateImageUri = o.optString("PRINTER_TEMPLATE_IMAGE_URI", ""),
+                templateShrinkToPaperIfOversized = o.optBoolean("TEMPLATE_SHRINK_TO_PAPER_IF_OVERSIZED", true),
+                paperProfiles = parsePaperProfiles(o.optJSONArray("PAPER_PROFILES")),
+                selectedPaperId = o.optString("SELECTED_PAPER_ID", DEFAULT_PAPER_ID),
+                printLandscape = o.optBoolean("PRINT_LANDSCAPE", false),
+                templateTextRegionOffsetX = o.optInt("TEMPLATE_TEXT_REGION_OFFSET_X", 24),
+                templateTextRegionOffsetY = o.optInt("TEMPLATE_TEXT_REGION_OFFSET_Y", 24),
+                templateTextRegionWidth = o.optInt("TEMPLATE_TEXT_REGION_WIDTH", 360),
+                templateTextRegionHeight = o.optInt("TEMPLATE_TEXT_REGION_HEIGHT", 180),
                 printTextBaseFontSize = o.optInt("PRINT_TEXT_BASE_FONT_SIZE", 48),
                 printTextScaleMultiplier = o.optInt("PRINT_TEXT_SCALE_MULTIPLIER", 5),
                 outputNameTextSizeSp = o.optInt("OUTPUT_NAME_TEXT_SIZE_SP", 40),
@@ -159,6 +195,26 @@ class AppSettingsStore(context: Context) {
         o.put("PRINTER_COPIES", settings.printerCopies)
         o.put("PRINTER_JOB_TITLE_PREFIX", settings.printerJobTitlePrefix)
         o.put("PRINTER_CONTENT_TEMPLATE", settings.printerContentTemplate)
+        o.put("PRINTER_TEMPLATE_IMAGE_URI", settings.printerTemplateImageUri)
+        o.put("TEMPLATE_SHRINK_TO_PAPER_IF_OVERSIZED", settings.templateShrinkToPaperIfOversized)
+        val papers = JSONArray()
+        settings.paperProfiles.forEach { profile ->
+            papers.put(
+                JSONObject().apply {
+                    put("id", profile.id)
+                    put("name", profile.name)
+                    put("width_mm", profile.widthMm.toDouble())
+                    put("height_mm", profile.heightMm.toDouble())
+                },
+            )
+        }
+        o.put("PAPER_PROFILES", papers)
+        o.put("SELECTED_PAPER_ID", settings.selectedPaperId)
+        o.put("PRINT_LANDSCAPE", settings.printLandscape)
+        o.put("TEMPLATE_TEXT_REGION_OFFSET_X", settings.templateTextRegionOffsetX)
+        o.put("TEMPLATE_TEXT_REGION_OFFSET_Y", settings.templateTextRegionOffsetY)
+        o.put("TEMPLATE_TEXT_REGION_WIDTH", settings.templateTextRegionWidth)
+        o.put("TEMPLATE_TEXT_REGION_HEIGHT", settings.templateTextRegionHeight)
         o.put("PRINT_TEXT_BASE_FONT_SIZE", settings.printTextBaseFontSize)
         o.put("PRINT_TEXT_SCALE_MULTIPLIER", settings.printTextScaleMultiplier)
         o.put("OUTPUT_NAME_TEXT_SIZE_SP", settings.outputNameTextSizeSp)
@@ -172,5 +228,25 @@ class AppSettingsStore(context: Context) {
 
     companion object {
         private const val KEY_JSON = "runtime_settings_json"
+
+        private fun parsePaperProfiles(raw: JSONArray?): List<PaperProfile> {
+            val parsed = mutableListOf<PaperProfile>()
+            if (raw != null) {
+                for (idx in 0 until raw.length()) {
+                    val o = raw.optJSONObject(idx) ?: continue
+                    val id = o.optString("id", "").trim()
+                    val name = o.optString("name", "").trim()
+                    val width = o.optDouble("width_mm", -1.0).toFloat()
+                    val height = o.optDouble("height_mm", -1.0).toFloat()
+                    if (id.isBlank() || name.isBlank() || width <= 0f || height <= 0f) continue
+                    parsed += PaperProfile(id = id, name = name, widthMm = width, heightMm = height)
+                }
+            }
+            if (parsed.isEmpty()) return DEFAULT_PAPER_PROFILES
+            if (parsed.none { it.id == DEFAULT_PAPER_ID }) {
+                parsed.add(0, DEFAULT_PAPER_PROFILES.first())
+            }
+            return parsed.distinctBy { it.id }
+        }
     }
 }

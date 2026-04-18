@@ -248,13 +248,19 @@ class MainActivity : AppCompatActivity() {
             appendLog("경고: DB 경로 설정이 없어 자동 로드를 건너뜁니다. 설정에서 DB 디렉토리를 지정해 주세요.")
             return
         }
+        ensureServiceStarted()
         setDbLoading(true)
         withServiceAsync("dbserver-auto-load") { service ->
             service.applyStorageDir(config.dbStorageDir)
             val ok = service.reloadDbFromStorage(config.dbStorageDir)
+            val shouldAutoStart = ok && !service.isRunning()
             runOnUiThread {
                 setDbLoading(false)
                 appendLog(if (ok) "앱 시작시 DB 자동 로드 완료" else "앱 시작시 DB 자동 로드 실패")
+                if (shouldAutoStart) {
+                    appendLog("앱이 화면에 떠 있는 동안 서버 자동 시작 시도")
+                    startServer()
+                }
             }
         }
     }
