@@ -1,4 +1,4 @@
-package com.example.facedbserver
+package com.example.faithid.common
 
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -131,7 +131,9 @@ fun decodeMetadataBlob(bytes: ByteArray?): LinkedHashMap<String, String> {
     repeat(count.coerceAtLeast(0)) {
         val key = readStringLe(input) ?: return@repeat
         val value = readStringLe(input) ?: return@repeat
-        if (key.isNotBlank()) out[key] = value
+        if (key.isNotBlank()) {
+            out[key] = value
+        }
     }
     return normalizeMetadataMap(out)
 }

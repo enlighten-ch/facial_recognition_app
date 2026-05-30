@@ -12,6 +12,7 @@ data class PaperProfile(
 )
 
 private const val DEFAULT_PAPER_ID = "nemonic_72x50"
+private const val DEFAULT_FACE_DATA_DIR = "/sdcard/faceDB"
 private val DEFAULT_PAPER_PROFILES = listOf(
     PaperProfile(
         id = DEFAULT_PAPER_ID,
@@ -22,7 +23,7 @@ private val DEFAULT_PAPER_PROFILES = listOf(
 )
 
 data class AppSettings(
-    val faceDataDir: String = "/sdcard/faceDB",
+    val faceDataDir: String = DEFAULT_FACE_DATA_DIR,
     val developerViewEnabled: Boolean = false,
     val authSimThreshold: Float = 0.40f,
     val authMarginThreshold: Float = 0.10f,
@@ -141,7 +142,7 @@ class AppSettingsStore(context: Context) {
         return runCatching {
             val o = JSONObject(raw)
             AppSettings(
-                faceDataDir = o.optString("FACE_DATA_DIR", "/sdcard/faceDB"),
+                faceDataDir = o.optString("FACE_DATA_DIR", DEFAULT_FACE_DATA_DIR),
                 developerViewEnabled = o.optBoolean("DEVELOPER_VIEW_ENABLED", false),
                 authSimThreshold = o.optDouble("AUTH_SIM_THRESHOLD", 0.40).toFloat(),
                 authMarginThreshold = o.optDouble("AUTH_MARGIN_THRESHOLD", 0.10).toFloat(),

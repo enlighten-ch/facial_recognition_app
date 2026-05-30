@@ -6,6 +6,17 @@ import android.database.sqlite.SQLiteDatabase
 import android.content.ContentValues
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
+import com.example.faithid.common.decodeMetadataBlob
+import com.example.faithid.common.defaultMetadataMap
+import com.example.faithid.common.encodeMetadataBlob
+import com.example.faithid.common.metadataHash
+import com.example.faithid.common.metadataIdentityKey
+import com.example.faithid.common.metadataName
+import com.example.faithid.common.normalizeMetadataMap
+import com.example.faithid.common.parsePersonId
+import com.example.faithid.common.parsePersonKey
+import com.example.faithid.common.personIdFromIdentity
+import com.example.faithid.common.personKeyFromIdentity
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.call

@@ -20,3 +20,4 @@ dependencyResolutionManagement {
 rootProject.name = "android_testbed"
 include(":app")
 include(":dbserver")
+include(":common")

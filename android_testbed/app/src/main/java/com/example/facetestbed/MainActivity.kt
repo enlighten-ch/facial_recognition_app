@@ -68,6 +68,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 class MainActivity : AppCompatActivity() {
     companion object {
+        private const val DEFAULT_FACE_DATA_DIR = "/sdcard/faceDB"
         private const val PAGE_MONITOR = 0
         private const val PAGE_REGISTER_CAPTURE = 1
         private const val PAGE_REGISTER_NAME = 2
@@ -2554,12 +2555,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun resolveFaceDataRoot(settings: AppSettings): File {
-        val raw = settings.faceDataDir.trim().ifBlank { "/sdcard/faceDB" }
+        val raw = settings.faceDataDir.trim().ifBlank { DEFAULT_FACE_DATA_DIR }
         val dir = if (raw.startsWith("content://")) {
-            File("/sdcard/faceDB")
+            File(DEFAULT_FACE_DATA_DIR)
         } else {
             val f = File(raw)
-            if (f.isAbsolute) f else File("/sdcard", raw)
+            if (f.isAbsolute) f else File(DEFAULT_FACE_DATA_DIR).resolveSibling(raw)
         }
         return dir
     }
