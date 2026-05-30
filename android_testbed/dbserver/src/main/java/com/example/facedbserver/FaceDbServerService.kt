@@ -105,6 +105,14 @@ class FaceDbServerService : Service() {
     }
 
     @Synchronized
+    fun reloadDbMetadataFromCsv(dbStorageDir: String): Boolean {
+        serverEngine.setDbStorageDir(dbStorageDir)
+        val ok = serverEngine.reloadDbMetadataFromCsv()
+        notifyStateChanged()
+        return ok
+    }
+
+    @Synchronized
     fun applyStorageDir(dbStorageDir: String) {
         serverEngine.setDbStorageDir(dbStorageDir)
     }
@@ -122,15 +130,15 @@ class FaceDbServerService : Service() {
     fun dbRowsSnapshot(): List<DbPersonRow> = serverEngine.dbRowsSnapshot()
 
     @Synchronized
-    fun updatePersonRow(personIndex: Int, name: String, department: String): Boolean {
-        val ok = serverEngine.updatePersonRow(personIndex, name, department)
+    fun updatePersonRow(personKey: String, name: String, department: String, grade: String): Boolean {
+        val ok = serverEngine.updatePersonRow(personKey, name, department, grade)
         notifyStateChanged()
         return ok
     }
 
     @Synchronized
-    fun deletePersonRow(personIndex: Int): Boolean {
-        val ok = serverEngine.deletePersonRow(personIndex)
+    fun deletePersonRow(personKey: String): Boolean {
+        val ok = serverEngine.deletePersonRow(personKey)
         notifyStateChanged()
         return ok
     }

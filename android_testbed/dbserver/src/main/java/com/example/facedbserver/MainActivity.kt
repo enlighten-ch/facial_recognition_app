@@ -11,10 +11,13 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.text.InputType
+import android.view.MotionEvent
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TableLayout
 import android.widget.TableRow
 import android.widget.TextView
@@ -22,6 +25,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import java.net.NetworkInterface
 import java.util.Collections
+import java.util.Locale
 import kotlin.concurrent.thread
 
 class MainActivity : AppCompatActivity() {
@@ -43,10 +47,14 @@ class MainActivity : AppCompatActivity() {
     private lateinit var startButton: Button
     private lateinit var stopButton: Button
     private lateinit var reloadDbButton: Button
+    private lateinit var reloadDbCsvButton: Button
     private lateinit var approveClientButton: Button
     private lateinit var approveAllButton: Button
     private lateinit var settingsButton: Button
     private lateinit var quitButton: Button
+    private lateinit var dbTableScroll: ScrollView
+    private lateinit var dbTableScrollBar: FrameLayout
+    private lateinit var dbTableScrollThumb: View
     private lateinit var dbTable: TableLayout
 
     private lateinit var configStore: ServerConfigStore
@@ -56,6 +64,9 @@ class MainActivity : AppCompatActivity() {
     private val uiHandler = Handler(Looper.getMainLooper())
     private var refreshScheduled = false
     private var lastRenderedRows: List<DbPersonRow> = emptyList()
+    private var syncingDbTableScrollBar = false
+    private var dbTableScrollRange = 0
+    private var dbTableThumbDragOffset = 0f
 
     @Volatile
     private var isDbLoading: Boolean = false
@@ -125,6 +136,7 @@ class MainActivity : AppCompatActivity() {
         startButton.setOnClickListener { startServer() }
         stopButton.setOnClickListener { stopServer() }
         reloadDbButton.setOnClickListener { reloadDb() }
+        reloadDbCsvButton.setOnClickListener { reloadDbFromCsv() }
         approveClientButton.setOnClickListener { approveSingleClient() }
         approveAllButton.setOnClickListener { approveAllClients() }
         settingsButton.setOnClickListener { openSettingsDialog() }
@@ -164,11 +176,40 @@ class MainActivity : AppCompatActivity() {
         startButton = findViewById(R.id.startButton)
         stopButton = findViewById(R.id.stopButton)
         reloadDbButton = findViewById(R.id.reloadDbButton)
+        reloadDbCsvButton = findViewById(R.id.reloadDbCsvButton)
         approveClientButton = findViewById(R.id.approveClientButton)
         approveAllButton = findViewById(R.id.approveAllButton)
         settingsButton = findViewById(R.id.settingsButton)
         quitButton = findViewById(R.id.quitButton)
+        dbTableScroll = findViewById(R.id.dbTableScroll)
+        dbTableScrollBar = findViewById(R.id.dbTableScrollBar)
+        dbTableScrollThumb = findViewById(R.id.dbTableScrollThumb)
         dbTable = findViewById(R.id.dbTable)
+        setupDbTableFastScroll()
+    }
+
+    private fun setupDbTableFastScroll() {
+        dbTableScrollBar.setOnTouchListener { _, event ->
+            if (dbTableScrollRange <= 0) return@setOnTouchListener false
+            val thumbHeight = dbTableScrollThumb.height.takeIf { it > 0 } ?: return@setOnTouchListener true
+            val trackRange = (dbTableScrollBar.height - thumbHeight).coerceAtLeast(1)
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    dbTableThumbDragOffset = (event.y - dbTableScrollThumb.y).coerceIn(0f, thumbHeight.toFloat())
+                    true
+                }
+                MotionEvent.ACTION_MOVE, MotionEvent.ACTION_UP -> {
+                    val nextThumbY = (event.y - dbTableThumbDragOffset).coerceIn(0f, trackRange.toFloat())
+                    val nextScrollY = ((nextThumbY / trackRange.toFloat()) * dbTableScrollRange).toInt()
+                    dbTableScroll.scrollTo(dbTableScroll.scrollX, nextScrollY)
+                    true
+                }
+                else -> false
+            }
+        }
+        dbTableScroll.setOnScrollChangeListener { _, _, scrollY, _, _ ->
+            updateDbTableThumbPosition(scrollY)
+        }
     }
 
     private fun bindServerService() {
@@ -392,8 +433,30 @@ class MainActivity : AppCompatActivity() {
                 setDbLoading(false)
                 if (ok) {
                     appendLog("DB 재로드 완료")
+                    lastRenderedRows = emptyList()
+                    scheduleRefreshStatus(0L)
                 } else {
                     appendLog("DB 재로드 실패")
+                    scheduleRefreshStatus(0L)
+                }
+            }
+        }
+    }
+
+    private fun reloadDbFromCsv() {
+        if (isDbLoading) return
+        setDbLoading(true)
+        withServiceAsync("dbserver-reload-csv") { service ->
+            service.applyStorageDir(config.dbStorageDir)
+            val ok = service.reloadDbMetadataFromCsv(config.dbStorageDir)
+            runOnUiThread {
+                setDbLoading(false)
+                if (ok) {
+                    appendLog("DB 재로드(CSV) 완료")
+                    lastRenderedRows = emptyList()
+                    scheduleRefreshStatus(0L)
+                } else {
+                    appendLog("DB 재로드(CSV) 실패")
                     scheduleRefreshStatus(0L)
                 }
             }
@@ -408,6 +471,7 @@ class MainActivity : AppCompatActivity() {
             startButton.isEnabled = false
             stopButton.isEnabled = false
             reloadDbButton.isEnabled = false
+            reloadDbCsvButton.isEnabled = false
         } else {
             scheduleRefreshStatus(0L)
         }
@@ -457,6 +521,7 @@ class MainActivity : AppCompatActivity() {
             startButton.isEnabled = false
             stopButton.isEnabled = false
             reloadDbButton.isEnabled = false
+            reloadDbCsvButton.isEnabled = false
             return
         }
 
@@ -467,6 +532,7 @@ class MainActivity : AppCompatActivity() {
             startButton.isEnabled = true
             stopButton.isEnabled = false
             reloadDbButton.isEnabled = false
+            reloadDbCsvButton.isEnabled = false
             pendingText.text = "승인 대기: -"
             approvedText.text = "승인 완료: -"
             clientStatusText.text = "연결된 클라이언트 없음"
@@ -491,6 +557,7 @@ class MainActivity : AppCompatActivity() {
         startButton.isEnabled = true
         stopButton.isEnabled = running
         reloadDbButton.isEnabled = true
+        reloadDbCsvButton.isEnabled = true
 
         val pending = service.pendingClientIds()
         val approved = service.approvedClientIds()
@@ -516,9 +583,15 @@ class MainActivity : AppCompatActivity() {
     private fun renderDbTable(rows: List<DbPersonRow>) {
         dbTable.removeAllViews()
 
+        val metadataHeaders = rows
+            .flatMap { it.metadata.keys }
+            .distinctBy { it.lowercase(Locale.US) }
+            .ifEmpty { listOf("이름", "부서", "학년") }
+
         val header = TableRow(this)
-        addCell(header, "이름", isHeader = true)
-        addCell(header, "부서", isHeader = true)
+        metadataHeaders.forEach { headerLabel ->
+            addCell(header, headerLabel, isHeader = true)
+        }
         addCell(header, "임베딩 수", isHeader = true)
         addCell(header, "수정", isHeader = true)
         addCell(header, "삭제", isHeader = true)
@@ -526,19 +599,22 @@ class MainActivity : AppCompatActivity() {
 
         if (rows.isEmpty()) {
             val row = TableRow(this)
-            addCell(row, "데이터 없음", isHeader = false)
-            addCell(row, "-", isHeader = false)
+            metadataHeaders.forEachIndexed { index, _ ->
+                addCell(row, if (index == 0) "데이터 없음" else "-", isHeader = false)
+            }
             addCell(row, "0", isHeader = false)
             addCell(row, "-", isHeader = false)
             addCell(row, "-", isHeader = false)
             dbTable.addView(row)
+            updateDbTableFastScroll()
             return
         }
 
         rows.forEach { person ->
             val row = TableRow(this)
-            addCell(row, person.name, isHeader = false)
-            addCell(row, person.department.ifBlank { "-" }, isHeader = false)
+            metadataHeaders.forEach { key ->
+                addCell(row, person.metadata[key].orEmpty().ifBlank { "-" }, isHeader = false)
+            }
             addCell(row, person.embeddingCount.toString(), isHeader = false)
             addActionCell(row, "수정") {
                 openEditPersonDialog(person)
@@ -548,6 +624,50 @@ class MainActivity : AppCompatActivity() {
             }
             dbTable.addView(row)
         }
+        updateDbTableFastScroll()
+    }
+
+    private fun updateDbTableFastScroll() {
+        dbTableScroll.post {
+            val childHeight = dbTableScroll.getChildAt(0)?.height ?: 0
+            val scrollRange = (childHeight - dbTableScroll.height).coerceAtLeast(0)
+            dbTableScrollRange = scrollRange
+            if (scrollRange <= 0) {
+                dbTableScrollBar.visibility = View.GONE
+                dbTableScrollThumb.translationY = 0f
+                return@post
+            }
+            dbTableScrollBar.visibility = View.VISIBLE
+            val trackHeight = dbTableScrollBar.height
+            if (trackHeight <= 1) {
+                dbTableScrollBar.post { updateDbTableFastScroll() }
+                return@post
+            }
+            val minThumbHeight = minOf(dp(36), trackHeight)
+            val thumbHeight = ((dbTableScroll.height.toFloat() / childHeight.toFloat()) * trackHeight)
+                .toInt()
+                .coerceIn(minThumbHeight, trackHeight)
+            val params = dbTableScrollThumb.layoutParams
+            if (params.height != thumbHeight) {
+                params.height = thumbHeight
+                dbTableScrollThumb.layoutParams = params
+            }
+            updateDbTableThumbPosition(dbTableScroll.scrollY)
+        }
+    }
+
+    private fun updateDbTableThumbPosition(scrollY: Int) {
+        if (dbTableScrollRange <= 0 || dbTableScrollBar.visibility != View.VISIBLE) return
+        dbTableScrollBar.post {
+            val thumbHeight = dbTableScrollThumb.height.takeIf { it > 0 } ?: return@post
+            val trackRange = (dbTableScrollBar.height - thumbHeight).coerceAtLeast(0)
+            val ratio = scrollY.coerceIn(0, dbTableScrollRange).toFloat() / dbTableScrollRange.toFloat()
+            dbTableScrollThumb.translationY = trackRange * ratio
+        }
+    }
+
+    private fun dp(value: Int): Int {
+        return (value * resources.displayMetrics.density).toInt()
     }
 
     private fun addCell(row: TableRow, text: String, isHeader: Boolean) {
@@ -591,6 +711,11 @@ class MainActivity : AppCompatActivity() {
             setText(person.department)
             setSingleLine(true)
         }
+        val gradeInput = EditText(this).apply {
+            hint = "학년"
+            setText(person.grade)
+            setSingleLine(true)
+        }
 
         val embeddingCountView = TextView(this).apply {
             text = "임베딩 수(읽기 전용): ${person.embeddingCount}"
@@ -601,6 +726,7 @@ class MainActivity : AppCompatActivity() {
 
         root.addView(nameInput)
         root.addView(departmentInput)
+        root.addView(gradeInput)
         root.addView(embeddingCountView)
 
         AlertDialog.Builder(this)
@@ -611,9 +737,10 @@ class MainActivity : AppCompatActivity() {
                 setDbLoading(true)
                 withServiceAsync("dbserver-edit-row") { service ->
                     val ok = service.updatePersonRow(
-                        personIndex = person.personIndex,
+                        personKey = person.personKey,
                         name = nameInput.text.toString(),
                         department = departmentInput.text.toString(),
+                        grade = gradeInput.text.toString(),
                     )
                     runOnUiThread {
                         setDbLoading(false)
@@ -629,6 +756,7 @@ class MainActivity : AppCompatActivity() {
             append("아래 DB 항목을 삭제할까요?\n\n")
             append("이름: ${person.name}\n")
             append("부서: ${person.department.ifBlank { "-" }}\n")
+            append("학년: ${person.grade.ifBlank { "-" }}\n")
             append("임베딩 수: ${person.embeddingCount}")
         }
         AlertDialog.Builder(this)
@@ -638,7 +766,7 @@ class MainActivity : AppCompatActivity() {
             .setPositiveButton("삭제") { _, _ ->
                 setDbLoading(true)
                 withServiceAsync("dbserver-delete-row") { service ->
-                    val ok = service.deletePersonRow(person.personIndex)
+                    val ok = service.deletePersonRow(person.personKey)
                     runOnUiThread {
                         setDbLoading(false)
                         appendLog(if (ok) "DB 항목 삭제 완료: ${person.name}" else "DB 항목 삭제 실패")

@@ -30,6 +30,8 @@ object SettingsDialog {
         current: AppSettings,
         onPickFolderRequested: ((String?) -> Unit) -> Unit,
         onPickTemplateRequested: ((String?) -> Unit) -> Unit,
+        onDiscoverBrotherPrintersRequested: ((List<BrotherPairedPrinter>) -> Unit) -> Unit,
+        onReadBrotherInstalledPaperRequested: (String, (BrotherDetectedMedia?) -> Unit) -> Unit,
         onRenderPrintPreview: (AppSettings) -> Bitmap?,
         onSave: (AppSettings) -> Unit,
     ) {
@@ -150,11 +152,31 @@ object SettingsDialog {
         }
         pageGeneral.addView(pickFolderBtn)
 
+        section(pageGeneral, context, "화면")
+        val developerViewEnabled = boolField(pageGeneral, context, "개발자 화면보기", current.developerViewEnabled)
+
+        section(pageGeneral, context, "UI 문구")
+        val uiWelcomeMessage = textField(pageGeneral, context, "기본 안내 문구", current.uiWelcomeMessage)
+        val uiServerDisconnectedMessage = textField(pageGeneral, context, "서버 미연결 문구", current.uiServerDisconnectedMessage)
+        val uiServerDisconnectedDetail = textField(pageGeneral, context, "서버 미연결 상세 문구", current.uiServerDisconnectedDetail)
+        val uiUnregisteredMessage = textField(pageGeneral, context, "미등록 안내 문구", current.uiUnregisteredMessage)
+        val uiUnregisteredDetail = textField(pageGeneral, context, "미등록 상세 문구", current.uiUnregisteredDetail)
+        val uiRecognizedMessageTemplate = textField(pageGeneral, context, "인식 성공 문구 ({name})", current.uiRecognizedMessageTemplate)
+        val uiAmbiguousMessage = textField(pageGeneral, context, "후보 선택 문구", current.uiAmbiguousMessage)
+        val uiAmbiguousDetail = textField(pageGeneral, context, "후보 선택 상세 문구", current.uiAmbiguousDetail)
+        val uiSelectedCandidateTemplate = textField(pageGeneral, context, "후보 선택 완료 문구 ({label})", current.uiSelectedCandidateTemplate)
+        val uiRegisterCompleteMessage = textField(pageGeneral, context, "등록 완료 문구", current.uiRegisterCompleteMessage)
+        val uiLabelOnlyInputMessage = textField(pageGeneral, context, "이름표만 출력 입력 문구", current.uiLabelOnlyInputMessage)
+        val uiSavingMessage = textField(pageGeneral, context, "저장 중 문구", current.uiSavingMessage)
+        val uiOutputButtonText = textField(pageGeneral, context, "출력 버튼 문구", current.uiOutputButtonText)
+
         section(pageRecognition, context, "인식")
         val authSim = numberField(pageRecognition, context, "인식 최소 유사도 (높을수록 엄격)", current.authSimThreshold.toString(), false)
         val authMargin = numberField(pageRecognition, context, "1, 2위 점수 차 최소값", current.authMarginThreshold.toString(), false)
         val topK = numberField(pageRecognition, context, "후보 표시 개수", current.topK.toString(), true)
         val analyzeEvery = numberField(pageRecognition, context, "몇 프레임마다 분석할지", current.analyzeEveryNFrames.toString(), true)
+        val candidateSwitchFrames = numberField(pageRecognition, context, "후보군 교체 확인 프레임", current.ambiguousCandidateSwitchFrames.toString(), true)
+        val selectedGraceFrames = numberField(pageRecognition, context, "선택 후보 유지 프레임", current.selectedCandidateGraceFrames.toString(), true)
         val cameraIndex = numberField(pageRecognition, context, "카메라 번호 (0=후면, 1=전면 우선)", current.cameraIndex.toString(), true)
         val useEllipseMask = boolField(pageRecognition, context, "인식 시 타원 마스크 사용", current.recognitionUseEllipseMask)
 
@@ -194,18 +216,63 @@ object SettingsDialog {
             parent = pagePrint,
             context = context,
             label = "프린터 모델",
-            items = listOf("기본 프린터", "Nemonic"),
-            selectedIndex = if (current.printerModel == PrinterModel.NEMONIC) 1 else 0,
+            items = listOf("기본 프린터", "Brother QL-820NWB", "Nemonic"),
+            selectedIndex = when (current.printerModel) {
+                PrinterModel.BROTHER_QL820NWB -> 1
+                PrinterModel.NEMONIC -> 2
+                else -> 0
+            },
         )
         val printerName = textField(pagePrint, context, "프린터 이름", current.printerName)
+        val brotherMac = textField(pagePrint, context, "Brother Bluetooth 주소", current.brotherPrinterMacAddress)
         val nemonicMac = textField(pagePrint, context, "네모닉 MAC 주소", current.nemonicPrinterMacAddress)
         val printerTimeout = numberField(pagePrint, context, "출력 대기시간(초)", current.printerTimeoutSec.toString(), true)
         val printerCopies = numberField(pagePrint, context, "출력 매수", current.printerCopies.toString(), true)
         val printerTitlePrefix = textField(pagePrint, context, "출력 작업 제목 접두어", current.printerJobTitlePrefix)
+        val brotherGuide = TextView(context).apply {
+            text = "Brother는 태블릿 설정에서 먼저 Bluetooth 페어링 후, 검색 버튼으로 QL-820NWB를 선택해 연결합니다."
+            setPadding(0, dp(context, 4), 0, dp(context, 2))
+        }
+        pagePrint.addView(brotherGuide)
+        val brotherSearchStatus = TextView(context).apply {
+            text = "Brother 검색 대기중"
+            setPadding(0, dp(context, 2), 0, dp(context, 2))
+        }
+        val brotherMediaStatus = TextView(context).apply {
+            text = "장착 용지 정보 대기중"
+            setPadding(0, dp(context, 2), 0, dp(context, 6))
+        }
+        val brotherSearchButton = Button(context).apply {
+            text = "Brother 페어링 프린터 검색"
+            setOnClickListener {
+                brotherSearchStatus.text = "페어링된 Brother 프린터 검색 중..."
+                onDiscoverBrotherPrintersRequested { printers ->
+                    if (printers.isEmpty()) {
+                        brotherSearchStatus.text = "검색 결과 없음: 태블릿 Bluetooth 페어링 상태를 확인해 주세요."
+                        return@onDiscoverBrotherPrintersRequested
+                    }
+                    val labels = printers.map { "${it.displayName} [${it.macAddress}]" }.toTypedArray()
+                    AlertDialog.Builder(context)
+                        .setTitle("Brother QL-820NWB 선택")
+                        .setItems(labels) { _, which ->
+                            val picked = printers[which]
+                            printerName.setText(picked.displayName)
+                            brotherMac.setText(picked.macAddress)
+                            brotherSearchStatus.text = "선택됨: ${picked.displayName} (${picked.macAddress})"
+                            brotherMediaStatus.text = "프린터 선택 완료: 아래 'Brother 장착 용지 읽기'를 눌러 출력용지에 반영하세요."
+                        }
+                        .setNegativeButton("취소", null)
+                        .show()
+                }
+            }
+        }
+        pagePrint.addView(brotherSearchButton)
+        pagePrint.addView(brotherSearchStatus)
+        pagePrint.addView(brotherMediaStatus)
         val printOrientation = choiceField(
             parent = pagePrint,
             context = context,
-            label = "출력 방향",
+            label = "프린터 출력 방향",
             items = listOf("세로", "가로"),
             selectedIndex = if (current.printLandscape) 1 else 0,
         )
@@ -252,9 +319,7 @@ object SettingsDialog {
             override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
         }
         printOrientation.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
-                refreshPreview()
-            }
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {}
 
             override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
         }
@@ -281,6 +346,80 @@ object SettingsDialog {
             }
         }
         pagePrint.addView(addPaperBtn)
+        val detectBrotherPaperButton = Button(context).apply {
+            text = "Brother 장착 용지 읽기"
+            setOnClickListener {
+                val mac = brotherMac.text.toString().trim()
+                if (mac.isBlank()) {
+                    brotherMediaStatus.text = "먼저 Brother 프린터를 검색하고 선택해 주세요."
+                    return@setOnClickListener
+                }
+                brotherMediaStatus.text = "장착 용지 정보를 읽는 중..."
+                onReadBrotherInstalledPaperRequested(mac) { media ->
+                    if (media == null || media.widthMm == null) {
+                        brotherMediaStatus.text = "장착 용지 읽기 실패: 출력 용지 선택을 수동으로 확인해 주세요."
+                        return@onReadBrotherInstalledPaperRequested
+                    }
+                    val profileId = buildBrotherPaperProfileId(media)
+                    val profileName = buildBrotherPaperProfileName(media)
+                    val width = media.widthMm.toFloat()
+                    val height = if (media.isInfinite) {
+                        media.heightMm?.takeIf { it > 0 }?.toFloat() ?: 100f
+                    } else {
+                        media.heightMm?.takeIf { it > 0 }?.toFloat() ?: width
+                    }
+                    val newProfile = PaperProfile(
+                        id = profileId,
+                        name = profileName,
+                        widthMm = width,
+                        heightMm = height,
+                    )
+                    val existingIndex = paperProfiles.indexOfFirst { it.id == profileId }
+                    if (existingIndex >= 0) {
+                        paperProfiles[existingIndex] = newProfile
+                        selectedPaperIndex = existingIndex
+                    } else {
+                        paperProfiles += newProfile
+                        selectedPaperIndex = paperProfiles.lastIndex
+                    }
+                    updatePaperSpinner()
+                    brotherMediaStatus.text = "장착 용지 반영됨: ${newProfile.name} (${trimZero(width)}x${trimZero(height)}mm)"
+                    paperStatus.text = "Brother 장착 용지가 출력용지로 선택되었습니다."
+                    refreshPreview()
+                }
+            }
+        }
+        pagePrint.addView(detectBrotherPaperButton, pagePrint.indexOfChild(brotherSearchButton) + 1)
+        val deletePaperBtn = Button(context).apply {
+            text = "선택 용지 삭제"
+            setOnClickListener {
+                val position = paperSpinner.selectedItemPosition.coerceIn(0, paperProfiles.lastIndex.coerceAtLeast(0))
+                val target = paperProfiles.getOrNull(position)
+                if (target == null) {
+                    paperStatus.text = "삭제할 용지가 없습니다."
+                    return@setOnClickListener
+                }
+                if (paperProfiles.size <= 1) {
+                    paperStatus.text = "최소 1개의 용지는 남아 있어야 합니다."
+                    return@setOnClickListener
+                }
+                paperProfiles.removeAt(position)
+                selectedPaperIndex = (position - 1).coerceAtLeast(0)
+                updatePaperSpinner()
+                paperStatus.text = "용지 삭제됨: ${target.name}"
+                refreshPreview()
+            }
+        }
+        pagePrint.addView(deletePaperBtn)
+
+        section(pagePrint, context, "출력 상태 안내")
+        val printStatusReadyMessage = textField(pagePrint, context, "출력 준비 문구", current.printStatusReadyMessage)
+        val printStatusPermissionMessage = textField(pagePrint, context, "권한 확인 문구", current.printStatusPermissionMessage)
+        val printStatusConnectingMessage = textField(pagePrint, context, "연결 중 문구", current.printStatusConnectingMessage)
+        val printStatusPreparingMessage = textField(pagePrint, context, "내용 준비 문구", current.printStatusPreparingMessage)
+        val printStatusSendingMessage = textField(pagePrint, context, "출력 중 문구", current.printStatusSendingMessage)
+        val printStatusSuccessMessage = textField(pagePrint, context, "완료 문구", current.printStatusSuccessMessage)
+        val printStatusErrorMessage = textField(pagePrint, context, "오류 문구", current.printStatusErrorMessage)
 
         section(pagePrint, context, "복귀 안내")
         val outputReturnDelaySeconds = numberField(pagePrint, context, "출력 후 기본 화면 복귀시간(초)", current.outputReturnDelaySeconds.toString(), true)
@@ -328,12 +467,41 @@ object SettingsDialog {
             }
         }
         pageTemplateSettings.addView(pickTemplateBtn)
+        var templateRotationQuarterTurns = current.templateImageRotationQuarterTurns.mod(4)
+        val templateRotationStatus = TextView(context).apply {
+            text = "템플릿 회전: ${templateRotationQuarterTurns * 90}도"
+            setPadding(0, dp(context, 4), 0, dp(context, 2))
+        }
+        pageTemplateSettings.addView(templateRotationStatus)
+        val rotateTemplateBtn = Button(context).apply {
+            text = "이미지 템플릿 시계방향 90도 회전"
+            setOnClickListener {
+                templateRotationQuarterTurns = (templateRotationQuarterTurns + 1) % 4
+                templateRotationStatus.text = "템플릿 회전: ${templateRotationQuarterTurns * 90}도"
+                refreshPreview()
+            }
+        }
+        pageTemplateSettings.addView(rotateTemplateBtn)
+        val paperOrientation = choiceField(
+            parent = pageTemplateSettings,
+            context = context,
+            label = "템플릿방향",
+            items = listOf("세로", "가로"),
+            selectedIndex = if (current.paperLandscape) 1 else 0,
+        )
         val templateShrinkToPaper = boolField(
             parent = pageTemplateSettings,
             context = context,
             label = "이미지가 용지를 초과하면 자동 축소",
             value = current.templateShrinkToPaperIfOversized,
         )
+        paperOrientation.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
+                refreshPreview()
+            }
+
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+        }
 
         section(pageTemplateSettings, context, "텍스트 영역")
         val (regionOffsetX, regionOffsetY) = compactNumberPair(
@@ -361,7 +529,21 @@ object SettingsDialog {
         pageTemplateSettings.addView(regionGuideInfo)
 
         section(pageTemplateSettings, context, "텍스트 설정")
-        val printerTemplate = textField(pageTemplateSettings, context, "출력 문구 템플릿", current.printerContentTemplate)
+        val attributeColumns = listOf("name" to "이름", "department" to "부서", "grade" to "학년")
+        val attributeCountSpinner = choiceField(
+            parent = pageTemplateSettings,
+            context = context,
+            label = "출력 속성 갯수",
+            items = listOf("1개", "2개", "3개"),
+            selectedIndex = (current.printAttributeCount.coerceIn(1, 3) - 1),
+        )
+        val attribute1ColumnSpinner = choiceField(
+            parent = pageTemplateSettings,
+            context = context,
+            label = "속성1 컬럼",
+            items = attributeColumns.map { it.second },
+            selectedIndex = attributeColumns.indexOfFirst { it.first == current.printAttribute1Column }.coerceAtLeast(0),
+        )
         val (printBaseFont, printScale) = compactNumberPair(
             parent = pageTemplateSettings,
             context = context,
@@ -374,32 +556,277 @@ object SettingsDialog {
         val (outputNameSize, outputDepartmentSize) = compactNumberPair(
             parent = pageTemplateSettings,
             context = context,
-            leftLabel = "이름 글자 크기(sp)",
-            leftValue = current.outputNameTextSizeSp.toString(),
-            rightLabel = "부서 글자 크기(sp)",
-            rightValue = current.outputDepartmentTextSizeSp.toString(),
+            leftLabel = "속성1 글자 크기(sp)",
+            leftValue = current.printAttribute1TextSizeSp.toString(),
+            rightLabel = "속성2 글자 크기(sp)",
+            rightValue = current.printAttribute2TextSizeSp.toString(),
             integer = true,
+        )
+        val (outputNameOffsetX, outputNameOffsetY) = compactNumberPair(
+            parent = pageTemplateSettings,
+            context = context,
+            leftLabel = "속성1 X 오프셋",
+            leftValue = current.printAttribute1OffsetX.toString(),
+            rightLabel = "속성1 Y 오프셋",
+            rightValue = current.printAttribute1OffsetY.toString(),
+            integer = true,
+        )
+        val attribute2ColumnSpinner = choiceField(
+            parent = pageTemplateSettings,
+            context = context,
+            label = "속성2 컬럼",
+            items = attributeColumns.map { it.second },
+            selectedIndex = attributeColumns.indexOfFirst { it.first == current.printAttribute2Column }.coerceAtLeast(1).coerceAtMost(attributeColumns.lastIndex),
         )
         val (outputDepartmentOffsetX, outputDepartmentOffsetY) = compactNumberPair(
             parent = pageTemplateSettings,
             context = context,
-            leftLabel = "부서 X 오프셋",
-            leftValue = current.outputDepartmentOffsetX.toString(),
-            rightLabel = "부서 Y 오프셋",
-            rightValue = current.outputDepartmentOffsetY.toString(),
+            leftLabel = "속성2 X 오프셋",
+            leftValue = current.printAttribute2OffsetX.toString(),
+            rightLabel = "속성2 Y 오프셋",
+            rightValue = current.printAttribute2OffsetY.toString(),
             integer = true,
         )
+        val attribute3ColumnSpinner = choiceField(
+            parent = pageTemplateSettings,
+            context = context,
+            label = "속성3 컬럼",
+            items = attributeColumns.map { it.second },
+            selectedIndex = attributeColumns.indexOfFirst { it.first == current.printAttribute3Column }.coerceAtLeast(2).coerceAtMost(attributeColumns.lastIndex),
+        )
+        val (outputAttribute3Size, outputAttribute3OffsetX) = compactNumberPair(
+            parent = pageTemplateSettings,
+            context = context,
+            leftLabel = "속성3 글자 크기(sp)",
+            leftValue = current.printAttribute3TextSizeSp.toString(),
+            rightLabel = "속성3 X 오프셋",
+            rightValue = current.printAttribute3OffsetX.toString(),
+            integer = true,
+        )
+        val outputAttribute3OffsetY = numberField(
+            parent = pageTemplateSettings,
+            context = context,
+            label = "속성3 Y 오프셋",
+            value = current.printAttribute3OffsetY.toString(),
+            integer = true,
+        )
+
+        fun selectedPaperProfile(): PaperProfile {
+            return paperProfiles.getOrNull(paperSpinner.selectedItemPosition)
+                ?: paperProfiles.firstOrNull()
+                ?: current.paperProfiles.first()
+        }
+
+        fun paperPixelSize(profile: PaperProfile): Pair<Int, Int> {
+            val pixelsPerMm = 8.0f
+            val width = (profile.widthMm * pixelsPerMm).toInt().coerceIn(200, 1200)
+            val height = (profile.heightMm * pixelsPerMm).toInt().coerceIn(120, 1600)
+            return width to height
+        }
+
+        fun displayRectFromStored(
+            storedX: Int,
+            storedY: Int,
+            storedWidth: Int,
+            storedHeight: Int,
+            landscape: Boolean,
+            profile: PaperProfile,
+        ): IntArray {
+            val (_, portraitHeight) = paperPixelSize(profile)
+            val x = storedX
+            val y = storedY
+            val width = storedWidth.coerceAtLeast(1)
+            val height = storedHeight.coerceAtLeast(1)
+            return if (!landscape) {
+                intArrayOf(x, y, width, height)
+            } else {
+                intArrayOf(
+                    portraitHeight - (y + height),
+                    x,
+                    height,
+                    width,
+                )
+            }
+        }
+
+        fun storedRectFromDisplay(
+            displayX: Int,
+            displayY: Int,
+            displayWidth: Int,
+            displayHeight: Int,
+            landscape: Boolean,
+            profile: PaperProfile,
+        ): IntArray {
+            return if (!landscape) {
+                intArrayOf(
+                    displayX,
+                    displayY,
+                    displayWidth.coerceAtLeast(1),
+                    displayHeight.coerceAtLeast(1),
+                )
+            } else {
+                val (_, portraitHeight) = paperPixelSize(profile)
+                val x = displayX
+                val y = displayY
+                val width = displayWidth.coerceAtLeast(1)
+                val height = displayHeight.coerceAtLeast(1)
+                val storedX = y
+                val storedY = portraitHeight - (x + width)
+                intArrayOf(
+                    storedX,
+                    storedY,
+                    height,
+                    width,
+                )
+            }
+        }
+
+        fun displayOffsetFromStored(offsetX: Int, offsetY: Int, landscape: Boolean): IntArray {
+            return if (landscape) intArrayOf(-offsetY, offsetX) else intArrayOf(offsetX, offsetY)
+        }
+
+        fun storedOffsetFromDisplay(offsetX: Int, offsetY: Int, landscape: Boolean): IntArray {
+            return if (landscape) intArrayOf(offsetY, -offsetX) else intArrayOf(offsetX, offsetY)
+        }
+
+        fun applyDisplayedTemplateAxisValues(
+            landscape: Boolean,
+            storedRegionX: Int,
+            storedRegionY: Int,
+            storedRegionWidth: Int,
+            storedRegionHeight: Int,
+            storedNameOffsetX: Int,
+            storedNameOffsetY: Int,
+            storedDepartmentOffsetX: Int,
+            storedDepartmentOffsetY: Int,
+            storedAttribute3OffsetX: Int,
+            storedAttribute3OffsetY: Int,
+        ) {
+            val profile = selectedPaperProfile()
+            val rect = displayRectFromStored(
+                storedRegionX,
+                storedRegionY,
+                storedRegionWidth,
+                storedRegionHeight,
+                landscape,
+                profile,
+            )
+            val nameOffsets = displayOffsetFromStored(storedNameOffsetX, storedNameOffsetY, landscape)
+            val departmentOffsets = displayOffsetFromStored(storedDepartmentOffsetX, storedDepartmentOffsetY, landscape)
+            val attribute3Offsets = displayOffsetFromStored(storedAttribute3OffsetX, storedAttribute3OffsetY, landscape)
+            regionOffsetX.setText(rect[0].toString())
+            regionOffsetY.setText(rect[1].toString())
+            regionWidth.setText(rect[2].toString())
+            regionHeight.setText(rect[3].toString())
+            outputNameOffsetX.setText(nameOffsets[0].toString())
+            outputNameOffsetY.setText(nameOffsets[1].toString())
+            outputDepartmentOffsetX.setText(departmentOffsets[0].toString())
+            outputDepartmentOffsetY.setText(departmentOffsets[1].toString())
+            outputAttribute3OffsetX.setText(attribute3Offsets[0].toString())
+            outputAttribute3OffsetY.setText(attribute3Offsets[1].toString())
+        }
+
+        applyDisplayedTemplateAxisValues(
+            landscape = current.paperLandscape,
+            storedRegionX = current.templateTextRegionOffsetX,
+            storedRegionY = current.templateTextRegionOffsetY,
+            storedRegionWidth = current.templateTextRegionWidth,
+            storedRegionHeight = current.templateTextRegionHeight,
+            storedNameOffsetX = current.outputNameOffsetX,
+            storedNameOffsetY = current.outputNameOffsetY,
+            storedDepartmentOffsetX = current.outputDepartmentOffsetX,
+            storedDepartmentOffsetY = current.outputDepartmentOffsetY,
+            storedAttribute3OffsetX = current.printAttribute3OffsetX,
+            storedAttribute3OffsetY = current.printAttribute3OffsetY,
+        )
+
+        var lastTemplateLandscapeSelection = current.paperLandscape
+        paperOrientation.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
+                val newLandscape = position == 1
+                if (newLandscape != lastTemplateLandscapeSelection) {
+                    val profile = selectedPaperProfile()
+                    val storedRegion = storedRectFromDisplay(
+                        regionOffsetX.asInt(current.templateTextRegionOffsetX),
+                        regionOffsetY.asInt(current.templateTextRegionOffsetY),
+                        regionWidth.asInt(current.templateTextRegionWidth).coerceAtLeast(1),
+                        regionHeight.asInt(current.templateTextRegionHeight).coerceAtLeast(1),
+                        lastTemplateLandscapeSelection,
+                        profile,
+                    )
+                    val storedNameOffsets = storedOffsetFromDisplay(
+                        outputNameOffsetX.asInt(current.outputNameOffsetX),
+                        outputNameOffsetY.asInt(current.outputNameOffsetY),
+                        lastTemplateLandscapeSelection,
+                    )
+                    val storedDepartmentOffsets = storedOffsetFromDisplay(
+                        outputDepartmentOffsetX.asInt(current.outputDepartmentOffsetX),
+                        outputDepartmentOffsetY.asInt(current.outputDepartmentOffsetY),
+                        lastTemplateLandscapeSelection,
+                    )
+                    val storedAttribute3Offsets = storedOffsetFromDisplay(
+                        outputAttribute3OffsetX.asInt(current.printAttribute3OffsetX),
+                        outputAttribute3OffsetY.asInt(current.printAttribute3OffsetY),
+                        lastTemplateLandscapeSelection,
+                    )
+                    applyDisplayedTemplateAxisValues(
+                        landscape = newLandscape,
+                        storedRegionX = storedRegion[0],
+                        storedRegionY = storedRegion[1],
+                        storedRegionWidth = storedRegion[2],
+                        storedRegionHeight = storedRegion[3],
+                        storedNameOffsetX = storedNameOffsets[0],
+                        storedNameOffsetY = storedNameOffsets[1],
+                        storedDepartmentOffsetX = storedDepartmentOffsets[0],
+                        storedDepartmentOffsetY = storedDepartmentOffsets[1],
+                        storedAttribute3OffsetX = storedAttribute3Offsets[0],
+                        storedAttribute3OffsetY = storedAttribute3Offsets[1],
+                    )
+                    lastTemplateLandscapeSelection = newLandscape
+                }
+                refreshPreview()
+            }
+
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+        }
 
         fun buildUpdatedSettings(): AppSettings {
             val selectedPaper = paperProfiles.getOrNull(paperSpinner.selectedItemPosition)
                 ?: paperProfiles.firstOrNull()
                 ?: current.paperProfiles.first()
+            val templateLandscape = paperOrientation.selectedItemPosition == 1
+            val storedRegion = storedRectFromDisplay(
+                regionOffsetX.asInt(current.templateTextRegionOffsetX),
+                regionOffsetY.asInt(current.templateTextRegionOffsetY),
+                regionWidth.asInt(current.templateTextRegionWidth).coerceAtLeast(1),
+                regionHeight.asInt(current.templateTextRegionHeight).coerceAtLeast(1),
+                templateLandscape,
+                selectedPaper,
+            )
+            val storedNameOffsets = storedOffsetFromDisplay(
+                outputNameOffsetX.asInt(current.outputNameOffsetX),
+                outputNameOffsetY.asInt(current.outputNameOffsetY),
+                templateLandscape,
+            )
+            val storedDepartmentOffsets = storedOffsetFromDisplay(
+                outputDepartmentOffsetX.asInt(current.outputDepartmentOffsetX),
+                outputDepartmentOffsetY.asInt(current.outputDepartmentOffsetY),
+                templateLandscape,
+            )
+            val storedAttribute3Offsets = storedOffsetFromDisplay(
+                outputAttribute3OffsetX.asInt(current.printAttribute3OffsetX),
+                outputAttribute3OffsetY.asInt(current.printAttribute3OffsetY),
+                templateLandscape,
+            )
             return AppSettings(
                 faceDataDir = faceDataDir.text.toString().trim(),
+                developerViewEnabled = developerViewEnabled.isChecked,
                 authSimThreshold = authSim.asFloat(current.authSimThreshold),
                 authMarginThreshold = authMargin.asFloat(current.authMarginThreshold),
                 topK = topK.asInt(current.topK).coerceAtLeast(1),
                 analyzeEveryNFrames = analyzeEvery.asInt(current.analyzeEveryNFrames).coerceAtLeast(1),
+                ambiguousCandidateSwitchFrames = candidateSwitchFrames.asInt(current.ambiguousCandidateSwitchFrames).coerceAtLeast(1),
+                selectedCandidateGraceFrames = selectedGraceFrames.asInt(current.selectedCandidateGraceFrames).coerceAtLeast(1),
                 cameraIndex = cameraIndex.asInt(current.cameraIndex).coerceIn(0, 1),
                 recognitionUseEllipseMask = useEllipseMask.isChecked,
                 registerSamplesPerDirection = regSamples.asInt(current.registerSamplesPerDirection).coerceAtLeast(1),
@@ -425,30 +852,72 @@ object SettingsDialog {
                 dbAuthToken = dbAuthToken.text.toString().trim(),
                 dbDeviceName = dbDeviceName.text.toString().trim(),
                 printEnabled = printEnabled.isChecked,
-                printerModel = if (printerModel.selectedItemPosition == 1) PrinterModel.NEMONIC else PrinterModel.SYSTEM,
+                printerModel = when (printerModel.selectedItemPosition) {
+                    1 -> PrinterModel.BROTHER_QL820NWB
+                    2 -> PrinterModel.NEMONIC
+                    else -> PrinterModel.SYSTEM
+                },
                 printerName = printerName.text.toString(),
+                brotherPrinterMacAddress = brotherMac.text.toString().trim(),
                 nemonicPrinterMacAddress = nemonicMac.text.toString(),
                 printerTimeoutSec = printerTimeout.asInt(current.printerTimeoutSec).coerceAtLeast(1),
                 printerCopies = printerCopies.asInt(current.printerCopies).coerceAtLeast(1),
                 printerJobTitlePrefix = printerTitlePrefix.text.toString(),
-                printerContentTemplate = printerTemplate.text.toString(),
+                printerContentTemplate = current.printerContentTemplate,
                 printerTemplateImageUri = printerTemplateImageUri.text.toString().trim(),
+                templateImageRotationQuarterTurns = templateRotationQuarterTurns,
                 templateShrinkToPaperIfOversized = templateShrinkToPaper.isChecked,
                 paperProfiles = paperProfiles.toList(),
                 selectedPaperId = selectedPaper.id,
                 printLandscape = printOrientation.selectedItemPosition == 1,
-                templateTextRegionOffsetX = regionOffsetX.asInt(current.templateTextRegionOffsetX),
-                templateTextRegionOffsetY = regionOffsetY.asInt(current.templateTextRegionOffsetY),
-                templateTextRegionWidth = regionWidth.asInt(current.templateTextRegionWidth).coerceAtLeast(1),
-                templateTextRegionHeight = regionHeight.asInt(current.templateTextRegionHeight).coerceAtLeast(1),
+                paperLandscape = templateLandscape,
+                templateTextRegionOffsetX = storedRegion[0],
+                templateTextRegionOffsetY = storedRegion[1],
+                templateTextRegionWidth = storedRegion[2],
+                templateTextRegionHeight = storedRegion[3],
                 printTextBaseFontSize = printBaseFont.asInt(current.printTextBaseFontSize).coerceAtLeast(1),
                 printTextScaleMultiplier = printScale.asInt(current.printTextScaleMultiplier).coerceAtLeast(1),
+                printAttributeCount = attributeCountSpinner.selectedItemPosition + 1,
+                printAttribute1Column = attributeColumns.getOrNull(attribute1ColumnSpinner.selectedItemPosition)?.first ?: "name",
+                printAttribute1TextSizeSp = outputNameSize.asInt(current.printAttribute1TextSizeSp).coerceIn(12, 120),
+                printAttribute1OffsetX = storedNameOffsets[0],
+                printAttribute1OffsetY = storedNameOffsets[1],
+                printAttribute2Column = attributeColumns.getOrNull(attribute2ColumnSpinner.selectedItemPosition)?.first ?: "department",
+                printAttribute2TextSizeSp = outputDepartmentSize.asInt(current.printAttribute2TextSizeSp).coerceIn(10, 100),
+                printAttribute2OffsetX = storedDepartmentOffsets[0],
+                printAttribute2OffsetY = storedDepartmentOffsets[1],
+                printAttribute3Column = attributeColumns.getOrNull(attribute3ColumnSpinner.selectedItemPosition)?.first ?: "grade",
+                printAttribute3TextSizeSp = outputAttribute3Size.asInt(current.printAttribute3TextSizeSp).coerceIn(10, 100),
+                printAttribute3OffsetX = storedAttribute3Offsets[0],
+                printAttribute3OffsetY = storedAttribute3Offsets[1],
                 outputNameTextSizeSp = outputNameSize.asInt(current.outputNameTextSizeSp).coerceIn(12, 120),
+                outputNameOffsetX = storedNameOffsets[0],
+                outputNameOffsetY = storedNameOffsets[1],
                 outputDepartmentTextSizeSp = outputDepartmentSize.asInt(current.outputDepartmentTextSizeSp).coerceIn(10, 100),
-                outputDepartmentOffsetX = outputDepartmentOffsetX.asInt(current.outputDepartmentOffsetX).coerceIn(-300, 300),
-                outputDepartmentOffsetY = outputDepartmentOffsetY.asInt(current.outputDepartmentOffsetY).coerceIn(-300, 300),
+                outputDepartmentOffsetX = storedDepartmentOffsets[0],
+                outputDepartmentOffsetY = storedDepartmentOffsets[1],
+                printStatusReadyMessage = printStatusReadyMessage.text.toString().ifBlank { current.printStatusReadyMessage },
+                printStatusPermissionMessage = printStatusPermissionMessage.text.toString().ifBlank { current.printStatusPermissionMessage },
+                printStatusConnectingMessage = printStatusConnectingMessage.text.toString().ifBlank { current.printStatusConnectingMessage },
+                printStatusPreparingMessage = printStatusPreparingMessage.text.toString().ifBlank { current.printStatusPreparingMessage },
+                printStatusSendingMessage = printStatusSendingMessage.text.toString().ifBlank { current.printStatusSendingMessage },
+                printStatusSuccessMessage = printStatusSuccessMessage.text.toString().ifBlank { current.printStatusSuccessMessage },
+                printStatusErrorMessage = printStatusErrorMessage.text.toString().ifBlank { current.printStatusErrorMessage },
                 outputReturnDelaySeconds = outputReturnDelaySeconds.asInt(current.outputReturnDelaySeconds).coerceAtLeast(1),
                 outputReturnMessageTemplate = outputReturnMessageTemplate.text.toString().ifBlank { current.outputReturnMessageTemplate },
+                uiWelcomeMessage = uiWelcomeMessage.text.toString().ifBlank { current.uiWelcomeMessage },
+                uiServerDisconnectedMessage = uiServerDisconnectedMessage.text.toString().ifBlank { current.uiServerDisconnectedMessage },
+                uiServerDisconnectedDetail = uiServerDisconnectedDetail.text.toString().ifBlank { current.uiServerDisconnectedDetail },
+                uiUnregisteredMessage = uiUnregisteredMessage.text.toString().ifBlank { current.uiUnregisteredMessage },
+                uiUnregisteredDetail = uiUnregisteredDetail.text.toString().ifBlank { current.uiUnregisteredDetail },
+                uiRecognizedMessageTemplate = uiRecognizedMessageTemplate.text.toString().ifBlank { current.uiRecognizedMessageTemplate },
+                uiAmbiguousMessage = uiAmbiguousMessage.text.toString().ifBlank { current.uiAmbiguousMessage },
+                uiAmbiguousDetail = uiAmbiguousDetail.text.toString().ifBlank { current.uiAmbiguousDetail },
+                uiSelectedCandidateTemplate = uiSelectedCandidateTemplate.text.toString().ifBlank { current.uiSelectedCandidateTemplate },
+                uiRegisterCompleteMessage = uiRegisterCompleteMessage.text.toString().ifBlank { current.uiRegisterCompleteMessage },
+                uiLabelOnlyInputMessage = uiLabelOnlyInputMessage.text.toString().ifBlank { current.uiLabelOnlyInputMessage },
+                uiSavingMessage = uiSavingMessage.text.toString().ifBlank { current.uiSavingMessage },
+                uiOutputButtonText = uiOutputButtonText.text.toString().ifBlank { current.uiOutputButtonText },
             )
         }
 
@@ -472,7 +941,11 @@ object SettingsDialog {
                 previewImage.setImageBitmap(rendered)
                 guideBitmap = buildGuideOverlayBitmap(rendered.width, rendered.height, updated)
                 guideOverlayImage.setImageBitmap(guideBitmap)
-                previewStatus.text = "템플릿/폰트/영역 설정이 반영된 미리보기입니다."
+                previewStatus.text = if (updated.paperLandscape) {
+                    "가로 템플릿방향 기준 미리보기입니다."
+                } else {
+                    "세로 템플릿방향 기준 미리보기입니다."
+                }
             }
         }
         val autoRefreshWatcher = object : TextWatcher {
@@ -483,11 +956,32 @@ object SettingsDialog {
             }
         }
         templateShrinkToPaper.setOnCheckedChangeListener { _, _ -> refreshPreview() }
+        attributeCountSpinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) { refreshPreview() }
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+        }
+        attribute1ColumnSpinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) { refreshPreview() }
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+        }
+        attribute2ColumnSpinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) { refreshPreview() }
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+        }
+        attribute3ColumnSpinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) { refreshPreview() }
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+        }
         listOf(
             regionOffsetX, regionOffsetY, regionWidth, regionHeight,
             printBaseFont, printScale, outputNameSize, outputDepartmentSize,
+            outputNameOffsetX, outputNameOffsetY,
             outputDepartmentOffsetX, outputDepartmentOffsetY,
-            outputReturnDelaySeconds, outputReturnMessageTemplate, printerTemplate,
+            outputAttribute3Size, outputAttribute3OffsetX, outputAttribute3OffsetY,
+            outputReturnDelaySeconds, outputReturnMessageTemplate,
+            printStatusReadyMessage, printStatusPermissionMessage, printStatusConnectingMessage,
+            printStatusPreparingMessage, printStatusSendingMessage, printStatusSuccessMessage,
+            printStatusErrorMessage,
         ).forEach { it.addTextChangedListener(autoRefreshWatcher) }
 
         val dialog = AlertDialog.Builder(context)
@@ -508,6 +1002,24 @@ object SettingsDialog {
 
         selectTab(0)
         refreshPreview()
+    }
+
+    private fun buildBrotherPaperProfileId(media: BrotherDetectedMedia): String {
+        val width = media.widthMm ?: 62
+        val heightPart = if (media.isInfinite) "continuous" else (media.heightMm ?: width).toString()
+        val labelPart = media.labelSize?.name ?: "unknown"
+        return "brother_${labelPart.lowercase(Locale.US)}_${width}x$heightPart"
+    }
+
+    private fun buildBrotherPaperProfileName(media: BrotherDetectedMedia): String {
+        val width = media.widthMm ?: 62
+        val labelName = media.labelSize?.name ?: "Brother"
+        return if (media.isInfinite) {
+            "Brother $labelName ${width}mm 연속용지"
+        } else {
+            val height = media.heightMm ?: width
+            "Brother $labelName ${width}x${height}"
+        }
     }
 
     private fun section(parent: LinearLayout, context: Context, title: String) {
@@ -652,13 +1164,31 @@ object SettingsDialog {
     }
 
     private fun resolveRegionRect(width: Int, height: Int, settings: AppSettings): RectF {
-        val x = settings.templateTextRegionOffsetX.coerceIn(0, (width - 1).coerceAtLeast(0))
-        val y = settings.templateTextRegionOffsetY.coerceIn(0, (height - 1).coerceAtLeast(0))
-        val right = (x + settings.templateTextRegionWidth.coerceAtLeast(1)).coerceAtMost(width)
-        val bottom = (y + settings.templateTextRegionHeight.coerceAtLeast(1)).coerceAtMost(height)
-        val safeRight = if (right <= x) (x + 1).coerceAtMost(width) else right
-        val safeBottom = if (bottom <= y) (y + 1).coerceAtMost(height) else bottom
-        return RectF(x.toFloat(), y.toFloat(), safeRight.toFloat(), safeBottom.toFloat())
+        if (!settings.paperLandscape) {
+            val x = settings.templateTextRegionOffsetX.coerceIn(0, (width - 1).coerceAtLeast(0))
+            val y = settings.templateTextRegionOffsetY.coerceIn(0, (height - 1).coerceAtLeast(0))
+            val right = (x + settings.templateTextRegionWidth.coerceAtLeast(1)).coerceAtMost(width)
+            val bottom = (y + settings.templateTextRegionHeight.coerceAtLeast(1)).coerceAtMost(height)
+            val safeRight = if (right <= x) (x + 1).coerceAtMost(width) else right
+            val safeBottom = if (bottom <= y) (y + 1).coerceAtMost(height) else bottom
+            return RectF(x.toFloat(), y.toFloat(), safeRight.toFloat(), safeBottom.toFloat())
+        }
+        val portraitWidth = height
+        val portraitHeight = width
+        val sourceX = settings.templateTextRegionOffsetX.coerceIn(0, (portraitWidth - 1).coerceAtLeast(0))
+        val sourceY = settings.templateTextRegionOffsetY.coerceIn(0, (portraitHeight - 1).coerceAtLeast(0))
+        val sourceRight = (sourceX + settings.templateTextRegionWidth.coerceAtLeast(1)).coerceAtMost(portraitWidth)
+        val sourceBottom = (sourceY + settings.templateTextRegionHeight.coerceAtLeast(1)).coerceAtMost(portraitHeight)
+        val rotatedLeft = (portraitHeight - sourceBottom).coerceIn(0, width - 1)
+        val rotatedTop = sourceX.coerceIn(0, height - 1)
+        val rotatedRight = (portraitHeight - sourceY).coerceIn(rotatedLeft + 1, width)
+        val rotatedBottom = sourceRight.coerceIn(rotatedTop + 1, height)
+        return RectF(
+            rotatedLeft.toFloat(),
+            rotatedTop.toFloat(),
+            rotatedRight.toFloat(),
+            rotatedBottom.toFloat(),
+        )
     }
 
     private fun EditText.asInt(default: Int): Int = text.toString().trim().toIntOrNull() ?: default

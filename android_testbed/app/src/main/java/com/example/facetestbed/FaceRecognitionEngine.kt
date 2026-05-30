@@ -14,12 +14,18 @@ import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import java.io.File
+import android.util.Log
 import java.nio.FloatBuffer
 import java.util.Collections
 import kotlin.math.abs
 import kotlin.math.sqrt
 
 class FaceRecognitionEngine(private val context: Context) {
+    companion object {
+        private const val LOG_TAG = "FaceEngine"
+        private const val BUFFALO_MODEL_RELATIVE_PATH = "models/buffalo_l/w600k_r50.onnx"
+    }
+
     private val detector: FaceDetector
     private val ortEnv: OrtEnvironment = OrtEnvironment.getEnvironment()
     private var ortSession: OrtSession? = null
@@ -39,10 +45,12 @@ class FaceRecognitionEngine(private val context: Context) {
 
     fun isBuffaloReady(): Boolean = buffaloReady
 
-    fun makeEmbedding(face: Face, frameBitmap: Bitmap): FloatArray {
+    fun expectedModelPath(): String = File(context.filesDir, BUFFALO_MODEL_RELATIVE_PATH).absolutePath
+
+    fun makeEmbedding(face: Face, frameBitmap: Bitmap): FloatArray? {
         val onnx = makeBuffaloEmbedding(face, frameBitmap)
         if (onnx != null) return onnx
-        return makeGeometryEmbedding(face, frameBitmap.width, frameBitmap.height)
+        return null
     }
 
     fun classifyDirection(face: Face, mirroredPreview: Boolean = false): String? {
@@ -84,25 +92,40 @@ class FaceRecognitionEngine(private val context: Context) {
 
     private fun initBuffaloModel() {
         runCatching {
-            val assetPath = "models/buffalo_l/w600k_r50.onnx"
-            val modelFile = copyAssetToFiles(assetPath)
+            val modelFile = buffaloModelFile()
+            require(modelFile.isFile && modelFile.length() > 0L) {
+                "model file is missing: ${modelFile.absolutePath}"
+            }
+            Log.i(LOG_TAG, "Buffalo model loading: path=${modelFile.absolutePath}, size=${modelFile.length()}")
             val session = ortEnv.createSession(modelFile.absolutePath, OrtSession.SessionOptions())
             val firstOutput = session.outputNames.firstOrNull()
             ortSession = session
             outputName = firstOutput
             buffaloReady = firstOutput != null
+            Log.i(LOG_TAG, "Buffalo model ready: output=${firstOutput.orEmpty().ifBlank { "-" }}")
         }.onFailure {
             buffaloReady = false
+            Log.e(LOG_TAG, "Buffalo model init failed: ${it.javaClass.simpleName}: ${it.message.orEmpty()}", it)
         }
     }
 
-    private fun copyAssetToFiles(assetPath: String): File {
-        val outFile = File(context.filesDir, assetPath.replace('/', '_'))
-        if (outFile.exists() && outFile.length() > 0L) return outFile
-        context.assets.open(assetPath).use { input ->
-            outFile.outputStream().use { output -> input.copyTo(output) }
+    private fun buffaloModelFile(): File {
+        val internalModel = File(context.filesDir, BUFFALO_MODEL_RELATIVE_PATH)
+        val assetSize = runCatching { context.assets.openFd(BUFFALO_MODEL_RELATIVE_PATH).use { it.length } }
+            .getOrDefault(-1L)
+        val needsCopy = !internalModel.isFile ||
+            internalModel.length() <= 0L ||
+            (assetSize > 0L && internalModel.length() != assetSize)
+        if (needsCopy) {
+            internalModel.parentFile?.mkdirs()
+            Log.i(LOG_TAG, "Buffalo model extracting: asset=$BUFFALO_MODEL_RELATIVE_PATH, to=${internalModel.absolutePath}")
+            context.assets.open(BUFFALO_MODEL_RELATIVE_PATH).use { input ->
+                internalModel.outputStream().use { output ->
+                    input.copyTo(output, DEFAULT_BUFFER_SIZE)
+                }
+            }
         }
-        return outFile
+        return internalModel
     }
 
     private fun makeBuffaloEmbedding(face: Face, frameBitmap: Bitmap): FloatArray? {

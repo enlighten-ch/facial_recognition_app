@@ -17,6 +17,7 @@ import java.util.UUID
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 class FaceDbSyncClient(
     private val callbacks: Callbacks,
@@ -25,8 +26,11 @@ class FaceDbSyncClient(
         fun onStatus(message: String, busy: Boolean)
         fun onDiagnosticLog(message: String)
         fun onClientIdIssued(clientId: String)
-        fun exportLocalStructuredDb(): Pair<ByteArray, ByteArray>?
-        fun applyRemoteStructuredDb(metaDbBytes: ByteArray, embeddingsBinBytes: ByteArray): Boolean
+        fun exportLocalHashSummary(): Map<String, String>
+        fun exportLocalDeltaBundle(serverHashes: Map<String, String>): Pair<ByteArray, Int>?
+        fun applyRemoteDeltaBundle(bundle: ByteArray): Boolean
+        fun isLocalDbSchemaCurrent(): Boolean
+        fun replaceLocalStructuredDb(metaDbBytes: ByteArray, embeddingsBinBytes: ByteArray): Boolean
         fun isRecognitionIdle(idleSeconds: Int): Boolean
         fun localFaceCount(): Int
         fun localEmbeddingCount(): Int
@@ -43,6 +47,8 @@ class FaceDbSyncClient(
     private val executor = Executors.newSingleThreadExecutor()
     private val running = AtomicBoolean(false)
     private val syncInFlight = AtomicBoolean(false)
+    private val pendingApplyRef = AtomicReference<ByteArray?>(null)
+    private val idleApplyActive = AtomicBoolean(false)
 
     private var baseUrl: String = ""
     private var clientId: String = ""
@@ -135,6 +141,32 @@ class FaceDbSyncClient(
         executor.execute { pullLatestInternal(reason) }
     }
 
+    fun markAttendance(name: String, affiliation: String, department: String) {
+        if (!running.get()) return
+        val cleanedName = name.trim()
+        if (cleanedName.isBlank()) return
+        executor.execute {
+            markAttendanceInternal(
+                name = cleanedName,
+                affiliation = affiliation.trim(),
+                department = department.trim(),
+            )
+        }
+    }
+
+    private fun reconcileLatest(reason: String, allowReauthRetry: Boolean = true) {
+        if (!running.get()) return
+        if (!syncInFlight.compareAndSet(false, true)) {
+            callbacks.onDiagnosticLog("동기화 요청 병합: 이미 진행 중인 작업에 합류 ($reason)")
+            return
+        }
+        try {
+            reconcileLatestCore(reason, allowReauthRetry)
+        } finally {
+            syncInFlight.set(false)
+        }
+    }
+
     private fun ensureAuthorized(): Boolean {
         if (authToken.isNotBlank()) return true
         callbacks.onStatus("DB 서버 승인요청 중...", true)
@@ -212,75 +244,161 @@ class FaceDbSyncClient(
         }
     }
 
+    private fun reconcileLatestCore(reason: String, allowReauthRetry: Boolean = true) {
+        if (!ensureAuthorized()) return
+        val serverHashes = runCatching { fetchServerHashSummary(allowReauthRetry) }.getOrElse { err ->
+            callbacks.onDiagnosticLog("서버 해시 조회 예외: ${err.javaClass.simpleName}: ${err.message.orEmpty()}")
+            callbacks.onStatus("DB 동기화 실패(${err.javaClass.simpleName})", false)
+            return
+        } ?: return
+
+        val localDelta = callbacks.exportLocalDeltaBundle(serverHashes)
+        if (localDelta != null) {
+            callbacks.onDiagnosticLog(
+                "로컬 변경 감지: 초기 pull 전에 업로드 우선 수행 (embeddings=${localDelta.second})",
+            )
+            pushLatestCore("$reason - 로컬 변경 우선", waitForIdle = false, allowReauthRetry = allowReauthRetry)
+            if (!running.get()) return
+            pullLatestDeltaInternal("$reason - 서버 반영 확인", allowReauthRetry = allowReauthRetry)
+            return
+        }
+
+        pullLatestDeltaInternal(reason, allowReauthRetry = allowReauthRetry)
+    }
+
     private fun pullLatestInternal(reason: String, allowReauthRetry: Boolean = true) {
         if (!syncInFlight.compareAndSet(false, true)) {
             callbacks.onDiagnosticLog("동기화 요청 병합: 이미 진행 중인 작업에 합류 ($reason)")
             return
         }
         try {
-            pullLatestStructuredInternal(reason, allowReauthRetry)
+            pullLatestDeltaInternal(reason, allowReauthRetry)
         } finally {
             syncInFlight.set(false)
         }
     }
 
-    private fun pullLatestStructuredInternal(reason: String, allowReauthRetry: Boolean = true) {
+    private fun pullLatestDeltaInternal(reason: String, allowReauthRetry: Boolean = true) {
         if (!ensureAuthorized()) return
-        callbacks.onStatus("DB 동기화 중: $reason", true)
+        callbacks.onStatus("DB 동기화 진행: $reason", true)
         val startedAt = System.currentTimeMillis()
-        val metaRequest = Request.Builder()
-            .url("$baseUrl/api/db/structured/meta")
+        val localHashes = callbacks.exportLocalHashSummary()
+        if (!callbacks.isLocalDbSchemaCurrent()) {
+            callbacks.onDiagnosticLog("로컬 DB 스키마가 서버 구조와 달라 전체 구조화 DB 동기화로 전환합니다.")
+            pullLatestStructuredInternal("$reason - DB 구조 업데이트", allowReauthRetry)
+            return
+        }
+        val payload = buildHashSummaryBody(localHashes)
+        val request = Request.Builder()
+            .url("$baseUrl/api/db/delta/pull")
             .header("Authorization", "Bearer $authToken")
-            .get()
-            .build()
-        val binRequest = Request.Builder()
-            .url("$baseUrl/api/db/structured/bin")
-            .header("Authorization", "Bearer $authToken")
-            .get()
+            .post(payload.toByteArray().toRequestBody(TEXT_MEDIA))
             .build()
 
         runCatching {
-            val metaBytes = downloadStructuredPart(metaRequest, "meta", reason, allowReauthRetry) ?: return
-            val binBytes = downloadStructuredPart(binRequest, "bin", reason, allowReauthRetry) ?: return
+            val deltaBytes = downloadDelta(request, reason, allowReauthRetry) ?: return
             if (!waitForRecognitionIdleBeforeDbApply()) {
                 callbacks.onStatus("DB 동기화 취소(앱 중지)", false)
                 return
             }
-            val applied = callbacks.applyRemoteStructuredDb(metaBytes, binBytes)
+            val applied = callbacks.applyRemoteDeltaBundle(deltaBytes)
             if (applied) {
                 initialSyncCompleted = true
                 val elapsedMs = System.currentTimeMillis() - startedAt
+                val serverCount = fetchServerHashSummary(allowReauthRetry = false)?.size ?: -1
+                if (serverCount >= 0 && callbacks.localFaceCount() != serverCount) {
+                    callbacks.onDiagnosticLog(
+                        "델타 반영 후 인원 수 불일치 감지: local=${callbacks.localFaceCount()}, server=$serverCount. 전체 구조화 DB 동기화로 복구합니다.",
+                    )
+                    pullLatestStructuredInternal("$reason - 인원 수 불일치 복구", allowReauthRetry = false)
+                    return
+                }
                 callbacks.onDiagnosticLog(
-                    "구조화 DB 다운로드 완료: meta=${metaBytes.size}B, bin=${binBytes.size}B, total=${elapsedMs}ms",
+                    "DB 델타 동기화 완료: bytes=${deltaBytes.size}, total=${elapsedMs}ms",
                 )
-                callbacks.onStatus("DB 동기화 완료 (구조화 다운로드, 얼굴 ${callbacks.localFaceCount()}명)", false)
+                callbacks.onStatus("DB 동기화 완료 (변경분 반영, 얼굴 ${callbacks.localFaceCount()}명)", false)
             } else {
-                callbacks.onStatus("DB 동기화 실패(DB 반영 오류)", false)
+                callbacks.onDiagnosticLog("DB 델타 반영 실패: 전체 구조화 DB 동기화로 복구 시도")
+                pullLatestStructuredInternal("$reason - 델타 반영 실패 복구", allowReauthRetry)
             }
         }.onFailure {
-            callbacks.onDiagnosticLog("구조화 DB 다운로드 예외: ${it.javaClass.simpleName}: ${it.message.orEmpty()}")
+            callbacks.onDiagnosticLog("DB 델타 동기화 예외: ${it.javaClass.simpleName}: ${it.message.orEmpty()}")
             callbacks.onStatus("DB 동기화 실패(${it.javaClass.simpleName})", false)
         }
     }
 
-    private fun downloadStructuredPart(request: Request, label: String, reason: String, allowReauthRetry: Boolean): ByteArray? {
+    private fun pullLatestStructuredInternal(reason: String, allowReauthRetry: Boolean = true) {
+        if (!ensureAuthorized()) return
+        callbacks.onStatus("DB 구조 동기화 진행: $reason", true)
+        val startedAt = System.currentTimeMillis()
+        runCatching {
+            val metaBytes = downloadStructuredPart("meta", allowReauthRetry) ?: return
+            val embeddingsBytes = downloadStructuredPart("bin", allowReauthRetry) ?: return
+            if (!waitForRecognitionIdleBeforeDbApply()) {
+                callbacks.onStatus("DB 구조 동기화 취소(앱 중지)", false)
+                return
+            }
+            val applied = callbacks.replaceLocalStructuredDb(metaBytes, embeddingsBytes)
+            if (applied) {
+                initialSyncCompleted = true
+                callbacks.onDiagnosticLog(
+                    "DB 구조 동기화 완료: meta=${metaBytes.size}B, bin=${embeddingsBytes.size}B, total=${System.currentTimeMillis() - startedAt}ms",
+                )
+                callbacks.onStatus("DB 동기화 완료 (DB 구조 반영, 얼굴 ${callbacks.localFaceCount()}명)", false)
+            } else {
+                callbacks.onStatus("DB 구조 동기화 실패(DB 반영 오류)", false)
+            }
+        }.onFailure {
+            callbacks.onDiagnosticLog("DB 구조 동기화 예외: ${it.javaClass.simpleName}: ${it.message.orEmpty()}")
+            callbacks.onStatus("DB 구조 동기화 실패(${it.javaClass.simpleName})", false)
+        }
+    }
+
+    private fun downloadDelta(request: Request, reason: String, allowReauthRetry: Boolean): ByteArray? {
         httpClient.newCall(request).execute().use { res ->
             if (isAuthError(res.code) && allowReauthRetry) {
                 callbacks.onStatus("인증 만료, 재승인 요청 중...", true)
                 invalidateAuthToken()
                 if (ensureAuthorized()) {
-                    pullLatestStructuredInternal(reason, allowReauthRetry = false)
+                    pullLatestDeltaInternal(reason, allowReauthRetry = false)
                 } else {
                     callbacks.onStatus("DB 동기화 실패(승인 필요)", false)
                 }
                 return null
             }
             if (!res.isSuccessful) {
-                callbacks.onDiagnosticLog("구조화 $label 다운로드 실패: HTTP ${res.code}")
+                callbacks.onDiagnosticLog("DB 델타 다운로드 실패: HTTP ${res.code}")
                 callbacks.onStatus("DB 동기화 실패(HTTP ${res.code})", false)
                 return null
             }
             return res.body?.bytes() ?: ByteArray(0)
+        }
+    }
+
+    private fun downloadStructuredPart(part: String, allowReauthRetry: Boolean): ByteArray? {
+        val request = Request.Builder()
+            .url("$baseUrl/api/db/structured/$part")
+            .header("Authorization", "Bearer $authToken")
+            .get()
+            .build()
+        httpClient.newCall(request).execute().use { res ->
+            if (isAuthError(res.code) && allowReauthRetry) {
+                callbacks.onStatus("인증 만료, 재승인 요청 중...", true)
+                invalidateAuthToken()
+                if (!ensureAuthorized()) {
+                    callbacks.onStatus("DB 구조 동기화 실패(승인 필요)", false)
+                    return null
+                }
+                return downloadStructuredPart(part, allowReauthRetry = false)
+            }
+            if (!res.isSuccessful) {
+                callbacks.onDiagnosticLog("DB 구조 다운로드 실패($part): HTTP ${res.code}")
+                callbacks.onStatus("DB 구조 동기화 실패(HTTP ${res.code})", false)
+                return null
+            }
+            val bytes = res.body?.bytes() ?: ByteArray(0)
+            callbacks.onDiagnosticLog("DB 구조 다운로드 완료($part): bytes=${bytes.size}")
+            return bytes
         }
     }
 
@@ -299,19 +417,25 @@ class FaceDbSyncClient(
         }
         if (!ensureAuthorized()) return
 
-        val totalEmbeddings = callbacks.localEmbeddingCount()
-        callbacks.onUploadProgress(0, totalEmbeddings)
-        callbacks.onStatus("DB 서버 업데이트 중: $reason (0/$totalEmbeddings)", true)
-
-        val snapshot = callbacks.exportLocalStructuredDb()
-        if (snapshot == null) {
-            callbacks.onStatus("DB 서버 업데이트 실패(구조화 DB 읽기 오류)", false)
+        val serverHashes = runCatching { fetchServerHashSummary(allowReauthRetry) }.getOrElse { err ->
+            callbacks.onDiagnosticLog("서버 해시 조회 예외: ${err.javaClass.simpleName}: ${err.message.orEmpty()}")
+            callbacks.onStatus("DB 서버 업데이트 실패(${err.javaClass.simpleName})", false)
+            return
+        } ?: return
+        val delta = callbacks.exportLocalDeltaBundle(serverHashes)
+        if (delta == null) {
+            callbacks.onUploadProgress(0, 0)
+            callbacks.onDiagnosticLog("업로드 건너뜀: 서버와 동일한 상태 (${callbacks.localFaceCount()}명)")
+            callbacks.onStatus("DB 서버 업데이트 완료 (변경 없음)", false)
             return
         }
-        val payload = buildStructuredBundle(snapshot.first, snapshot.second)
+        val payload = delta.first
+        val totalEmbeddings = delta.second
 
         // 1개 embedding당 500ms 기준 동적 callTimeout (최소 30초, 여유 15초 추가)
         val dynamicCallTimeoutSeconds = maxOf(30L, totalEmbeddings * 500L / 1000L + 15L)
+        callbacks.onUploadProgress(0, totalEmbeddings)
+        callbacks.onStatus("DB 서버 업데이트 중: $reason (0/$totalEmbeddings)", true)
 
         val progressBody = buildProgressTrackingBody(payload, totalEmbeddings) { uploaded, total ->
             callbacks.onUploadProgress(uploaded, total)
@@ -319,7 +443,7 @@ class FaceDbSyncClient(
         }
 
         val req = Request.Builder()
-            .url("$baseUrl/api/db/structured/push")
+            .url("$baseUrl/api/db/delta/push")
             .header("Authorization", "Bearer $authToken")
             .post(progressBody)
             .build()
@@ -369,6 +493,68 @@ class FaceDbSyncClient(
                 return@onFailure
             }
             callbacks.onStatus("DB 서버 업데이트 실패(${it.javaClass.simpleName})", false)
+        }
+    }
+
+    private fun fetchServerHashSummary(allowReauthRetry: Boolean): Map<String, String>? {
+        val req = Request.Builder()
+            .url("$baseUrl/api/db/hash-summary")
+            .header("Authorization", "Bearer $authToken")
+            .get()
+            .build()
+        httpClient.newCall(req).execute().use { res ->
+            if (isAuthError(res.code) && allowReauthRetry) {
+                callbacks.onStatus("인증 만료, 재승인 요청 중...", true)
+                invalidateAuthToken()
+                return if (ensureAuthorized()) fetchServerHashSummary(false) else null
+            }
+            if (!res.isSuccessful) {
+                callbacks.onDiagnosticLog("서버 hash 요약 조회 실패: HTTP ${res.code}")
+                callbacks.onStatus("DB 서버 업데이트 실패(HTTP ${res.code})", false)
+                return null
+            }
+            return parseHashSummaryBody(res.body?.string().orEmpty())
+        }
+    }
+
+    private fun markAttendanceInternal(
+        name: String,
+        affiliation: String,
+        department: String,
+        allowReauthRetry: Boolean = true,
+    ) {
+        if (!ensureAuthorized()) return
+        val payload = buildKeyValueBody(
+            "name" to name,
+            "affiliation" to affiliation,
+            "department" to department,
+        )
+        val req = Request.Builder()
+            .url("$baseUrl/api/attendance/mark")
+            .header("Authorization", "Bearer $authToken")
+            .post(payload.toByteArray().toRequestBody(TEXT_MEDIA))
+            .build()
+        runCatching {
+            httpClient.newCall(req).execute().use { res ->
+                if (isAuthError(res.code) && allowReauthRetry) {
+                    callbacks.onStatus("인증 만료, 재승인 요청 중...", true)
+                    invalidateAuthToken()
+                    if (ensureAuthorized()) {
+                        markAttendanceInternal(name, affiliation, department, allowReauthRetry = false)
+                    }
+                    return
+                }
+                if (!res.isSuccessful) {
+                    callbacks.onDiagnosticLog("출석 전송 실패: HTTP ${res.code}, name=$name")
+                    return
+                }
+                val body = parseKeyValueBody(res.body?.string().orEmpty())
+                callbacks.onDiagnosticLog(
+                    "출석 기록 완료: name=$name, file=${body["file"].orEmpty().ifBlank { "-" }}",
+                )
+            }
+        }.onFailure { err ->
+            callbacks.onDiagnosticLog("출석 전송 예외: ${err.javaClass.simpleName}: ${err.message.orEmpty()} (name=$name)")
         }
     }
 
@@ -423,7 +609,7 @@ class FaceDbSyncClient(
                 callbacks.onDiagnosticLog("WS 연결 성공: code=${response.code}")
                 if (!initialSyncCompleted) {
                     callbacks.onStatus("DB 동기화 대기중", true)
-                    executor.execute { pullLatestInternal("초기 동기화") }
+                    executor.execute { reconcileLatest("초기 동기화") }
                 }
             }
 
@@ -496,7 +682,7 @@ class FaceDbSyncClient(
             if (!running.get() || initialSyncCompleted) return@execute
             callbacks.onStatus("DB 동기화 대기중", true)
             callbacks.onDiagnosticLog("초기 동기화 fallback 실행")
-            pullLatestInternal("초기 동기화(재시도)")
+            reconcileLatest("초기 동기화(재시도)")
         }
     }
 
@@ -764,21 +950,22 @@ class FaceDbSyncClient(
             }
     }
 
-    private fun buildStructuredBundle(metaDbBytes: ByteArray, embeddingsBinBytes: ByteArray): ByteArray {
-        val out = java.io.ByteArrayOutputStream(metaDbBytes.size + embeddingsBinBytes.size + 16)
-        out.write(byteArrayOf('F'.code.toByte(), 'D'.code.toByte(), 'B'.code.toByte(), '1'.code.toByte()))
-        writeIntLe(out, metaDbBytes.size)
-        writeIntLe(out, embeddingsBinBytes.size)
-        out.write(metaDbBytes)
-        out.write(embeddingsBinBytes)
-        return out.toByteArray()
+    private fun buildHashSummaryBody(summary: Map<String, String>): String {
+        return summary.toSortedMap().entries.joinToString("\n") { (name, hash) -> "$name\t$hash" }
     }
 
-    private fun writeIntLe(out: java.io.ByteArrayOutputStream, value: Int) {
-        out.write(value and 0xFF)
-        out.write((value ushr 8) and 0xFF)
-        out.write((value ushr 16) and 0xFF)
-        out.write((value ushr 24) and 0xFF)
+    private fun parseHashSummaryBody(raw: String): Map<String, String> {
+        val out = linkedMapOf<String, String>()
+        raw.lineSequence().forEach { line ->
+            val idx = line.indexOf('\t')
+            if (idx <= 0) return@forEach
+            val name = line.substring(0, idx).trim()
+            val hash = line.substring(idx + 1).trim()
+            if (name.isNotBlank() && hash.isNotBlank()) {
+                out[name] = hash
+            }
+        }
+        return out
     }
 
     companion object {

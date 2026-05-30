@@ -42,16 +42,36 @@ import java.net.URL
 import java.security.MessageDigest
 import java.text.SimpleDateFormat
 import java.util.Date
+import java.util.LinkedHashMap
 import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
 data class DbPersonRow(
-    val personIndex: Int,
+    val personKey: String,
     val name: String,
     val department: String,
+    val grade: String,
     val embeddingCount: Int,
+    val metadata: Map<String, String> = linkedMapOf(
+        "이름" to name,
+        "부서" to department,
+        "학년" to grade,
+    ),
+)
+
+data class ServerPersonRecord(
+    val name: String,
+    val department: String,
+    val grade: String = "",
+    val embeddings: MutableList<FloatArray>,
+    val hash: String,
+    val updatedAt: Long,
+    val personId: Long = personIdFromIdentity(name, department, grade),
+    val personKey: String = personKeyFromIdentity(name, department, grade),
+    val metadata: LinkedHashMap<String, String> = defaultMetadataMap(name, department, grade),
+    val metadataHash: String = metadataHash(metadata),
 )
 
 data class ClientConnectionStatus(
@@ -94,15 +114,31 @@ class FaceDbServerEngine(
         )
 
     @Volatile
-    private var currentDb: JSONObject = JSONObject().put("people", JSONArray())
+    private var currentPeople: MutableList<ServerPersonRecord> = mutableListOf()
     @Volatile
     private var dbLoadedOnce: Boolean = false
 
     fun setDbStorageDir(spec: String) {
-        val normalized = spec.trim()
+        val normalized = DbStorageLocation.normalize(spec)
+        ensureUserAccessibleDbDirectory(normalized)
         if (dbStorageDirSpec != normalized) {
             dbStorageDirSpec = normalized
             dbLoadedOnce = false
+        }
+    }
+
+    private fun ensureUserAccessibleDbDirectory(spec: String) {
+        if (spec.startsWith("content://") || spec.isBlank()) return
+        val root = File(spec)
+        val dir = if (root.isAbsolute) root else File(context.filesDir, spec)
+        listOf(
+            dir,
+            File(dir, "logs"),
+            File(dir, "models/buffalo_l"),
+            File(dir, "templates"),
+        ).forEach { folder ->
+            runCatching { folder.mkdirs() }
+                .onFailure { log("faceDB 디렉토리 생성 실패: ${folder.absolutePath} (${it.javaClass.simpleName})") }
         }
     }
 
@@ -244,11 +280,11 @@ class FaceDbServerEngine(
                         )
                         return@get
                     }
-                    val payload = JSONObject().apply {
-                        put("revision", revision.get())
-                        put("db", currentDb)
-                    }
-                    call.respondText(payload.toString(), ContentType.Application.Json)
+                    call.respondText(
+                        "{\"error\":\"legacy_json_db_endpoint_disabled\"}",
+                        ContentType.Application.Json,
+                        HttpStatusCode.Gone,
+                    )
                 }
 
                 get("/api/db/structured/meta") {
@@ -257,7 +293,7 @@ class FaceDbServerEngine(
                         call.respondText("error=unauthorized", ContentType.Text.Plain, HttpStatusCode.Unauthorized)
                         return@get
                     }
-                    dbStorageBackend.readDb()
+                    dbStorageBackend.readPeople()
                     val metaBytes = dbStorageBackend.readStructuredMetaBytes()
                     if (metaBytes == null) {
                         call.respondText("error=structured_meta_missing", ContentType.Text.Plain, HttpStatusCode.NotFound)
@@ -273,7 +309,7 @@ class FaceDbServerEngine(
                         call.respondText("error=unauthorized", ContentType.Text.Plain, HttpStatusCode.Unauthorized)
                         return@get
                     }
-                    dbStorageBackend.readDb()
+                    dbStorageBackend.readPeople()
                     val binBytes = dbStorageBackend.readStructuredEmbeddingsBytes()
                     if (binBytes == null) {
                         call.respondText("error=structured_bin_missing", ContentType.Text.Plain, HttpStatusCode.NotFound)
@@ -281,6 +317,65 @@ class FaceDbServerEngine(
                     }
                     log("구조화 bin 다운로드: client=$authClient, bytes=${binBytes.size}")
                     call.respondBytes(binBytes, ContentType.Application.OctetStream)
+                }
+
+                get("/api/db/hash-summary") {
+                    val authClient = authorizedClientId(call.request.headers["Authorization"], call.request.queryParameters["token"])
+                    if (authClient == null) {
+                        call.respondText("error=unauthorized", ContentType.Text.Plain, HttpStatusCode.Unauthorized)
+                        return@get
+                    }
+                    call.respondText(buildHashSummaryBody(currentPeople), ContentType.Text.Plain)
+                }
+
+                post("/api/db/delta/pull") {
+                    val authClient = authorizedClientId(call.request.headers["Authorization"], call.request.queryParameters["token"])
+                    if (authClient == null) {
+                        call.respondText("error=unauthorized", ContentType.Text.Plain, HttpStatusCode.Unauthorized)
+                        return@post
+                    }
+                    val clientHashes = parseHashSummaryBody(call.receiveText())
+                    val startedAt = System.currentTimeMillis()
+                    val deltaBundle = buildDeltaBundleForClient(clientHashes)
+                    log(
+                        "DB 델타 전송: client=$authClient, clientPeople=${clientHashes.size}, " +
+                            "bytes=${deltaBundle.size}, total=${System.currentTimeMillis() - startedAt}ms",
+                    )
+                    call.respondBytes(deltaBundle, ContentType.Application.OctetStream)
+                }
+
+                post("/api/db/delta/push") {
+                    val authClient = authorizedClientId(call.request.headers["Authorization"], call.request.queryParameters["token"])
+                    if (authClient == null) {
+                        call.respondText("error=unauthorized", ContentType.Text.Plain, HttpStatusCode.Unauthorized)
+                        return@post
+                    }
+                    val payload = runCatching { call.receiveStream().readBytes() }.getOrNull()
+                    val delta = payload?.let { parseDeltaBundle(it) }
+                    if (delta == null) {
+                        call.respondText("error=invalid_delta", ContentType.Text.Plain, HttpStatusCode.BadRequest)
+                        return@post
+                    }
+                    val updatedCount = applyDeltaToCurrentDb(delta)
+                    if (updatedCount == null) {
+                        call.respondText("error=write_failed", ContentType.Text.Plain, HttpStatusCode.InternalServerError)
+                        return@post
+                    }
+                    val nextRevision = revision.incrementAndGet()
+                    log(
+                        "임베딩 업데이트 수신: client=$authClient, upserts=${delta.upserts.size}명, " +
+                        "embeddings=${updatedCount}개 → DB 반영(revision=$nextRevision) → " +
+                        "${sessions.size}개 세션에 동기화 신호 전송",
+                    )
+                    broadcastDbUpdate(nextRevision, authClient)
+                    call.respondText(
+                        buildPlainFields(
+                            "status" to "ok",
+                            "revision" to nextRevision.toString(),
+                            "updatedEmbeddings" to updatedCount.toString(),
+                        ),
+                        ContentType.Text.Plain,
+                    )
                 }
 
                 post("/api/db/structured/push") {
@@ -301,11 +396,12 @@ class FaceDbServerEngine(
                     }
                     loadDbFromDisk()
                     val nextRevision = revision.incrementAndGet()
-                    broadcastDbUpdate(nextRevision, authClient)
                     log(
                         "구조화 DB 업로드 반영: client=$authClient, revision=$nextRevision, " +
-                            "meta=${bundle.first.size}B, bin=${bundle.second.size}B",
+                            "meta=${bundle.first.size}B, bin=${bundle.second.size}B → " +
+                            "${sessions.size}개 세션에 동기화 신호 전송",
                     )
+                    broadcastDbUpdate(nextRevision, authClient)
                     call.respondText(
                         buildPlainFields(
                             "status" to "ok",
@@ -326,62 +422,11 @@ class FaceDbServerEngine(
                         return@post
                     }
 
-                    val diffStartedAt = System.currentTimeMillis()
-                    val req = parseRequestBody(call.receiveText())
-                    val summary = req.optJSONObject("summary") ?: JSONObject().put("people", JSONArray())
-                    val clientHashes = parseClientHashes(summary)
-                    val people = extractPeopleArray(currentDb)
-
-                    val serverHashByName = mutableMapOf<String, String>()
-                    val upserts = JSONArray()
-                    for (i in 0 until people.length()) {
-                        val person = people.optJSONObject(i) ?: continue
-                        val name = person.optString("name", "").trim()
-                        if (name.isBlank()) continue
-                        val cachedHash = person.optString("hash", "").trim()
-                        val serverHash = if (cachedHash.isNotBlank()) cachedHash else personHash(person)
-                        serverHashByName[name] = serverHash
-                        val clientHash = clientHashes[name]
-                        if (serverHash != clientHash) {
-                            upserts.put(person)
-                        }
-                    }
-
-                    val deletes = JSONArray()
-                    clientHashes.keys.forEach { name ->
-                        if (!serverHashByName.containsKey(name)) {
-                            deletes.put(name)
-                        }
-                    }
-
-                    val hasChanges = upserts.length() > 0 || deletes.length() > 0
-                    val currentRevision = revision.get()
-                    val diffElapsedMs = System.currentTimeMillis() - diffStartedAt
-                    log(
-                        "DB diff 응답: client=$authClient, clientPeople=${clientHashes.size}, " +
-                            "serverPeople=${serverHashByName.size}, upserts=${upserts.length()}, " +
-                            "deletes=${deletes.length()}, total=${diffElapsedMs}ms",
+                    call.respondText(
+                        "{\"error\":\"legacy_json_diff_endpoint_disabled\"}",
+                        ContentType.Application.Json,
+                        HttpStatusCode.Gone,
                     )
-                    call.respondTextWriter(ContentType.Application.Json) {
-                        write("{")
-                        write("\"revision\":")
-                        write(currentRevision.toString())
-                        write(",\"hasChanges\":")
-                        write(if (hasChanges) "true" else "false")
-                        write(",\"upserts\":[")
-                        for (i in 0 until upserts.length()) {
-                            if (i > 0) write(",")
-                            write(upserts.optJSONObject(i)?.toString() ?: "null")
-                        }
-                        write("],\"deletes\":[")
-                        for (i in 0 until deletes.length()) {
-                            if (i > 0) write(",")
-                            write(JSONObject.quote(deletes.optString(i, "")))
-                        }
-                        write("],\"serverPeopleCount\":")
-                        write(serverHashByName.size.toString())
-                        write("}")
-                    }
                 }
 
                 post("/api/db/push") {
@@ -395,27 +440,39 @@ class FaceDbServerEngine(
                         return@post
                     }
 
-                    val req = parseRequestBody(call.receiveText())
-                    val db = req.optJSONObject("db")
-                    if (db == null) {
-                        call.respondText(
-                            "{\"error\":\"missing_db\"}",
-                            ContentType.Application.Json,
-                            HttpStatusCode.BadRequest,
-                        )
+                    call.respondText(
+                        "{\"error\":\"legacy_json_push_endpoint_disabled\"}",
+                        ContentType.Application.Json,
+                        HttpStatusCode.Gone,
+                    )
+                }
+
+                post("/api/attendance/mark") {
+                    val authClient = authorizedClientId(call.request.headers["Authorization"], call.request.queryParameters["token"])
+                    if (authClient == null) {
+                        call.respondText("error=unauthorized", ContentType.Text.Plain, HttpStatusCode.Unauthorized)
                         return@post
                     }
-
-                    currentDb = normalizeDbRoot(db)
-                    normalizePeopleMetadata(currentDb, preserveUpdatedAt = false)
-                    saveDbToDisk()
-                    val nextRevision = revision.incrementAndGet()
-                    broadcastDbUpdate(nextRevision, authClient)
-                    log("DB 업데이트 수신: source=$authClient, rev=$nextRevision")
-
+                    val req = parsePlainFields(call.receiveText())
+                    val name = req["name"].orEmpty().trim()
+                    if (name.isBlank()) {
+                        call.respondText("error=missing_name", ContentType.Text.Plain, HttpStatusCode.BadRequest)
+                        return@post
+                    }
+                    val affiliation = req["affiliation"].orEmpty().trim()
+                    val department = req["department"].orEmpty().trim()
+                    val fileName = markAttendance(authClient, name, affiliation, department)
+                    if (fileName == null) {
+                        call.respondText("error=attendance_write_failed", ContentType.Text.Plain, HttpStatusCode.InternalServerError)
+                        return@post
+                    }
                     call.respondText(
-                        JSONObject().put("revision", nextRevision).toString(),
-                        ContentType.Application.Json,
+                        buildPlainFields(
+                            "status" to "ok",
+                            "file" to fileName,
+                            "name" to name,
+                        ),
+                        ContentType.Text.Plain,
                     )
                 }
 
@@ -553,104 +610,59 @@ class FaceDbServerEngine(
         }
     }
 
+    fun reloadDbMetadataFromCsv(): Boolean {
+        return runCatching {
+            dbStorageBackend = resolveDbStorageBackend()
+            val csvRaw = dbStorageBackend.readCsvText()
+            if (csvRaw.isNullOrBlank()) {
+                log("DB 재로드(CSV) 실패: CSV 파일을 읽을 수 없습니다.")
+                return false
+            }
+            if (currentPeople.isEmpty()) {
+                loadDbFromDisk()
+            }
+            if (currentPeople.isEmpty()) {
+                log("DB 재로드(CSV) 실패: 기준이 되는 메모리/구조화 DB가 비어 있습니다.")
+                return false
+            }
+            val merged = StructuredDbCodec.mergeMetadataIntoPeople(currentPeople, csvRaw, csvCodec)
+            if (merged.isEmpty()) {
+                log("DB 재로드(CSV) 실패: CSV 메타데이터와 일치하는 항목이 없습니다.")
+                return false
+            }
+            if (!replaceCurrentPeople(merged)) {
+                log("DB 재로드(CSV) 실패: face_meta.db 저장 중 오류가 발생했습니다.")
+                return false
+            }
+            val nextRevision = revision.incrementAndGet()
+            if (isRunning()) {
+                broadcastDbUpdate(nextRevision, "server_reload_csv")
+                log("DB 재로드(CSV) 브로드캐스트 전송: rev=$nextRevision")
+            }
+            log("DB 재로드(CSV) 완료: 메타데이터 ${merged.size}건 반영")
+            true
+        }.getOrElse {
+            log("DB 재로드(CSV) 실패: ${it.javaClass.simpleName}")
+            false
+        }
+    }
+
     @Synchronized
     fun dbRowsSnapshot(): List<DbPersonRow> {
-        val arr = extractPeopleArray(currentDb)
-        if (arr.length() <= 0) return emptyList()
-        val rows = ArrayList<DbPersonRow>(arr.length())
-        for (i in 0 until arr.length()) {
-            val person = arr.optJSONObject(i) ?: continue
-            val name = person.optString("name", "").trim()
-            if (name.isBlank()) continue
-            rows.add(
+        return currentPeople
+            .asSequence()
+            .sortedBy { it.name }
+            .map { person ->
                 DbPersonRow(
-                    personIndex = i,
-                    name = name,
-                    department = person.optString("department", person.optString("folder", "")).trim(),
-                    embeddingCount = extractEmbeddingCount(person),
-                ),
-            )
-        }
-        return rows.sortedBy { it.name }
-    }
-
-    private fun extractPeopleArray(root: JSONObject): JSONArray {
-        root.optJSONArray("people")?.let { return it }
-        root.optJSONArray("persons")?.let { return it }
-        root.optJSONArray("faces")?.let { return it }
-
-        val map = root.optJSONObject("people")
-            ?: root.optJSONObject("persons")
-            ?: root.optJSONObject("faces")
-        if (map != null) {
-            val arr = JSONArray()
-            val keys = map.keys()
-            while (keys.hasNext()) {
-                val key = keys.next()
-                val item = map.optJSONObject(key) ?: JSONObject()
-                if (item.optString("name", "").isBlank()) {
-                    item.put("name", key)
-                }
-                arr.put(item)
+                    personKey = person.personKey,
+                    name = person.name,
+                    department = person.department,
+                    grade = person.grade,
+                    embeddingCount = person.embeddings.size,
+                    metadata = LinkedHashMap(person.metadata),
+                )
             }
-            return arr
-        }
-        return JSONArray()
-    }
-
-    private fun extractEmbeddingCount(person: JSONObject): Int {
-        person.optJSONArray("embeddings")?.let { return it.length() }
-        person.optInt("num_samples", -1).takeIf { it >= 0 }?.let { return it }
-        person.optJSONArray("samples")?.let { return it.length() }
-        val byDirection = person.optJSONObject("embeddings_by_direction")
-        if (byDirection != null) {
-            var count = 0
-            val keys = byDirection.keys()
-            while (keys.hasNext()) {
-                val key = keys.next()
-                count += byDirection.optJSONArray(key)?.length() ?: 0
-            }
-            return count
-        }
-        return 0
-    }
-
-    private fun parseClientHashes(summary: JSONObject): Map<String, String> {
-        val result = mutableMapOf<String, String>()
-        val arr = summary.optJSONArray("people") ?: JSONArray()
-        for (i in 0 until arr.length()) {
-            val item = arr.optJSONObject(i) ?: continue
-            val name = item.optString("name", "").trim()
-            val hash = item.optString("hash", "").trim()
-            if (name.isNotBlank() && hash.isNotBlank()) {
-                result[name] = hash
-            }
-        }
-        return result
-    }
-
-    private fun personHash(person: JSONObject): String {
-        val digest = MessageDigest.getInstance("SHA-256")
-        val name = person.optString("name", "").trim()
-        val department = person.optString("department", person.optString("folder", "")).trim()
-        val embeddings = person.optJSONArray("embeddings") ?: JSONArray()
-
-        digest.update(name.toByteArray(Charsets.UTF_8))
-        digest.update(0)
-        digest.update(department.toByteArray(Charsets.UTF_8))
-        digest.update(0)
-        updateDigestInt(digest, embeddings.length())
-
-        for (i in 0 until embeddings.length()) {
-            val emb = embeddings.optJSONArray(i) ?: JSONArray()
-            updateDigestInt(digest, emb.length())
-            for (j in 0 until emb.length()) {
-                val v = emb.optDouble(j, 0.0).toFloat()
-                updateDigestInt(digest, java.lang.Float.floatToIntBits(v))
-            }
-        }
-
-        return digest.digest().joinToString("") { b -> "%02x".format(b) }
+            .toList()
     }
 
     private fun updateDigestInt(digest: MessageDigest, value: Int) {
@@ -661,45 +673,72 @@ class FaceDbServerEngine(
     }
 
     @Synchronized
-    fun updatePersonRow(personIndex: Int, name: String, department: String): Boolean {
+    fun updatePersonRow(personKey: String, name: String, department: String, grade: String): Boolean {
         val nextName = name.trim()
         if (nextName.isBlank()) {
             log("DB 수정 실패: 이름이 비어 있습니다.")
             return false
         }
-        val people = currentDb.optJSONArray("people") ?: return false
-        if (personIndex !in 0 until people.length()) return false
-        val person = people.optJSONObject(personIndex) ?: return false
-        person.put("name", nextName)
-        person.put("department", department.trim())
-        person.put("updatedAt", System.currentTimeMillis())
-        person.put("hash", personHash(person))
-        saveDbToDisk()
+        val normalizedKey = personKey.trim()
+        val targetIndex = currentPeople.indexOfFirst { it.personKey == normalizedKey }
+        if (targetIndex < 0) {
+            log("DB 수정 실패: 대상을 찾지 못했습니다. key=$normalizedKey")
+            return false
+        }
+        if (currentPeople.any { it.personKey != normalizedKey && it.name == nextName }) {
+            log("DB 수정 실패: 동일한 이름이 이미 존재합니다. name=$nextName")
+            return false
+        }
+        val target = currentPeople[targetIndex]
+        val metadata = LinkedHashMap(target.metadata)
+        metadata.entries.firstOrNull { it.key.equals("name", ignoreCase = true) }?.setValue(nextName)
+        if (metadata.keys.none { it.equals("name", ignoreCase = true) }) metadata["name"] = nextName
+        metadata.entries.firstOrNull { it.key.equals("department", ignoreCase = true) }?.setValue(department.trim())
+        if (metadata.keys.none { it.equals("department", ignoreCase = true) }) metadata["department"] = department.trim()
+        metadata.entries.firstOrNull { it.key.equals("grade", ignoreCase = true) }?.setValue(grade.trim())
+        if (metadata.keys.none { it.equals("grade", ignoreCase = true) }) metadata["grade"] = grade.trim()
+        val normalizedMetadata = normalizeMetadataMap(metadata, nextName, department.trim(), grade.trim())
+        val nextPeople = currentPeople.toMutableList()
+        nextPeople[targetIndex] = target.copy(
+            name = nextName,
+            department = department.trim(),
+            grade = grade.trim(),
+            hash = personHash(nextName, department.trim(), grade.trim(), target.embeddings),
+            updatedAt = System.currentTimeMillis(),
+            personId = target.personId,
+            personKey = target.personKey,
+            metadata = normalizedMetadata,
+            metadataHash = metadataHash(normalizedMetadata),
+        )
+        if (!replaceCurrentPeople(nextPeople)) {
+            log("DB 수정 실패: 저장 중 오류가 발생했습니다. key=$normalizedKey")
+            return false
+        }
         val nextRevision = revision.incrementAndGet()
         if (isRunning()) {
             broadcastDbUpdate(nextRevision, "server_ui_edit")
         }
-        log("DB 수정 완료: index=$personIndex, name=$nextName, rev=$nextRevision")
+        log("DB 수정 완료: key=$normalizedKey, name=$nextName, rev=$nextRevision")
         return true
     }
 
     @Synchronized
-    fun deletePersonRow(personIndex: Int): Boolean {
-        val people = currentDb.optJSONArray("people") ?: return false
-        if (personIndex !in 0 until people.length()) return false
-        val deletedName = people.optJSONObject(personIndex)?.optString("name", "")?.trim().orEmpty()
-        val nextPeople = JSONArray()
-        for (i in 0 until people.length()) {
-            if (i == personIndex) continue
-            nextPeople.put(people.opt(i))
+    fun deletePersonRow(personKey: String): Boolean {
+        val normalizedKey = personKey.trim()
+        val nextPeople = currentPeople.filterNot { it.personKey == normalizedKey }.toMutableList()
+        if (nextPeople.size == currentPeople.size) {
+            log("DB 삭제 실패: 대상을 찾지 못했습니다. key=$normalizedKey")
+            return false
         }
-        currentDb.put("people", nextPeople)
-        saveDbToDisk()
+        if (!replaceCurrentPeople(nextPeople)) {
+            log("DB 삭제 실패: 저장 중 오류가 발생했습니다. key=$normalizedKey")
+            return false
+        }
         val nextRevision = revision.incrementAndGet()
         if (isRunning()) {
             broadcastDbUpdate(nextRevision, "server_ui_delete")
         }
-        log("DB 삭제 완료: index=$personIndex, name=${deletedName.ifBlank { "-" }}, rev=$nextRevision")
+        log("DB 삭제 완료: key=${normalizedKey.ifBlank { "-" }}, rev=$nextRevision")
         return true
     }
 
@@ -770,6 +809,8 @@ class FaceDbServerEngine(
             "sourceClientId" to sourceClientId,
         )
 
+        log("DB 동기화 신호 전송: source=$sourceClientId, revision=$nextRevision, targets=${sessions.size}")
+
         sessions.values.forEach { session ->
             scope.launch {
                 runCatching { session.send(Frame.Text(msg)) }
@@ -784,33 +825,242 @@ class FaceDbServerEngine(
             log("경고: DB 파일(.db/.bin)이 없습니다. (${dbStorageBackend.structuredDbDescription()})")
         }
         val readStartedAt = System.currentTimeMillis()
-        val loaded = dbStorageBackend.readDb()
+        val loaded = dbStorageBackend.readPeople()
         val readElapsedMs = System.currentTimeMillis() - readStartedAt
         if (loaded == null) {
-            currentDb = JSONObject().put("people", JSONArray())
+            currentPeople = mutableListOf()
             revision.set(0)
             val totalElapsedMs = System.currentTimeMillis() - startedAt
             log("DB 초기화: ${dbStorageBackend.description()} (read=${readElapsedMs}ms, total=${totalElapsedMs}ms)")
             return
         }
-        val normalizeStartedAt = System.currentTimeMillis()
-        val normalized = normalizeDbRoot(loaded)
-        normalizePeopleMetadata(normalized, preserveUpdatedAt = true)
-        val normalizeElapsedMs = System.currentTimeMillis() - normalizeStartedAt
-        currentDb = normalized
+        if (dbStorageBackend.needsStructuredSchemaUpgrade()) {
+            if (dbStorageBackend.writePeople(loaded)) {
+                log("Structured DB schema upgraded to person_key + person_idx + metadata_blob")
+            } else {
+                log("Structured DB schema upgrade failed")
+            }
+        }
+        val normalized = assignSequentialPersonIds(loaded)
+        currentPeople = normalized.toMutableList()
+        if (loaded.map { it.personId } != normalized.map { it.personId }) {
+            dbStorageBackend.writePeople(normalized)
+        }
         revision.set(1)
         val totalElapsedMs = System.currentTimeMillis() - startedAt
         log(
             "DB 로드 완료: ${dbStorageBackend.description()} " +
-                "(read=${readElapsedMs}ms, normalize=${normalizeElapsedMs}ms, total=${totalElapsedMs}ms)",
+                "(read=${readElapsedMs}ms, total=${totalElapsedMs}ms)",
         )
     }
 
-    private fun saveDbToDisk() {
-        val ok = dbStorageBackend.writeDb(currentDb)
+    private fun saveDbToDisk(people: List<ServerPersonRecord> = currentPeople): Boolean {
+        val ok = dbStorageBackend.writePeople(people)
         if (!ok) {
             log("DB 저장 실패: ${dbStorageBackend.description()}")
         }
+        return ok
+    }
+
+    @Synchronized
+    private fun replaceCurrentPeople(nextPeople: List<ServerPersonRecord>): Boolean {
+        val snapshot = assignSequentialPersonIds(nextPeople)
+        if (!saveDbToDisk(snapshot)) {
+            return false
+        }
+        currentPeople = snapshot.toMutableList()
+        return true
+    }
+
+    private fun assignSequentialPersonIds(people: List<ServerPersonRecord>): List<ServerPersonRecord> {
+        return people
+            .asSequence()
+            .filter { it.name.isNotBlank() }
+            .sortedWith(compareBy<ServerPersonRecord> { it.name }.thenBy { it.grade }.thenBy { it.department })
+            .mapIndexed { index, person ->
+                person.copy(
+                    personId = (index + 1).toLong(),
+                    embeddings = person.embeddings.map { it.copyOf() }.toMutableList(),
+                )
+            }
+            .toList()
+    }
+
+    private fun buildHashSummaryBody(people: List<ServerPersonRecord>): String {
+        return people
+            .asSequence()
+            .filter { it.personKey.isNotBlank() && it.hash.isNotBlank() }
+            .sortedBy { it.personKey }
+            .joinToString("\n") { "${it.personKey}\t${it.hash}" }
+    }
+
+    private fun parseHashSummaryBody(raw: String): Map<String, String> {
+        val out = linkedMapOf<String, String>()
+        raw.lineSequence().forEach { line ->
+            val idx = line.indexOf('\t')
+            if (idx <= 0) return@forEach
+            val personKey = line.substring(0, idx).trim()
+            val hash = line.substring(idx + 1).trim()
+            if (personKey.isNotBlank() && hash.isNotBlank()) {
+                out[personKey] = hash
+            }
+        }
+        return out
+    }
+
+    private fun buildDeltaBundleForClient(clientHashes: Map<String, String>): ByteArray {
+        val serverKeys = currentPeople.mapTo(mutableSetOf()) { it.personKey }
+        val upserts = currentPeople
+            .asSequence()
+            .filter { it.personKey.isNotBlank() && clientHashes[it.personKey] != it.hash }
+            .sortedBy { it.personKey }
+            .toList()
+        val deletes = clientHashes.keys.filter { it !in serverKeys }
+        return encodeDeltaBundle(upserts, deletes)
+    }
+
+    private fun applyDeltaToCurrentDb(delta: DeltaPayload): Int? {
+        val nextByPersonKey = linkedMapOf<String, ServerPersonRecord>()
+        val nextByPersonId = linkedMapOf<Long, ServerPersonRecord>()
+        val nextByIdentity = linkedMapOf<String, ServerPersonRecord>()
+        currentPeople.forEach { person ->
+            nextByPersonKey[person.personKey] = person
+            nextByPersonId[person.personId] = person
+            nextByIdentity[metadataIdentityKey(person.metadata)] = person
+        }
+        delta.deletes.forEach { personKey ->
+            val removed = nextByPersonKey.remove(personKey)
+            if (removed != null) {
+                nextByIdentity.remove(metadataIdentityKey(removed.metadata))
+            }
+        }
+        delta.upserts.forEach { incoming ->
+            val existing = nextByPersonKey[incoming.personKey]
+                ?: nextByIdentity[metadataIdentityKey(incoming.metadata)]
+            val merged =
+                if (existing != null) {
+                    // 클라이언트 업로드는 임베딩만 반영하고, 서버 메타데이터(name/department/grade)가 정본이다.
+                    existing.copy(
+                        embeddings = incoming.embeddings.map { it.copyOf() }.toMutableList(),
+                        hash = personHash(existing.name, existing.department, existing.grade, incoming.embeddings),
+                        updatedAt = incoming.updatedAt,
+                        metadataHash = metadataHash(existing.metadata),
+                    )
+                } else {
+                    incoming
+                }
+            if (existing != null && existing.personId != merged.personId) {
+                nextByPersonKey.remove(existing.personKey)
+                nextByIdentity.remove(metadataIdentityKey(existing.metadata))
+            }
+            nextByPersonKey[merged.personKey] = merged
+            nextByIdentity[metadataIdentityKey(merged.metadata)] = merged
+        }
+        val nextPeople = nextByPersonKey.values.sortedBy { it.name }
+        if (!replaceCurrentPeople(nextPeople)) {
+            return null
+        }
+        return delta.upserts.sumOf { it.embeddings.size }
+    }
+
+    @Synchronized
+    private fun markAttendance(clientId: String, name: String, affiliationHint: String, departmentHint: String): String? {
+        val date = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+        val fileName = "attendance_$date.csv"
+        val previousRaw = dbStorageBackend.readTextFile(fileName).orEmpty()
+        val existingMarked = previousRaw
+            .ifBlank { null }
+            ?.let { csvCodec.parseAttendanceMarkedNames(it) }
+            ?.toMutableSet()
+            ?: linkedSetOf()
+        existingMarked += name
+
+        val baseRows = loadAttendanceBaseRows()
+        val byName = linkedMapOf<String, AttendanceBaseRow>()
+        baseRows.sortedBy { it.name }.forEach { byName[it.name] = it }
+        if (!byName.containsKey(name)) {
+            byName[name] = AttendanceBaseRow(
+                name = name,
+                affiliation = affiliationHint,
+                department = departmentHint,
+            )
+        }
+        val csv = buildAttendanceCsv(date, byName.values.toList(), existingMarked)
+        val storageDescription = dbStorageBackend.description()
+        log(
+            "출석부 생성 준비: client=$clientId, name=$name, baseRows=${byName.size}, " +
+                "marked=${existingMarked.size}, prevBytes=${previousRaw.toByteArray().size}, newBytes=${csv.toByteArray().size}, " +
+                "storage=$storageDescription, file=$fileName",
+        )
+        if (!dbStorageBackend.writeTextFile(fileName, csv)) {
+            log("출석부 저장 실패: client=$clientId, name=$name, file=$fileName, storage=$storageDescription")
+            return null
+        }
+        val changed = previousRaw != csv
+        val changeType = when {
+            previousRaw.isBlank() -> "생성"
+            changed -> "내용변경"
+            else -> "변경없음"
+        }
+        val firstDataLine = csv.lineSequence().drop(2).firstOrNull().orEmpty()
+        log(
+            "출석부 $changeType 완료: file=$fileName, client=$clientId, name=$name, " +
+                "rows=${byName.size}, marked=${existingMarked.size}, sample=${firstDataLine.ifBlank { "-" }}, " +
+                "storage=$storageDescription",
+        )
+        return fileName
+    }
+
+    private fun loadAttendanceBaseRows(): List<AttendanceBaseRow> {
+        val byName = linkedMapOf<String, AttendanceBaseRow>()
+        val fromCsv = dbStorageBackend.readCsvText()
+            ?.let { csvCodec.parseAttendanceRows(it) }
+            .orEmpty()
+            .filter { it.name.isNotBlank() }
+        fromCsv.forEach {
+            byName[it.name] = AttendanceBaseRow(
+                name = it.name,
+                affiliation = it.affiliation,
+                department = it.department,
+            )
+        }
+        currentPeople
+            .asSequence()
+            .filter { it.name.isNotBlank() }
+            .forEach { person ->
+                val existing = byName[person.name]
+                byName[person.name] =
+                    AttendanceBaseRow(
+                        name = person.name,
+                        affiliation = existing?.affiliation?.ifBlank { person.grade } ?: person.grade,
+                        department = existing?.department?.ifBlank { person.department } ?: person.department,
+                    )
+            }
+        log("출석부 기준 명단 로드: csv=${fromCsv.size}, memory=${currentPeople.size}, merged=${byName.size}")
+        return byName.values.toList()
+    }
+
+    private fun buildAttendanceCsv(date: String, rows: List<AttendanceBaseRow>, attendedNames: Set<String>): String {
+        val out = StringBuilder()
+        out.append("출석부 기록일자,").append(csvEscape(date)).append('\n')
+        out.append("이름,소속,부서,출석여부\n")
+        rows.sortedBy { it.name }.forEach { row ->
+            out.append(csvEscape(row.name))
+                .append(',')
+                .append(csvEscape(row.affiliation))
+                .append(',')
+                .append(csvEscape(row.department))
+                .append(',')
+                .append(csvEscape(if (row.name in attendedNames) "출석" else "미출석"))
+                .append('\n')
+        }
+        return out.toString()
+    }
+
+    private fun csvEscape(value: String): String {
+        val escaped = value.replace("\"", "\"\"")
+        val requiresQuote = escaped.any { ch -> ch == ',' || ch == '"' || ch == '\n' || ch == '\r' }
+        return if (requiresQuote) "\"$escaped\"" else escaped
     }
 
     private fun resolveDbStorageBackend(): DbStorageBackend {
@@ -849,37 +1099,22 @@ class FaceDbServerEngine(
         )
     }
 
-    private fun normalizeDbRoot(root: JSONObject): JSONObject {
-        root.optJSONArray("people")?.let { return root }
-        root.optJSONArray("persons")?.let { return JSONObject().put("people", it) }
-        root.optJSONArray("faces")?.let { return JSONObject().put("people", it) }
-
-        val arr = extractPeopleArray(root)
-        return JSONObject().put("people", arr)
-    }
-
-    private fun normalizePeopleMetadata(root: JSONObject, preserveUpdatedAt: Boolean) {
-        val people = root.optJSONArray("people") ?: return
-        val now = System.currentTimeMillis()
-        for (i in 0 until people.length()) {
-            val person = people.optJSONObject(i) ?: continue
-            val name = person.optString("name", "").trim()
-            if (name.isBlank()) continue
-            val department = person.optString("department", person.optString("folder", "")).trim()
-            val embeddings = person.optJSONArray("embeddings") ?: JSONArray()
-            person.put("name", name)
-            person.put("department", department)
-            person.put("embeddings", embeddings)
-            if (!preserveUpdatedAt || person.optLong("updatedAt", 0L) <= 0L) {
-                person.put("updatedAt", now)
-            }
-            val existingHash = person.optString("hash", "").trim()
-            if (existingHash.isBlank()) {
-                person.put("hash", personHash(person))
-            } else {
-                person.put("hash", existingHash)
+    private fun personHash(name: String, department: String, grade: String, embeddings: List<FloatArray>): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        digest.update(name.toByteArray(Charsets.UTF_8))
+        digest.update(0)
+        digest.update(department.toByteArray(Charsets.UTF_8))
+        digest.update(0)
+        digest.update(grade.toByteArray(Charsets.UTF_8))
+        digest.update(0)
+        updateDigestInt(digest, embeddings.size)
+        embeddings.forEach { emb ->
+            updateDigestInt(digest, emb.size)
+            emb.forEach { value ->
+                updateDigestInt(digest, java.lang.Float.floatToIntBits(value))
             }
         }
+        return digest.digest().joinToString("") { b -> "%02x".format(b) }
     }
 
     private fun loadAuthStateFromDisk() {
@@ -939,6 +1174,152 @@ class FaceDbServerEngine(
         return pairs.joinToString("\n") { (key, value) -> "$key=${value.replace("\n", " ").trim()}" }
     }
 
+    private fun encodeDeltaBundle(upserts: List<ServerPersonRecord>, deletes: List<String>): ByteArray {
+        val out = ByteArrayOutputStream()
+        out.write(byteArrayOf('F'.code.toByte(), 'D'.code.toByte(), 'D'.code.toByte(), '1'.code.toByte()))
+        writeIntLe(out, deletes.size)
+        deletes.sorted().forEach { writeString(out, it) }
+        writeIntLe(out, upserts.size)
+        upserts.sortedBy { it.personKey }.forEach { person ->
+            val embCount = person.embeddings.size
+            val dim = person.embeddings.firstOrNull()?.size ?: 0
+            writeString(out, person.personKey)
+            writeString(out, person.personId.toString())
+            writeString(out, person.name)
+            writeString(out, person.department)
+            writeString(out, person.grade)
+            writeString(out, person.hash)
+            writeLongLe(out, person.updatedAt)
+            val metadataBlob = encodeMetadataBlob(person.metadata)
+            writeIntLe(out, metadataBlob.size)
+            out.write(metadataBlob)
+            writeString(out, person.metadataHash)
+            writeIntLe(out, embCount)
+            writeIntLe(out, dim)
+            person.embeddings.forEach { emb ->
+                for (j in 0 until dim) {
+                    writeFloatLe(out, emb.getOrElse(j) { 0f })
+                }
+            }
+        }
+        return out.toByteArray()
+    }
+
+    private fun parseDeltaBundle(bytes: ByteArray): DeltaPayload? {
+        if (bytes.size < 4) return null
+        if (bytes[0] != 'F'.code.toByte() || bytes[1] != 'D'.code.toByte() || bytes[2] != 'D'.code.toByte() || bytes[3] != '1'.code.toByte()) return null
+        val cursor = DeltaCursor(bytes, 4)
+        val deleteCount = cursor.readInt() ?: return null
+        val deletes = MutableList(deleteCount.coerceAtLeast(0)) { cursor.readString().orEmpty() }.filter { it.isNotBlank() }
+        val upsertCount = cursor.readInt() ?: return null
+        val upserts = mutableListOf<ServerPersonRecord>()
+        repeat(upsertCount.coerceAtLeast(0)) {
+            val personKeyRaw = cursor.readString()
+            val personId = parsePersonId(cursor.readString())
+            val name = cursor.readString() ?: return@repeat
+            val department = cursor.readString() ?: return@repeat
+            val grade = cursor.readString() ?: return@repeat
+            val hash = cursor.readString() ?: return@repeat
+            val updatedAt = cursor.readLong() ?: return@repeat
+            val metadataBlobLength = cursor.readInt() ?: return@repeat
+            val metadataBlob = cursor.readBytes(metadataBlobLength) ?: return@repeat
+            val metadata = normalizeMetadataMap(decodeMetadataBlob(metadataBlob), name, department, grade)
+            val incomingMetadataHash = cursor.readString() ?: metadataHash(metadata)
+            val embCount = cursor.readInt() ?: return@repeat
+            val dim = cursor.readInt() ?: return@repeat
+            val embeddings = mutableListOf<FloatArray>()
+            repeat(embCount.coerceAtLeast(0)) {
+                val emb = FloatArray(dim.coerceAtLeast(0))
+                for (i in 0 until dim.coerceAtLeast(0)) {
+                    emb[i] = cursor.readFloat() ?: return@repeat
+                }
+                embeddings += emb
+            }
+            if (name.isBlank() || embeddings.isEmpty()) return@repeat
+            upserts += ServerPersonRecord(
+                name = name,
+                department = department,
+                grade = grade,
+                embeddings = embeddings,
+                hash = hash,
+                updatedAt = updatedAt,
+                personId = if (personId > 0L) personId else personIdFromIdentity(name, department, grade),
+                personKey = parsePersonKey(personKeyRaw, name, department, grade),
+                metadata = metadata,
+                metadataHash = incomingMetadataHash.ifBlank { metadataHash(metadata) },
+            )
+        }
+        return DeltaPayload(upserts, deletes)
+    }
+
+    private fun writeString(out: ByteArrayOutputStream, value: String) {
+        val bytes = value.toByteArray(Charsets.UTF_8)
+        writeIntLe(out, bytes.size)
+        out.write(bytes)
+    }
+
+    private fun writeIntLe(out: ByteArrayOutputStream, value: Int) {
+        out.write(value and 0xFF)
+        out.write((value ushr 8) and 0xFF)
+        out.write((value ushr 16) and 0xFF)
+        out.write((value ushr 24) and 0xFF)
+    }
+
+    private fun writeLongLe(out: ByteArrayOutputStream, value: Long) {
+        for (shift in 0 until 64 step 8) {
+            out.write(((value ushr shift) and 0xFF).toInt())
+        }
+    }
+
+    private fun writeFloatLe(out: ByteArrayOutputStream, value: Float) {
+        writeIntLe(out, java.lang.Float.floatToIntBits(value))
+    }
+
+    private data class DeltaPayload(
+        val upserts: List<ServerPersonRecord>,
+        val deletes: List<String>,
+    )
+
+    private class DeltaCursor(private val bytes: ByteArray, private var offset: Int) {
+        fun readInt(): Int? {
+            if (offset + 4 > bytes.size) return null
+            val value =
+                (bytes[offset].toInt() and 0xFF) or
+                    ((bytes[offset + 1].toInt() and 0xFF) shl 8) or
+                    ((bytes[offset + 2].toInt() and 0xFF) shl 16) or
+                    ((bytes[offset + 3].toInt() and 0xFF) shl 24)
+            offset += 4
+            return value
+        }
+
+        fun readLong(): Long? {
+            if (offset + 8 > bytes.size) return null
+            var value = 0L
+            for (i in 0 until 8) {
+                value = value or ((bytes[offset + i].toLong() and 0xFFL) shl (8 * i))
+            }
+            offset += 8
+            return value
+        }
+
+        fun readFloat(): Float? = readInt()?.let { Float.fromBits(it) }
+
+        fun readString(): String? {
+            val size = readInt() ?: return null
+            if (size < 0 || offset + size > bytes.size) return null
+            val value = bytes.copyOfRange(offset, offset + size).toString(Charsets.UTF_8)
+            offset += size
+            return value
+        }
+
+        fun readBytes(size: Int): ByteArray? {
+            if (size < 0 || offset + size > bytes.size) return null
+            val value = bytes.copyOfRange(offset, offset + size)
+            offset += size
+            return value
+        }
+    }
+
     private fun parseStructuredBundle(payload: ByteArray): Pair<ByteArray, ByteArray>? {
         if (payload.size < 12) return null
         if (payload[0] != 'F'.code.toByte() || payload[1] != 'D'.code.toByte() || payload[2] != 'B'.code.toByte() || payload[3] != '1'.code.toByte()) {
@@ -975,14 +1356,18 @@ class FaceDbServerEngine(
     }
 
     private interface DbStorageBackend {
-        fun readDb(): JSONObject?
-        fun writeDb(root: JSONObject): Boolean
+        fun readPeople(): MutableList<ServerPersonRecord>?
+        fun writePeople(people: List<ServerPersonRecord>): Boolean
         fun writeStructured(metaDbBytes: ByteArray, embeddingsBinBytes: ByteArray): Boolean
+        fun readCsvText(): String?
+        fun readTextFile(fileName: String): String?
+        fun writeTextFile(fileName: String, raw: String): Boolean
         fun description(): String
         fun hasStructuredDb(): Boolean
         fun structuredDbDescription(): String
         fun readStructuredMetaBytes(): ByteArray?
         fun readStructuredEmbeddingsBytes(): ByteArray?
+        fun needsStructuredSchemaUpgrade(): Boolean
     }
 
     private class FileDbStorageBackend(
@@ -999,7 +1384,7 @@ class FaceDbServerEngine(
             return "${metaDbFile.absolutePath}, ${embeddingsBinFile.absolutePath}"
         }
 
-        override fun readDb(): JSONObject? {
+        override fun readPeople(): MutableList<ServerPersonRecord>? {
             val structuredExists = hasStructuredDb()
             val csvNeedsImport = csvFile.exists() &&
                 (
@@ -1010,36 +1395,37 @@ class FaceDbServerEngine(
             if (csvNeedsImport) {
                 val raw = runCatching { csvFile.readText() }.getOrNull()
                 if (raw != null) {
-                    if (structuredExists && !csvCodec.hasEmbeddingsColumn(raw)) {
-                        StructuredDbCodec.loadFromStructured(metaDbFile, embeddingsBinFile)?.let { return it }
-                    }
-                    val root =
+                    val people =
                         if (structuredExists) {
-                            val base = StructuredDbCodec.loadFromStructured(metaDbFile, embeddingsBinFile)
-                            if (base != null) StructuredDbCodec.mergeWithCsvMetadata(base, raw, csvCodec) else null
+                            val base = StructuredDbCodec.loadPeopleFromStructured(metaDbFile, embeddingsBinFile)
+                            if (base != null) StructuredDbCodec.mergeMetadataIntoPeople(base, raw, csvCodec) else null
                         } else {
-                            StructuredDbCodec.parseCsvDb(raw, csvCodec)
+                            StructuredDbCodec.parseCsvDbToPeople(raw, csvCodec)
                         }
-                    if (root != null && StructuredDbCodec.saveToStructured(root, metaDbFile, embeddingsBinFile)) {
-                        return root
+                    if (people != null && StructuredDbCodec.savePeopleToStructured(people, metaDbFile, embeddingsBinFile)) {
+                        writeCsvSnapshot(people)
+                        return people
                     }
                 }
             }
 
             if (structuredExists) {
-                StructuredDbCodec.loadFromStructured(metaDbFile, embeddingsBinFile)?.let { root ->
+                StructuredDbCodec.loadPeopleFromStructured(metaDbFile, embeddingsBinFile)?.let { people ->
                     if (!csvFile.exists()) {
-                        writeCsvSnapshot(root)
+                        writeCsvSnapshot(people)
                     }
-                    return root
+                    if (StructuredDbCodec.needsSchemaUpgrade(metaDbFile)) {
+                        StructuredDbCodec.savePeopleToStructured(people, metaDbFile, embeddingsBinFile)
+                    }
+                    return people
                 }
             }
             return null
         }
 
-        override fun writeDb(root: JSONObject): Boolean {
-            if (!StructuredDbCodec.saveToStructured(root, metaDbFile, embeddingsBinFile)) return false
-            return writeCsvSnapshot(root)
+        override fun writePeople(people: List<ServerPersonRecord>): Boolean {
+            if (!StructuredDbCodec.savePeopleToStructured(people, metaDbFile, embeddingsBinFile)) return false
+            return writeCsvSnapshot(people)
         }
 
         override fun writeStructured(metaDbBytes: ByteArray, embeddingsBinBytes: ByteArray): Boolean {
@@ -1048,8 +1434,26 @@ class FaceDbServerEngine(
                 embeddingsBinFile.parentFile?.mkdirs()
                 metaDbFile.writeBytes(metaDbBytes)
                 embeddingsBinFile.writeBytes(embeddingsBinBytes)
-                val meta = StructuredDbCodec.loadMetadataOnly(metaDbFile) ?: return@runCatching false
-                writeCsvSnapshot(meta)
+                val people = StructuredDbCodec.loadPeopleMetadataOnly(metaDbFile) ?: return@runCatching false
+                writeCsvSnapshot(people)
+            }.getOrDefault(false)
+        }
+
+        override fun readCsvText(): String? {
+            return runCatching { csvFile.readText() }.getOrNull()
+        }
+
+        override fun readTextFile(fileName: String): String? {
+            val file = File(csvFile.parentFile ?: metaDbFile.parentFile ?: embeddingsBinFile.parentFile ?: File("."), fileName)
+            return runCatching { if (file.exists()) file.readText() else null }.getOrNull()
+        }
+
+        override fun writeTextFile(fileName: String, raw: String): Boolean {
+            val file = File(csvFile.parentFile ?: metaDbFile.parentFile ?: embeddingsBinFile.parentFile ?: File("."), fileName)
+            return runCatching {
+                file.parentFile?.mkdirs()
+                file.writeText(raw)
+                true
             }.getOrDefault(false)
         }
 
@@ -1065,10 +1469,12 @@ class FaceDbServerEngine(
             return runCatching { embeddingsBinFile.readBytes() }.getOrNull()
         }
 
-        private fun writeCsvSnapshot(root: JSONObject): Boolean {
+        override fun needsStructuredSchemaUpgrade(): Boolean = StructuredDbCodec.needsSchemaUpgrade(metaDbFile)
+
+        private fun writeCsvSnapshot(people: List<ServerPersonRecord>): Boolean {
             return runCatching {
                 csvFile.parentFile?.mkdirs()
-                csvFile.writeText(csvCodec.encode(root))
+                csvFile.writeText(csvCodec.encodePeople(people))
                 true
             }.getOrDefault(false)
         }
@@ -1094,7 +1500,7 @@ class FaceDbServerEngine(
             return "$treeUri/$metaDbFileName, $treeUri/$embeddingsBinFileName"
         }
 
-        override fun readDb(): JSONObject? {
+        override fun readPeople(): MutableList<ServerPersonRecord>? {
             val metaDoc = resolveDocumentFile(metaDbFileName, createIfMissing = false)
             val binDoc = resolveDocumentFile(embeddingsBinFileName, createIfMissing = false)
             val structuredExists = (metaDoc != null && binDoc != null) && syncStructuredFromDocuments(metaDoc, binDoc)
@@ -1110,38 +1516,40 @@ class FaceDbServerEngine(
                     context.contentResolver.openInputStream(csvDoc!!.uri)?.bufferedReader()?.use { it.readText() }
                 }.getOrNull()
                 if (csvRaw != null) {
-                    if (structuredExists && !csvCodec.hasEmbeddingsColumn(csvRaw)) {
-                        StructuredDbCodec.loadFromStructured(metaDbFile, embeddingsBinFile)?.let { return it }
-                    }
-                    val root =
+                    val people =
                         if (structuredExists) {
-                            val base = StructuredDbCodec.loadFromStructured(metaDbFile, embeddingsBinFile)
-                            if (base != null) StructuredDbCodec.mergeWithCsvMetadata(base, csvRaw, csvCodec) else null
+                            val base = StructuredDbCodec.loadPeopleFromStructured(metaDbFile, embeddingsBinFile)
+                            if (base != null) StructuredDbCodec.mergeMetadataIntoPeople(base, csvRaw, csvCodec) else null
                         } else {
-                            StructuredDbCodec.parseCsvDb(csvRaw, csvCodec)
+                            StructuredDbCodec.parseCsvDbToPeople(csvRaw, csvCodec)
                         }
-                    if (root != null && StructuredDbCodec.saveToStructured(root, metaDbFile, embeddingsBinFile)) {
+                    if (people != null && StructuredDbCodec.savePeopleToStructured(people, metaDbFile, embeddingsBinFile)) {
                         syncStructuredToDocuments()
-                        return root
+                        writeDocumentText(csvFileName, csvCodec.encodePeople(people))
+                        return people
                     }
                 }
             }
 
             if (structuredExists) {
-                StructuredDbCodec.loadFromStructured(metaDbFile, embeddingsBinFile)?.let { root ->
+                StructuredDbCodec.loadPeopleFromStructured(metaDbFile, embeddingsBinFile)?.let { people ->
                     if (csvDoc == null) {
-                        writeDocumentText(csvFileName, csvCodec.encode(root))
+                        writeDocumentText(csvFileName, csvCodec.encodePeople(people))
                     }
-                    return root
+                    if (StructuredDbCodec.needsSchemaUpgrade(metaDbFile)) {
+                        StructuredDbCodec.savePeopleToStructured(people, metaDbFile, embeddingsBinFile)
+                        syncStructuredToDocuments()
+                    }
+                    return people
                 }
             }
             return null
         }
 
-        override fun writeDb(root: JSONObject): Boolean {
-            if (!StructuredDbCodec.saveToStructured(root, metaDbFile, embeddingsBinFile)) return false
+        override fun writePeople(people: List<ServerPersonRecord>): Boolean {
+            if (!StructuredDbCodec.savePeopleToStructured(people, metaDbFile, embeddingsBinFile)) return false
             if (!syncStructuredToDocuments()) return false
-            return writeDocumentText(csvFileName, csvCodec.encode(root))
+            return writeDocumentText(csvFileName, csvCodec.encodePeople(people))
         }
 
         override fun writeStructured(metaDbBytes: ByteArray, embeddingsBinBytes: ByteArray): Boolean {
@@ -1153,10 +1561,16 @@ class FaceDbServerEngine(
                 true
             }.getOrDefault(false)
             if (!localOk) return false
-            val meta = StructuredDbCodec.loadMetadataOnly(metaDbFile) ?: return false
+            val meta = StructuredDbCodec.loadPeopleMetadataOnly(metaDbFile) ?: return false
             syncStructuredToDocuments()
-            return writeDocumentText(csvFileName, csvCodec.encode(meta))
+            return writeDocumentText(csvFileName, csvCodec.encodePeople(meta))
         }
+
+        override fun readCsvText(): String? = readDocumentText(csvFileName)
+
+        override fun readTextFile(fileName: String): String? = readDocumentText(fileName)
+
+        override fun writeTextFile(fileName: String, raw: String): Boolean = writeDocumentText(fileName, raw)
 
         override fun description(): String {
             return "$treeUri (csv=$csvFileName, meta=$metaDbFileName, bin=$embeddingsBinFileName)"
@@ -1181,6 +1595,8 @@ class FaceDbServerEngine(
                 context.contentResolver.openInputStream(binDoc.uri)?.use { it.readBytes() }
             }.getOrNull()
         }
+
+        override fun needsStructuredSchemaUpgrade(): Boolean = StructuredDbCodec.needsSchemaUpgrade(metaDbFile)
 
         private fun readDocumentText(fileName: String): String? {
             val file = resolveDocumentFile(fileName, createIfMissing = false) ?: return null
@@ -1247,6 +1663,246 @@ class FaceDbServerEngine(
     private object StructuredDbCodec {
         private const val TABLE = "people"
 
+        fun parseCsvDbToPeople(raw: String, csvCodec: FaceDbCsvCodec): MutableList<ServerPersonRecord>? {
+            val root = parseCsvDb(raw, csvCodec) ?: return null
+            return jsonRootToPeople(root)
+        }
+
+        fun needsSchemaUpgrade(metaDbFile: File): Boolean {
+            if (!metaDbFile.exists()) return false
+            val db = runCatching { SQLiteDatabase.openDatabase(metaDbFile.absolutePath, null, SQLiteDatabase.OPEN_READONLY) }
+                .getOrNull() ?: return false
+            return runCatching {
+                !(hasColumn(db, TABLE, "person_key") && hasColumn(db, TABLE, "person_idx") && hasColumn(db, TABLE, "metadata_blob") && hasColumn(db, TABLE, "metadata_hash"))
+            }.getOrDefault(false).also { db.close() }
+        }
+
+        fun mergeMetadataIntoPeople(
+            currentPeople: List<ServerPersonRecord>,
+            csvRaw: String,
+            csvCodec: FaceDbCsvCodec,
+        ): MutableList<ServerPersonRecord> {
+            val rows = csvCodec.parseMetadataRows(csvRaw)
+            if (rows.isEmpty()) return currentPeople.map { it.copy(embeddings = it.embeddings.map { emb -> emb.copyOf() }.toMutableList()) }.toMutableList()
+            val byPersonKey = currentPeople.associateBy { it.personKey }
+            val byPersonId = currentPeople.associateBy { it.personId }
+            val byIdentity = currentPeople.associateBy { metadataIdentityKey(it.metadata) }
+            val byUniqueName = currentPeople
+                .groupBy { metadataName(it.metadata, it.name).trim().lowercase(Locale.US) }
+                .filterValues { it.size == 1 }
+                .mapValues { it.value.first() }
+            return rows
+                .mapNotNull { row ->
+                    val baseByPersonKey = byPersonKey[row.personKey]
+                    val baseByPersonId = byPersonId[row.personId]
+                    val baseByIdentity = byIdentity[metadataIdentityKey(row.metadata)]
+                    val baseByName = byUniqueName[row.name.trim().lowercase(Locale.US)]
+                    val base = when {
+                        baseByPersonKey != null -> baseByPersonKey
+                        baseByPersonId != null && baseByName != null &&
+                            !metadataName(baseByPersonId.metadata, baseByPersonId.name).equals(row.name, ignoreCase = true) -> baseByName
+                        baseByPersonId != null && metadataIdentityKey(baseByPersonId.metadata) == metadataIdentityKey(row.metadata) -> baseByPersonId
+                        else -> baseByIdentity ?: baseByName
+                    } ?: return@mapNotNull null
+                    base.copy(
+                        name = row.name,
+                        department = row.department,
+                        grade = row.grade,
+                        embeddings = base.embeddings.map { emb -> emb.copyOf() }.toMutableList(),
+                        hash = computeHash(row.name, row.department, row.grade, base.embeddings),
+                        updatedAt = row.updatedAt,
+                        personId = row.personId,
+                        personKey = row.personKey,
+                        metadata = row.metadata,
+                        metadataHash = row.metadataHash,
+                    )
+                }
+                .toMutableList()
+        }
+
+        fun loadPeopleMetadataOnly(metaDbFile: File): MutableList<ServerPersonRecord>? {
+            if (!metaDbFile.exists()) return null
+            val db = runCatching { SQLiteDatabase.openDatabase(metaDbFile.absolutePath, null, SQLiteDatabase.OPEN_READONLY) }
+                .getOrNull() ?: return null
+            return runCatching {
+                val out = mutableListOf<ServerPersonRecord>()
+                val hasGrade = hasColumn(db, TABLE, "grade")
+                val hasPersonId = hasColumn(db, TABLE, "person_idx")
+                val hasMetadataBlob = hasColumn(db, TABLE, "metadata_blob")
+                val hasMetadataHash = hasColumn(db, TABLE, "metadata_hash")
+                val projection = if (hasGrade) {
+                    buildList {
+                        add(if (hasPersonId) "person_idx" else "name")
+                        add("name")
+                        add("department")
+                        add("grade")
+                        add("embedding_count")
+                        add("hash")
+                        add("updated_at")
+                        if (hasMetadataBlob) add("metadata_blob")
+                        if (hasMetadataHash) add("metadata_hash")
+                    }.toTypedArray()
+                } else {
+                    buildList {
+                        add(if (hasPersonId) "person_idx" else "name")
+                        add("name")
+                        add("department")
+                        add("embedding_count")
+                        add("hash")
+                        add("updated_at")
+                        if (hasMetadataBlob) add("metadata_blob")
+                        if (hasMetadataHash) add("metadata_hash")
+                    }.toTypedArray()
+                }
+                db.query(
+                    TABLE,
+                    projection,
+                    null, null, null, null, "name ASC",
+                ).use { cursor ->
+                    while (cursor.moveToNext()) {
+                        val rawPersonId = cursor.getString(0)
+                        val name = cursor.getString(1)?.trim().orEmpty()
+                        if (name.isBlank()) continue
+                        val department = cursor.getString(2)?.trim().orEmpty()
+                        val grade = if (hasGrade) cursor.getString(3)?.trim().orEmpty() else ""
+                        val personId = parsePersonId(rawPersonId, name, department, grade)
+                        val base = if (hasGrade) 0 else -1
+                        val count = cursor.getInt(4 + base).coerceAtLeast(0)
+                        val hash = cursor.getString(5 + base)?.trim().orEmpty()
+                        val updatedAt = cursor.getLong(6 + base)
+                        val metadataBlob = if (hasMetadataBlob) cursor.getBlob(7 + base) else null
+                        val metadata = normalizeMetadataMap(decodeMetadataBlob(metadataBlob), name, department, grade)
+                        val placeholders = MutableList(count) { FloatArray(0) }
+                        out += ServerPersonRecord(
+                            name = name,
+                            department = department,
+                            grade = grade,
+                            embeddings = placeholders,
+                            hash = hash,
+                            updatedAt = updatedAt,
+                            personId = personId,
+                            metadata = metadata,
+                            metadataHash = if (hasMetadataHash) {
+                                cursor.getString(8 + base)?.trim().orEmpty().ifBlank { metadataHash(metadata) }
+                            } else {
+                                metadataHash(metadata)
+                            },
+                        )
+                    }
+                }
+                out
+            }.getOrNull().also { db.close() }
+        }
+
+        fun loadPeopleFromStructured(metaDbFile: File, embeddingsBinFile: File): MutableList<ServerPersonRecord>? {
+            if (!metaDbFile.exists() || !embeddingsBinFile.exists()) return null
+            val embeddingsBytes = runCatching { embeddingsBinFile.readBytes() }.getOrNull() ?: return null
+            val db = runCatching { SQLiteDatabase.openDatabase(metaDbFile.absolutePath, null, SQLiteDatabase.OPEN_READONLY) }
+                .getOrNull() ?: return null
+            return runCatching {
+                val out = mutableListOf<ServerPersonRecord>()
+                val hasGrade = hasColumn(db, TABLE, "grade")
+                val hasPersonId = hasColumn(db, TABLE, "person_idx")
+                val hasMetadataBlob = hasColumn(db, TABLE, "metadata_blob")
+                val hasMetadataHash = hasColumn(db, TABLE, "metadata_hash")
+                val projection = if (hasGrade) {
+                    buildList {
+                        add(if (hasPersonId) "person_idx" else "name")
+                        add("name")
+                        add("department")
+                        add("grade")
+                        add("offset_bytes")
+                        add("length_bytes")
+                        add("embedding_count")
+                        add("embedding_dim")
+                        add("hash")
+                        add("updated_at")
+                        if (hasMetadataBlob) add("metadata_blob")
+                        if (hasMetadataHash) add("metadata_hash")
+                    }.toTypedArray()
+                } else {
+                    buildList {
+                        add(if (hasPersonId) "person_idx" else "name")
+                        add("name")
+                        add("department")
+                        add("offset_bytes")
+                        add("length_bytes")
+                        add("embedding_count")
+                        add("embedding_dim")
+                        add("hash")
+                        add("updated_at")
+                        if (hasMetadataBlob) add("metadata_blob")
+                        if (hasMetadataHash) add("metadata_hash")
+                    }.toTypedArray()
+                }
+                db.query(
+                    TABLE,
+                    projection,
+                    null, null, null, null, "name ASC",
+                ).use { cursor ->
+                    while (cursor.moveToNext()) {
+                        val rawPersonId = cursor.getString(0)
+                        val name = cursor.getString(1)?.trim().orEmpty()
+                        if (name.isBlank()) continue
+                        val department = cursor.getString(2)?.trim().orEmpty()
+                        val grade = if (hasGrade) cursor.getString(3)?.trim().orEmpty() else ""
+                        val personId = parsePersonId(rawPersonId, name, department, grade)
+                        val base = if (hasGrade) 0 else -1
+                        val offset = cursor.getLong(4 + base).toInt()
+                        val length = cursor.getLong(5 + base).toInt()
+                        val count = cursor.getInt(6 + base).coerceAtLeast(0)
+                        val dim = cursor.getInt(7 + base).coerceAtLeast(0)
+                        val hash = cursor.getString(8 + base)?.trim().orEmpty()
+                        val updatedAt = cursor.getLong(9 + base)
+                        val metadataBlob = if (hasMetadataBlob) cursor.getBlob(10 + base) else null
+                        val metadata = normalizeMetadataMap(decodeMetadataBlob(metadataBlob), name, department, grade)
+                        val embeddings = decodeEmbeddingsList(embeddingsBytes, offset, length, count, dim)
+                        if (embeddings.isEmpty()) continue
+                        out += ServerPersonRecord(
+                            name = name,
+                            department = department,
+                            grade = grade,
+                            embeddings = embeddings,
+                            hash = hash.ifBlank { computeHash(name, department, grade, embeddings) },
+                            updatedAt = if (updatedAt > 0L) updatedAt else System.currentTimeMillis(),
+                            personId = personId,
+                            metadata = metadata,
+                            metadataHash = if (hasMetadataHash) {
+                                cursor.getString(11 + base)?.trim().orEmpty().ifBlank { metadataHash(metadata) }
+                            } else {
+                                metadataHash(metadata)
+                            },
+                        )
+                    }
+                }
+                out
+            }.getOrNull().also { db.close() }
+        }
+
+        fun savePeopleToStructured(people: List<ServerPersonRecord>, metaDbFile: File, embeddingsBinFile: File): Boolean {
+            val records = people
+                .asSequence()
+                .filter { it.name.isNotBlank() && it.embeddings.isNotEmpty() }
+                .sortedWith(compareBy<ServerPersonRecord> { it.name }.thenBy { it.grade }.thenBy { it.department })
+                .mapIndexed { index, person -> person.copy(personId = (index + 1).toLong()) }
+                .map { person ->
+                    Record(
+                        personId = person.personId,
+                        personKey = person.personKey,
+                        name = person.name,
+                        department = person.department,
+                        grade = person.grade,
+                        embeddings = person.embeddings.map { it.copyOf() },
+                        hash = person.hash.ifBlank { computeHash(person.name, person.department, person.grade, person.embeddings) },
+                        updatedAt = person.updatedAt,
+                        metadataBlob = encodeMetadataBlob(person.metadata),
+                        metadataHash = person.metadataHash,
+                    )
+                }
+                .toList()
+            return saveRecordsToStructured(records, metaDbFile, embeddingsBinFile)
+        }
+
         fun parseCsvDb(raw: String, csvCodec: FaceDbCsvCodec): JSONObject? {
             val fromCsv = csvCodec.decode(raw) ?: return null
             return normalizeRoot(fromCsv)
@@ -1272,84 +1928,24 @@ class FaceDbServerEngine(
                 val obj = JSONObject(basePerson.toString())
                 obj.put("name", row.name)
                 obj.put("department", row.department)
+                obj.put("grade", row.grade)
                 obj.put("updatedAt", row.updatedAt)
-                val embeddings = normalizeEmbeddings(obj.optJSONArray("embeddings") ?: JSONArray())
-                obj.put("embeddings", embeddings)
-                obj.put("hash", computeHash(row.name, row.department, embeddings))
+                obj.put("personId", row.personId)
+                obj.put("metadata", JSONObject(row.metadata as Map<*, *>))
+                val embeddings = normalizeEmbeddingsList(obj.optJSONArray("embeddings") ?: JSONArray())
+                obj.put("embeddings", peopleToJsonEmbeddings(embeddings))
+                obj.put("hash", computeHash(row.name, row.department, row.grade, embeddings))
                 out.put(obj)
             }
             return JSONObject().put("people", out)
         }
 
         fun loadMetadataOnly(metaDbFile: File): JSONObject? {
-            if (!metaDbFile.exists()) return null
-            val db = runCatching { SQLiteDatabase.openDatabase(metaDbFile.absolutePath, null, SQLiteDatabase.OPEN_READONLY) }
-                .getOrNull() ?: return null
-            return runCatching {
-                val arr = JSONArray()
-                db.query(
-                    TABLE,
-                    arrayOf("name", "department", "embedding_count", "updated_at"),
-                    null, null, null, null, "name ASC",
-                ).use { cursor ->
-                    while (cursor.moveToNext()) {
-                        val name = cursor.getString(0)?.trim().orEmpty()
-                        if (name.isBlank()) continue
-                        val department = cursor.getString(1)?.trim().orEmpty()
-                        val count = cursor.getInt(2).coerceAtLeast(0)
-                        val updatedAt = cursor.getLong(3)
-                        val stubs = JSONArray()
-                        repeat(count) { stubs.put(JSONArray()) }
-                        val obj = JSONObject()
-                            .put("name", name)
-                            .put("department", department)
-                            .put("embeddings", stubs)
-                        if (updatedAt > 0L) obj.put("updatedAt", updatedAt)
-                        arr.put(obj)
-                    }
-                }
-                JSONObject().put("people", arr)
-            }.getOrNull().also { db.close() }
+            return loadPeopleMetadataOnly(metaDbFile)?.let { peopleToJsonRoot(it, includeEmbeddings = false) }
         }
 
         fun loadFromStructured(metaDbFile: File, embeddingsBinFile: File): JSONObject? {
-            if (!metaDbFile.exists() || !embeddingsBinFile.exists()) return null
-            val embeddingsBytes = runCatching { embeddingsBinFile.readBytes() }.getOrNull() ?: return null
-            val db = runCatching { SQLiteDatabase.openDatabase(metaDbFile.absolutePath, null, SQLiteDatabase.OPEN_READONLY) }
-                .getOrNull() ?: return null
-            return runCatching {
-                val arr = JSONArray()
-                db.query(
-                    TABLE,
-                    arrayOf("name", "department", "offset_bytes", "length_bytes", "embedding_count", "embedding_dim", "hash", "updated_at"),
-                    null,
-                    null,
-                    null,
-                    null,
-                    "name ASC",
-                ).use { cursor ->
-                    while (cursor.moveToNext()) {
-                        val name = cursor.getString(0)?.trim().orEmpty()
-                        if (name.isBlank()) continue
-                        val department = cursor.getString(1)?.trim().orEmpty()
-                        val offset = cursor.getLong(2).toInt()
-                        val length = cursor.getLong(3).toInt()
-                        val count = cursor.getInt(4).coerceAtLeast(0)
-                        val dim = cursor.getInt(5).coerceAtLeast(0)
-                        val hash = cursor.getString(6)?.trim().orEmpty()
-                        val updatedAt = cursor.getLong(7)
-                        val embeddings = decodeEmbeddings(embeddingsBytes, offset, length, count, dim)
-                        val obj = JSONObject()
-                            .put("name", name)
-                            .put("department", department)
-                            .put("embeddings", embeddings)
-                        if (updatedAt > 0L) obj.put("updatedAt", updatedAt)
-                        obj.put("hash", if (hash.isNotBlank()) hash else computeHash(name, department, embeddings))
-                        arr.put(obj)
-                    }
-                }
-                JSONObject().put("people", arr)
-            }.getOrNull().also { db.close() }
+            return loadPeopleFromStructured(metaDbFile, embeddingsBinFile)?.let { peopleToJsonRoot(it, includeEmbeddings = true) }
         }
 
         fun saveToStructured(root: JSONObject, metaDbFile: File, embeddingsBinFile: File): Boolean {
@@ -1361,60 +1957,43 @@ class FaceDbServerEngine(
                 val name = person.optString("name", "").trim()
                 if (name.isBlank()) continue
                 val department = person.optString("department", person.optString("folder", "")).trim()
-                val embeddings = normalizeEmbeddings(person.optJSONArray("embeddings") ?: JSONArray())
-                if (embeddings.length() <= 0) continue
+                val grade = person.optString("grade", "").trim()
+                val embeddings = normalizeEmbeddingsList(person.optJSONArray("embeddings") ?: JSONArray())
+                if (embeddings.isEmpty()) continue
                 val updatedAt = person.optLong("updatedAt", System.currentTimeMillis())
-                val hash = person.optString("hash", "").trim().ifBlank { computeHash(name, department, embeddings) }
-                records.add(Record(name, department, embeddings, hash, updatedAt))
-            }
-
-            val encoded = encodeEmbeddings(records)
-            return runCatching {
-                metaDbFile.parentFile?.mkdirs()
-                embeddingsBinFile.parentFile?.mkdirs()
-                embeddingsBinFile.writeBytes(encoded.bytes)
-                val db = SQLiteDatabase.openOrCreateDatabase(metaDbFile, null)
-                db.execSQL(
-                    "CREATE TABLE IF NOT EXISTS $TABLE(" +
-                        "name TEXT PRIMARY KEY," +
-                        "department TEXT," +
-                        "offset_bytes INTEGER," +
-                        "length_bytes INTEGER," +
-                        "embedding_count INTEGER," +
-                        "embedding_dim INTEGER," +
-                        "hash TEXT," +
-                        "updated_at INTEGER" +
-                        ")",
-                )
-                db.beginTransaction()
-                try {
-                    db.delete(TABLE, null, null)
-                    encoded.rows.forEach { row ->
-                        val values = ContentValues().apply {
-                            put("name", row.name)
-                            put("department", row.department)
-                            put("offset_bytes", row.offsetBytes)
-                            put("length_bytes", row.lengthBytes)
-                            put("embedding_count", row.embeddingCount)
-                            put("embedding_dim", row.embeddingDim)
-                            put("hash", row.hash)
-                            put("updated_at", row.updatedAt)
-                        }
-                        db.insert(TABLE, null, values)
+                val hash = person.optString("hash", "").trim().ifBlank { computeHash(name, department, grade, embeddings) }
+                val metadataJson = person.optJSONObject("metadata")
+                val metadata = linkedMapOf<String, String>()
+                if (metadataJson != null) {
+                    val keys = metadataJson.keys()
+                    while (keys.hasNext()) {
+                        val key = keys.next()
+                        metadata[key] = metadataJson.optString(key, "")
                     }
-                    db.setTransactionSuccessful()
-                } finally {
-                    db.endTransaction()
-                    db.close()
                 }
-                true
-            }.getOrDefault(false)
+                val normalizedMetadata = normalizeMetadataMap(metadata, name, department, grade)
+                records.add(
+                    Record(
+                        personId = parsePersonId(person.optString("personIdx", person.optString("personId", "")), name, department, grade),
+                        personKey = parsePersonKey(person.optString("personKey", ""), name, department, grade),
+                        name = name,
+                        department = department,
+                        grade = grade,
+                        embeddings = embeddings,
+                        hash = hash,
+                        updatedAt = updatedAt,
+                        metadataBlob = encodeMetadataBlob(normalizedMetadata),
+                        metadataHash = metadataHash(normalizedMetadata),
+                    ),
+                )
+            }
+            return saveRecordsToStructured(records, metaDbFile, embeddingsBinFile)
         }
 
         private fun normalizeRoot(root: JSONObject): JSONObject {
-            root.optJSONArray("people")?.let { return JSONObject().put("people", JSONArray(it.toString())) }
-            root.optJSONArray("persons")?.let { return JSONObject().put("people", JSONArray(it.toString())) }
-            root.optJSONArray("faces")?.let { return JSONObject().put("people", JSONArray(it.toString())) }
+            root.optJSONArray("people")?.let { return root }
+            root.optJSONArray("persons")?.let { return JSONObject().put("people", it) }
+            root.optJSONArray("faces")?.let { return JSONObject().put("people", it) }
             val map = root.optJSONObject("people")
                 ?: root.optJSONObject("persons")
                 ?: root.optJSONObject("faces")
@@ -1434,15 +2013,17 @@ class FaceDbServerEngine(
             return JSONObject().put("people", JSONArray())
         }
 
-        private fun normalizeEmbeddings(arr: JSONArray): JSONArray {
-            val out = JSONArray()
+        private fun normalizeEmbeddings(arr: JSONArray): JSONArray = peopleToJsonEmbeddings(normalizeEmbeddingsList(arr))
+
+        private fun normalizeEmbeddingsList(arr: JSONArray): MutableList<FloatArray> {
+            val out = mutableListOf<FloatArray>()
             for (i in 0 until arr.length()) {
                 val emb = arr.optJSONArray(i) ?: continue
-                val vec = JSONArray()
+                val vec = FloatArray(emb.length())
                 for (j in 0 until emb.length()) {
-                    vec.put(emb.optDouble(j, 0.0))
+                    vec[j] = emb.optDouble(j, 0.0).toFloat()
                 }
-                out.put(vec)
+                out += vec
             }
             return out
         }
@@ -1452,41 +2033,80 @@ class FaceDbServerEngine(
             val out = ByteArrayOutputStream()
             records.sortedBy { it.name }.forEach { record ->
                 val offset = out.size()
-                val count = record.embeddings.length()
-                val dim = if (count > 0) (record.embeddings.optJSONArray(0)?.length() ?: 0) else 0
-                for (i in 0 until count) {
-                    val emb = record.embeddings.optJSONArray(i) ?: JSONArray()
+                val count = record.embeddings.size
+                val dim = record.embeddings.firstOrNull()?.size ?: 0
+                record.embeddings.forEach { emb ->
                     for (j in 0 until dim) {
-                        val v = emb.optDouble(j, 0.0).toFloat()
-                        writeFloatLe(out, v)
+                        writeFloatLe(out, emb.getOrElse(j) { 0f })
                     }
                 }
                 val length = out.size() - offset
-                rows.add(RowMeta(record.name, record.department, offset, length, count, dim, record.hash, record.updatedAt))
+                rows.add(
+                    RowMeta(
+                        personId = record.personId,
+                        personKey = record.personKey,
+                        name = record.name,
+                        department = record.department,
+                        grade = record.grade,
+                        offsetBytes = offset,
+                        lengthBytes = length,
+                        embeddingCount = count,
+                        embeddingDim = dim,
+                        hash = record.hash,
+                        updatedAt = record.updatedAt,
+                        metadataBlob = record.metadataBlob,
+                        metadataHash = record.metadataHash,
+                    ),
+                )
             }
             return EncodedData(rows, out.toByteArray())
         }
 
         private fun decodeEmbeddings(bytes: ByteArray, offset: Int, length: Int, count: Int, dim: Int): JSONArray {
-            if (offset < 0 || length < 0 || offset + length > bytes.size || count <= 0 || dim <= 0) return JSONArray()
-            val arr = JSONArray()
-            var p = offset
-            val limit = offset + length
-            for (i in 0 until count) {
-                if (p + dim * 4 > limit) break
-                val emb = JSONArray()
-                for (j in 0 until dim) {
-                    val bits =
-                        (bytes[p].toInt() and 0xFF) or
-                            ((bytes[p + 1].toInt() and 0xFF) shl 8) or
-                            ((bytes[p + 2].toInt() and 0xFF) shl 16) or
-                            ((bytes[p + 3].toInt() and 0xFF) shl 24)
-                    p += 4
-                    emb.put(Float.fromBits(bits).toDouble())
+            return peopleToJsonEmbeddings(decodeEmbeddingsList(bytes, offset, length, count, dim))
+        }
+
+        private fun ensurePeopleTableSchema(db: SQLiteDatabase) {
+            runCatching { db.execSQL("ALTER TABLE $TABLE ADD COLUMN grade TEXT DEFAULT ''") }
+            runCatching { db.execSQL("ALTER TABLE $TABLE ADD COLUMN person_key TEXT") }
+            runCatching { db.execSQL("ALTER TABLE $TABLE ADD COLUMN person_idx INTEGER") }
+            runCatching { db.execSQL("ALTER TABLE $TABLE ADD COLUMN person_id INTEGER") }
+            runCatching { db.execSQL("ALTER TABLE $TABLE ADD COLUMN metadata_blob BLOB") }
+            runCatching { db.execSQL("ALTER TABLE $TABLE ADD COLUMN metadata_hash TEXT") }
+        }
+
+        private fun recreatePeopleTable(db: SQLiteDatabase) {
+            db.execSQL("DROP TABLE IF EXISTS $TABLE")
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS $TABLE(" +
+                    "person_key TEXT PRIMARY KEY,person_idx INTEGER," +
+                    "name TEXT," +
+                    "department TEXT," +
+                    "grade TEXT," +
+                    "offset_bytes INTEGER," +
+                    "length_bytes INTEGER," +
+                    "embedding_count INTEGER," +
+                    "embedding_dim INTEGER," +
+                    "hash TEXT," +
+                    "updated_at INTEGER," +
+                    "metadata_blob BLOB," +
+                    "metadata_hash TEXT" +
+                    ")",
+            )
+        }
+
+        private fun hasColumn(db: SQLiteDatabase, table: String, column: String): Boolean {
+            return runCatching {
+                db.rawQuery("PRAGMA table_info($table)", null).use { cursor ->
+                    val nameIndex = cursor.getColumnIndex("name")
+                    while (cursor.moveToNext()) {
+                        if (nameIndex >= 0 && cursor.getString(nameIndex).equals(column, ignoreCase = true)) {
+                            return@use true
+                        }
+                    }
+                    false
                 }
-                arr.put(emb)
-            }
-            return arr
+            }.getOrDefault(false)
         }
 
         private fun writeFloatLe(out: ByteArrayOutputStream, value: Float) {
@@ -1497,22 +2117,156 @@ class FaceDbServerEngine(
             out.write((bits ushr 24) and 0xFF)
         }
 
-        private fun computeHash(name: String, department: String, embeddings: JSONArray): String {
+        private fun computeHash(name: String, department: String, grade: String, embeddings: List<FloatArray>): String {
             val digest = MessageDigest.getInstance("SHA-256")
             digest.update(name.toByteArray(Charsets.UTF_8))
             digest.update(0)
             digest.update(department.toByteArray(Charsets.UTF_8))
             digest.update(0)
-            updateDigestInt(digest, embeddings.length())
-            for (i in 0 until embeddings.length()) {
-                val emb = embeddings.optJSONArray(i) ?: JSONArray()
-                updateDigestInt(digest, emb.length())
-                for (j in 0 until emb.length()) {
-                    val v = emb.optDouble(j, 0.0).toFloat()
-                    updateDigestInt(digest, java.lang.Float.floatToIntBits(v))
+            digest.update(grade.toByteArray(Charsets.UTF_8))
+            digest.update(0)
+            updateDigestInt(digest, embeddings.size)
+            embeddings.forEach { emb ->
+                updateDigestInt(digest, emb.size)
+                emb.forEach { value ->
+                    updateDigestInt(digest, java.lang.Float.floatToIntBits(value))
                 }
             }
             return digest.digest().joinToString("") { b -> "%02x".format(b) }
+        }
+
+        private fun saveRecordsToStructured(records: List<Record>, metaDbFile: File, embeddingsBinFile: File): Boolean {
+            val encoded = encodeEmbeddings(records)
+            return runCatching {
+                metaDbFile.parentFile?.mkdirs()
+                embeddingsBinFile.parentFile?.mkdirs()
+                embeddingsBinFile.writeBytes(encoded.bytes)
+                val db = SQLiteDatabase.openOrCreateDatabase(metaDbFile, null)
+                recreatePeopleTable(db)
+                db.beginTransaction()
+                try {
+                    db.delete(TABLE, null, null)
+                    encoded.rows.forEach { row ->
+                        val values = ContentValues().apply {
+                            put("person_key", row.personKey)
+                            put("person_idx", row.personId)
+                            put("name", row.name)
+                            put("department", row.department)
+                            put("grade", row.grade)
+                            put("offset_bytes", row.offsetBytes)
+                            put("length_bytes", row.lengthBytes)
+                            put("embedding_count", row.embeddingCount)
+                            put("embedding_dim", row.embeddingDim)
+                            put("hash", row.hash)
+                            put("updated_at", row.updatedAt)
+                            put("metadata_blob", row.metadataBlob)
+                            put("metadata_hash", row.metadataHash)
+                        }
+                        db.insert(TABLE, null, values)
+                    }
+                    db.setTransactionSuccessful()
+                } finally {
+                    db.endTransaction()
+                    db.close()
+                }
+                true
+            }.getOrDefault(false)
+        }
+
+        private fun decodeEmbeddingsList(bytes: ByteArray, offset: Int, length: Int, count: Int, dim: Int): MutableList<FloatArray> {
+            if (offset < 0 || length < 0 || offset + length > bytes.size || count <= 0 || dim <= 0) return mutableListOf()
+            val out = mutableListOf<FloatArray>()
+            var p = offset
+            val limit = offset + length
+            for (i in 0 until count) {
+                if (p + dim * 4 > limit) break
+                val emb = FloatArray(dim)
+                for (j in 0 until dim) {
+                    val bits =
+                        (bytes[p].toInt() and 0xFF) or
+                            ((bytes[p + 1].toInt() and 0xFF) shl 8) or
+                            ((bytes[p + 2].toInt() and 0xFF) shl 16) or
+                            ((bytes[p + 3].toInt() and 0xFF) shl 24)
+                    p += 4
+                    emb[j] = Float.fromBits(bits)
+                }
+                out += emb
+            }
+            return out
+        }
+
+        private fun jsonRootToPeople(root: JSONObject): MutableList<ServerPersonRecord> {
+            val normalized = normalizeRoot(root)
+            val people = normalized.optJSONArray("people") ?: JSONArray()
+            val out = mutableListOf<ServerPersonRecord>()
+            for (i in 0 until people.length()) {
+                val person = people.optJSONObject(i) ?: continue
+                val name = person.optString("name", "").trim()
+                if (name.isBlank()) continue
+                val department = person.optString("department", person.optString("folder", "")).trim()
+                val grade = person.optString("grade", "").trim()
+                val embeddings = normalizeEmbeddingsList(person.optJSONArray("embeddings") ?: JSONArray())
+                if (embeddings.isEmpty()) continue
+                val updatedAt = person.optLong("updatedAt", System.currentTimeMillis())
+                val hash = person.optString("hash", "").trim().ifBlank { computeHash(name, department, grade, embeddings) }
+                val metadataJson = person.optJSONObject("metadata")
+                val metadata = linkedMapOf<String, String>()
+                if (metadataJson != null) {
+                    val keys = metadataJson.keys()
+                    while (keys.hasNext()) {
+                        val key = keys.next()
+                        metadata[key] = metadataJson.optString(key, "")
+                    }
+                }
+                val normalizedMetadata = normalizeMetadataMap(metadata, name, department, grade)
+                out += ServerPersonRecord(
+                    name = name,
+                    department = department,
+                    grade = grade,
+                    embeddings = embeddings,
+                    hash = hash,
+                    updatedAt = updatedAt,
+                    personId = parsePersonId(person.optString("personIdx", person.optString("personId", "")), name, department, grade),
+                    personKey = parsePersonKey(person.optString("personKey", ""), name, department, grade),
+                    metadata = normalizedMetadata,
+                    metadataHash = metadataHash(normalizedMetadata),
+                )
+            }
+            return out
+        }
+
+        private fun peopleToJsonRoot(people: List<ServerPersonRecord>, includeEmbeddings: Boolean): JSONObject {
+            val arr = JSONArray()
+            people.sortedBy { it.name }.forEach { person ->
+                val obj = JSONObject()
+                    .put("name", person.name)
+                    .put("department", person.department)
+                    .put("grade", person.grade)
+                    .put("personIdx", person.personId)
+                    .put("personKey", person.personKey)
+                    .put("metadata", JSONObject(person.metadata as Map<*, *>))
+                    .put("hash", person.hash)
+                    .put("updatedAt", person.updatedAt)
+                if (includeEmbeddings) {
+                    obj.put("embeddings", peopleToJsonEmbeddings(person.embeddings))
+                } else {
+                    val stubs = JSONArray()
+                    repeat(person.embeddings.size) { stubs.put(JSONArray()) }
+                    obj.put("embeddings", stubs)
+                }
+                arr.put(obj)
+            }
+            return JSONObject().put("people", arr)
+        }
+
+        private fun peopleToJsonEmbeddings(embeddings: List<FloatArray>): JSONArray {
+            val out = JSONArray()
+            embeddings.forEach { emb ->
+                val row = JSONArray()
+                emb.forEach { row.put(it.toDouble()) }
+                out.put(row)
+            }
+            return out
         }
 
         private fun updateDigestInt(digest: MessageDigest, value: Int) {
@@ -1523,22 +2277,32 @@ class FaceDbServerEngine(
         }
 
         private data class Record(
+            val personId: Long,
+            val personKey: String,
             val name: String,
             val department: String,
-            val embeddings: JSONArray,
+            val grade: String,
+            val embeddings: List<FloatArray>,
             val hash: String,
             val updatedAt: Long,
+            val metadataBlob: ByteArray,
+            val metadataHash: String,
         )
 
         private data class RowMeta(
+            val personId: Long,
+            val personKey: String,
             val name: String,
             val department: String,
+            val grade: String,
             val offsetBytes: Int,
             val lengthBytes: Int,
             val embeddingCount: Int,
             val embeddingDim: Int,
             val hash: String,
             val updatedAt: Long,
+            val metadataBlob: ByteArray,
+            val metadataHash: String,
         )
 
         private data class EncodedData(
@@ -1550,4 +2314,10 @@ class FaceDbServerEngine(
     private companion object {
         const val LOGCAT_TAG = "FaceDbServer"
     }
+
+    private data class AttendanceBaseRow(
+        val name: String,
+        val affiliation: String,
+        val department: String,
+    )
 }

@@ -1,10 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F6F7FB"
-    android:orientation="vertical"
-    android:padding="16dp">
+    android:background="#000000">
+
+    <LinearLayout
+        android:id="@+id/developerRoot"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#F6F7FB"
+        android:orientation="vertical"
+        android:padding="16dp">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -63,6 +69,7 @@
             android:layout_width="wrap_content"
             android:layout_height="46dp"
             android:layout_marginStart="10dp"
+            android:visibility="gone"
             android:text="종료" />
     </LinearLayout>
 
@@ -136,15 +143,33 @@
             android:textSize="16sp"
             android:textStyle="bold" />
 
-        <TextView
-            android:id="@+id/dbPushStatusIndicator"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="5dp"
-            android:text="대기"
-            android:textColor="#9AA0A6"
-            android:textSize="15sp"
-            android:textStyle="bold" />
+        <FrameLayout
+            android:layout_width="172dp"
+            android:layout_height="28dp"
+            android:layout_marginStart="8dp"
+            android:foregroundGravity="center">
+
+            <ProgressBar
+                android:id="@+id/dbPushProgressBar"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:indeterminate="false"
+                android:max="100"
+                android:progress="0"
+                android:progressTint="#4D7CFE"
+                android:progressBackgroundTint="#DCE5FF" />
+
+            <TextView
+                android:id="@+id/dbPushStatusIndicator"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:text="대기"
+                android:textColor="#1A3D8F"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+        </FrameLayout>
 
         <Button
             android:id="@+id/dbUploadButton"
@@ -156,6 +181,48 @@
     </LinearLayout>
 
     <LinearLayout
+        android:id="@+id/printStatusRow"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:background="#FFFFFF"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="12dp"
+        android:paddingVertical="10dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="출력상태"
+            android:textColor="#1A3D8F"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/printStatusIndicator"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="대기"
+            android:textColor="#9AA0A6"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/printStatusDetailText"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="2"
+            android:text="프린터 연결 및 출력 단계가 여기에 표시됩니다."
+            android:textColor="#5F6368"
+            android:textSize="14sp" />
+    </LinearLayout>
+
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_marginTop="14dp"
@@ -163,6 +230,7 @@
         android:orientation="horizontal">
 
         <FrameLayout
+            android:id="@+id/cameraPreviewPanel"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_marginEnd="10dp"
@@ -183,11 +251,12 @@
         </FrameLayout>
 
         <FrameLayout
+            android:id="@+id/developerPageHost"
             android:layout_width="430dp"
             android:layout_height="match_parent"
             android:layout_marginStart="10dp"
             android:background="#FFFFFF"
-            android:padding="18dp">
+            android:padding="16dp">
 
             <ViewFlipper
                 android:id="@+id/pageFlipper"
@@ -196,7 +265,7 @@
 
                 <ScrollView
                     android:layout_width="match_parent"
-                    android:layout_height="match_parent">
+                    android:layout_height="wrap_content">
 
                     <LinearLayout
                         android:layout_width="match_parent"
@@ -225,7 +294,16 @@
                             android:layout_width="match_parent"
                             android:layout_height="52dp"
                             android:layout_marginTop="14dp"
-                            android:text="등록시작"
+                            android:text="등록 시작하기"
+                            android:textSize="18sp"
+                            android:visibility="gone" />
+
+                        <Button
+                            android:id="@+id/labelOnlyPrintButton"
+                            android:layout_width="match_parent"
+                            android:layout_height="52dp"
+                            android:layout_marginTop="10dp"
+                            android:text="이름표만 출력하기"
                             android:textSize="18sp"
                             android:visibility="gone" />
 
@@ -239,11 +317,12 @@
                         <Button
                             android:id="@+id/outputNameButton"
                             android:layout_width="match_parent"
-                            android:layout_height="52dp"
+                            android:layout_height="78dp"
                             android:layout_marginTop="14dp"
                             android:enabled="false"
                             android:text="이름 출력하기"
-                            android:textSize="18sp" />
+                            android:textSize="24sp"
+                            android:textStyle="bold" />
                     </LinearLayout>
                 </ScrollView>
 
@@ -275,9 +354,11 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
-                        android:text="0 / 12"
+                        android:includeFontPadding="false"
+                        android:lineSpacingExtra="5dp"
+                        android:text="전체 0 / 12\n○ 왼쪽 얼굴 0/3 대기\n○ 오른쪽 얼굴 0/3 대기\n○ 위쪽 얼굴 0/3 대기\n○ 아래쪽 얼굴 0/3 대기"
                         android:textColor="#111111"
-                        android:textSize="30sp"
+                        android:textSize="23sp"
                         android:textStyle="bold" />
                 </LinearLayout>
 
@@ -311,6 +392,16 @@
                         android:layout_height="56dp"
                         android:layout_marginTop="12dp"
                         android:hint="부서 입력"
+                        android:inputType="text"
+                        android:maxLines="1"
+                        android:textSize="20sp" />
+
+                    <EditText
+                        android:id="@+id/gradeInput"
+                        android:layout_width="match_parent"
+                        android:layout_height="56dp"
+                        android:layout_marginTop="12dp"
+                        android:hint="학년 입력"
                         android:inputType="text"
                         android:maxLines="1"
                         android:textSize="20sp" />
@@ -352,6 +443,15 @@
                             android:textColor="#1A3D8F"
                             android:textSize="28sp"
                             android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/outputAttribute3Label"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="14dp"
+                            android:textColor="#24633D"
+                            android:textSize="24sp"
+                            android:textStyle="bold" />
                     </LinearLayout>
 
                     <TextView
@@ -367,3 +467,159 @@
         </FrameLayout>
     </LinearLayout>
 </LinearLayout>
+
+    <FrameLayout
+        android:id="@+id/operationRoot"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#000000"
+        android:visibility="gone">
+
+        <FrameLayout
+            android:id="@+id/operationCameraHost"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <LinearLayout
+            android:id="@+id/operationMessagePanel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top"
+            android:background="@android:color/transparent"
+            android:orientation="vertical"
+            android:paddingHorizontal="96dp"
+            android:paddingTop="72dp">
+
+            <TextView
+                android:id="@+id/operationStatusText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:shadowColor="#CC000000"
+                android:shadowDx="0"
+                android:shadowDy="2"
+                android:shadowRadius="5"
+                android:textColor="#FFFFFF"
+                android:textSize="30sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/operationDetailText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center"
+                android:shadowColor="#CC000000"
+                android:shadowDx="0"
+                android:shadowDy="2"
+                android:shadowRadius="5"
+                android:textColor="#FFFFFF"
+                android:textSize="18sp" />
+
+            <TextView
+                android:id="@+id/operationPrintStatusText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center"
+                android:shadowColor="#CC000000"
+                android:shadowDx="0"
+                android:shadowDy="2"
+                android:shadowRadius="5"
+                android:textColor="#BFD7FF"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <FrameLayout
+            android:id="@+id/operationActionPanel"
+            android:layout_width="420dp"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_vertical|end"
+            android:layout_margin="28dp"
+            android:background="#44FFFFFF"
+            android:padding="16dp"
+            android:visibility="gone">
+
+            <FrameLayout
+                android:id="@+id/operationPageHost"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+        </FrameLayout>
+
+        <TextView
+            android:id="@+id/operationReturnCountdownText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:gravity="center"
+            android:shadowColor="#CC000000"
+            android:shadowDx="0"
+            android:shadowDy="3"
+            android:shadowRadius="8"
+            android:textColor="#FFFFFF"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
+
+
+
+        <Button
+            android:id="@+id/operationFloatingPrintButton"
+            android:layout_width="360dp"
+            android:layout_height="86dp"
+            android:layout_gravity="bottom|end"
+            android:layout_marginEnd="42dp"
+            android:layout_marginBottom="64dp"
+            android:background="@drawable/bg_floating_print_button"
+            android:elevation="10dp"
+            android:enabled="true"
+            android:text="이름표 출력하기"
+            android:textColor="#FFFFFF"
+            android:textSize="25sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
+
+
+
+        <Button
+            android:id="@+id/operationHomeButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_gravity="top|end"
+            android:layout_marginTop="14dp"
+            android:layout_marginEnd="68dp"
+            android:alpha="0.72"
+            android:background="@drawable/ic_home_return"
+            android:contentDescription="처음으로"
+            android:text="" />
+
+        <TextView
+            android:id="@+id/operationMotionHint"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:alpha="0.90"
+            android:shadowColor="#CC000000"
+            android:shadowDx="0"
+            android:shadowDy="3"
+            android:shadowRadius="8"
+            android:text="→"
+            android:textColor="#FFFFFF"
+            android:textSize="96sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
+
+        <Button
+            android:id="@+id/operationSettingsButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_gravity="top|end"
+            android:layout_margin="14dp"
+            android:alpha="0.72"
+            android:background="@drawable/ic_settings_gear"
+            android:contentDescription="설정"
+            android:text="" />
+    </FrameLayout>
+
+</FrameLayout>

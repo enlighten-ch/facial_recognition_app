@@ -7,7 +7,7 @@ data class ServerUiConfig(
     val adminId: String = "admin",
     val adminPassword: String = "1234",
     val defaultPort: Int = 18080,
-    val dbStorageDir: String = "",
+    val dbStorageDir: String = DbStorageLocation.FACE_DB_DIR,
 )
 
 class ServerConfigStore(context: Context) {
@@ -41,12 +41,18 @@ class ServerConfigStore(context: Context) {
             kv[key] = value
         }
 
-        return ServerUiConfig(
+        val rawStorageDir = kv["db_storage_dir"].orEmpty()
+        val normalizedStorageDir = DbStorageLocation.normalize(rawStorageDir)
+        val loaded = ServerUiConfig(
             adminId = kv["admin_id"].orEmpty().ifBlank { defaults.adminId },
             adminPassword = kv["admin_password"].orEmpty().ifBlank { defaults.adminPassword },
             defaultPort = kv["default_port"]?.toIntOrNull()?.coerceIn(1, 65535) ?: defaults.defaultPort,
-            dbStorageDir = kv["db_storage_dir"].orEmpty(),
+            dbStorageDir = normalizedStorageDir,
         )
+        if (rawStorageDir != normalizedStorageDir) {
+            save(loaded)
+        }
+        return loaded
     }
 
     fun save(config: ServerUiConfig): Boolean {
@@ -54,7 +60,7 @@ class ServerConfigStore(context: Context) {
             adminId = config.adminId.trim().ifBlank { "admin" },
             adminPassword = config.adminPassword.ifBlank { "1234" },
             defaultPort = config.defaultPort.coerceIn(1, 65535),
-            dbStorageDir = config.dbStorageDir.trim(),
+            dbStorageDir = DbStorageLocation.normalize(config.dbStorageDir),
         )
 
         val content = buildString {
