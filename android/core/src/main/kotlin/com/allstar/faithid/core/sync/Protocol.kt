@@ -75,9 +75,16 @@ data class OpsResponse(val serverRevision: Long, val results: Map<String, OpResu
 object UpdateMessage {
     fun encode(revision: Long, epoch: String): String = KeyValueText.encode("type" to "revision", "revision" to revision, "epoch" to epoch)
 
-    /** Returns the revision announced by [text], or null if it is not an update message. */
-    fun decodeRevision(text: String): Long? {
+    /** What the server announced: its revision and epoch (a reloaded database keeps the revision but not the epoch). */
+    data class Update(val revision: Long, val epoch: String?)
+
+    /** Returns the announcement in [text], or null if it is not an update message. */
+    fun decode(text: String): Update? {
         val map = KeyValueText.decode(text)
-        return if (map["type"] == "revision") map["revision"]?.toLongOrNull() else null
+        if (map["type"] != "revision") return null
+        val revision = map["revision"]?.toLongOrNull() ?: return null
+        return Update(revision, map["epoch"]?.takeIf { it.isNotEmpty() })
     }
+
+    fun decodeRevision(text: String): Long? = decode(text)?.revision
 }

@@ -228,8 +228,9 @@ class SyncEngine(
                 }
 
                 override fun onMessage(webSocket: WebSocket, text: String) {
-                    val announced = UpdateMessage.decodeRevision(text) ?: return
-                    if (announced != repository.syncPosition().revision) wake()
+                    val announced = UpdateMessage.decode(text) ?: return
+                    val position = repository.syncPosition()
+                    if (announced.revision != position.revision || (announced.epoch != null && announced.epoch != position.epoch)) wake()
                 }
 
                 override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {

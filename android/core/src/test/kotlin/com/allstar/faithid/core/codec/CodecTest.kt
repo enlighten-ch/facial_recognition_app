@@ -142,6 +142,7 @@ class ProtocolCodecTest {
         assertEquals(response, OpsResponse.decode(response.encode()))
         assertEquals(17L, UpdateMessage.decodeRevision(UpdateMessage.encode(17, "e")))
         assertNull(UpdateMessage.decodeRevision("pong"))
+        assertEquals(UpdateMessage.Update(17, "e"), UpdateMessage.decode(UpdateMessage.encode(17, "e")))
         assertEquals(mapOf("k" to "v w"), KeyValueText.decode(KeyValueText.encode("k" to "v\nw")))
     }
 

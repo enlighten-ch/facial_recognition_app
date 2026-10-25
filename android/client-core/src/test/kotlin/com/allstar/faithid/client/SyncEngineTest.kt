@@ -196,6 +196,20 @@ class SyncEngineTest {
         waitUntil(5_000) { kiosk.repo.get("p_admin") != null }
     }
 
+    @Test
+    fun `a reloaded server database reaches running kiosks at once`() {
+        val a = Kiosk("kiosk-a")
+        a.sync()
+        server.clients.approve("kiosk-a")
+        a.engine.start()
+        waitUntil { a.engine.status is SyncStatus.Online }
+        Thread.sleep(500) // update socket open
+        val before = a.repo.syncPosition()
+        server.people.reload() // new epoch, same revision (e.g. a backup was put back)
+        assertEquals(before.revision, server.people.revision)
+        waitUntil(5_000) { a.repo.syncPosition().epoch == server.people.epoch } // the fallback poll is 30 s
+    }
+
     private fun waitUntil(timeoutMs: Long = 10_000, condition: () -> Boolean) {
         val deadline = System.currentTimeMillis() + timeoutMs
         while (!condition()) {
