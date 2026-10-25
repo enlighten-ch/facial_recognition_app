@@ -85,7 +85,7 @@ kiosk_front
 sleep 6
 STARTED=$(kiosk_log_after "앱 시작" "$T3" 1 >/dev/null && echo 예 || echo 아니오)
 [ "$(kiosk_pid)" = "$PID_BEFORE" ] && ok "같은 프로세스로 복귀 (모델·DB 다시 열지 않음)" || bad "프로세스가 새로 시작됨"
-if ui_texts | grep -q "환영해요\|얼굴이 등록되어\|님"; then ok "바로 인식 대기 화면"; else bad "인식 대기 화면이 아님: $(ui_texts | head -3 | tr '\n' ' ')"; fi
+if ui_texts | grep -q "환영해요\|얼굴이 등록되어\|반가워요"; then ok "바로 인식 화면 (대기 또는 인식 결과)"; else bad "인식 대기 화면이 아님: $(ui_texts | head -3 | tr '\n' ' ')"; fi
 echo "  서버 ${SERVER_COUNT:-?}명 · 키오스크 화면 다시 생성: $STARTED"
 
 echo

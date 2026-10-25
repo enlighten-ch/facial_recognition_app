@@ -59,12 +59,14 @@ class SyncEngineTest {
         canApplyNow: () -> Boolean = { true },
     ) {
         val statuses = CopyOnWriteArrayList<SyncStatus>()
+        val logs = CopyOnWriteArrayList<String>()
         val repo = LocalFaceRepository(PeopleStore.open(temp.newFolder(id), JdbcSqlDatabase.FACTORY))
         val engine = SyncEngine(
             SyncConfig(url, KioskIdentity(id, "secret-for-$id-0123456789", "Tab $id"), connectTimeoutMillis = 1_000, applyIdleWaitMillis = applyIdleWaitMillis),
             repo,
             object : SyncListener {
                 override fun onStatus(status: SyncStatus) { statuses += status }
+                override fun onLog(message: String) { logs += message }
             },
             canApplyNow,
         ).also { engines += it }
@@ -208,6 +210,37 @@ class SyncEngineTest {
         server.people.reload() // new epoch, same revision (e.g. a backup was put back)
         assertEquals(before.revision, server.people.revision)
         waitUntil(5_000) { a.repo.syncPosition().epoch == server.people.epoch } // the fallback poll is 30 s
+    }
+
+    @Test
+    fun `an update socket that keeps closing does not make the kiosk sync in a tight loop`() {
+        val a = Kiosk("kiosk-a")
+        a.sync()
+        server.clients.approve("kiosk-a")
+        a.engine.start()
+        waitUntil { a.engine.status is SyncStatus.Online }
+        Thread.sleep(500)
+        // A server going down closes the socket while HTTP still answers for a moment.
+        val before = a.statuses.size
+        val end = System.currentTimeMillis() + 3_000
+        while (System.currentTimeMillis() < end) {
+            server.updates.disconnect("kiosk-a")
+            Thread.sleep(20)
+        }
+        val cycles = a.statuses.size - before
+        println("socket churn: $cycles sync cycles in 3 s")
+        assertTrue("$cycles sync cycles in 3 s", cycles <= 10)
+    }
+
+    @Test
+    fun `an empty server database is not downloaded again on every sync`() {
+        val a = Kiosk("kiosk-a")
+        a.sync()
+        server.clients.approve("kiosk-a")
+        a.sync()
+        a.sync()
+        a.sync()
+        assertEquals(a.logs.toString(), 1, a.logs.count { it.startsWith("서버 DB 전체 수신") })
     }
 
     private fun waitUntil(timeoutMs: Long = 10_000, condition: () -> Boolean) {

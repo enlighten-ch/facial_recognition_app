@@ -61,6 +61,9 @@ class SyncEngine(
     private var socketOpen = false
 
     @Volatile
+    private var lastSocketAttempt = 0L
+
+    @Volatile
     var status: SyncStatus = SyncStatus.Connecting(config.baseUrl)
         private set
 
@@ -110,7 +113,8 @@ class SyncEngine(
             val delay = when (result) {
                 is SyncStatus.Online -> {
                     failures = 0
-                    config.pollIntervalMillis
+                    // Without the update socket, try to reopen it soon instead of waiting for the poll.
+                    if (socketOpen) config.pollIntervalMillis else config.pollIntervalMillis.coerceAtMost(SOCKET_RETRY_MILLIS)
                 }
                 is SyncStatus.AwaitingApproval -> config.approvalPollMillis
                 is SyncStatus.Rejected -> config.maxRetryDelayMillis
@@ -191,7 +195,9 @@ class SyncEngine(
             .apply { position.epoch?.let { addQueryParameter(Protocol.PARAM_EPOCH, it) } }
             .build()
         val changes = execute(authorized(Protocol.CHANGES).url(url).get().build()) { ChangeSetCodec.decode(it.body!!.bytes()) }
-        if (changes.isEmpty() && changes.serverRevision == position.revision && changes.serverEpoch == position.epoch) {
+        // Same epoch and revision: nothing to apply, even when the server sent an (empty) full snapshot.
+        val unchanged = changes.serverRevision == position.revision && changes.serverEpoch == position.epoch
+        if (unchanged && changes.persons.isEmpty() && changes.tombstones.isEmpty()) {
             return changes.serverRevision
         }
         waitUntilApplyAllowed()
@@ -218,6 +224,10 @@ class SyncEngine(
 
     private fun ensureSocket() {
         if (socketOpen && socket != null) return
+        // A server shutting down closes the socket while HTTP still answers; reconnecting (and the
+        // sync each close triggers) is limited to once per SOCKET_RETRY_MILLIS.
+        if (now() - lastSocketAttempt < SOCKET_RETRY_MILLIS) return
+        lastSocketAttempt = now()
         closeSocket()
         val wsUrl = config.baseUrl.replaceFirst("http", "ws") + Protocol.UPDATES_WS
         socket = http.newWebSocket(
@@ -307,4 +317,8 @@ class SyncEngine(
     /** OkHttp only accepts ASCII header values; device names like "Galaxy Tab S7+" pass, others are escaped. */
     private fun String.toAsciiHeader(): String =
         buildString { this@toAsciiHeader.forEach { c -> if (c.code in 0x20..0x7e) append(c) else append('?') } }
+
+    private companion object {
+        const val SOCKET_RETRY_MILLIS = 1_000L
+    }
 }
