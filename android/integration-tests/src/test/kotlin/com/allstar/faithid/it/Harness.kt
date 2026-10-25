@@ -69,14 +69,18 @@ class SimKiosk(
     seed: Long,
     maxEmbeddings: Int,
     fastTimers: Boolean = true,
+    /** Defaults to "sometimes a face is in front of the camera". */
+    canApplyNow: () -> Boolean = { Random.nextInt(4) != 0 },
+    extraInterceptor: Interceptor? = null,
 ) {
     val network = FlakyNetwork(seed)
+    val identity = KioskIdentity(clientId, "secret-$clientId-${seed}abcdef0123", "Sim $clientId")
     val repo = LocalFaceRepository(PeopleStore.open(dir, JdbcSqlDatabase.FACTORY), maxEmbeddings)
     val statuses = CopyOnWriteArrayList<SyncStatus>()
     val engine = SyncEngine(
         SyncConfig(
             serverUrl = serverUrl,
-            identity = KioskIdentity(clientId, "secret-$clientId-${seed}abcdef0123", "Sim $clientId"),
+            identity = identity,
             connectTimeoutMillis = 2_000,
             readTimeoutMillis = 20_000,
             retryDelayMillis = if (fastTimers) 100 else 3_000,
@@ -91,8 +95,8 @@ class SimKiosk(
                 statuses += status
             }
         },
-        canApplyNow = { Random.nextInt(4) != 0 }, // sometimes "a face is in front of the camera"
-        httpClient = OkHttpClient.Builder().addInterceptor(network).build(),
+        canApplyNow = canApplyNow,
+        httpClient = OkHttpClient.Builder().addInterceptor(network).apply { extraInterceptor?.let { addInterceptor(it) } }.build(),
     )
 
     fun isCaughtUp(serverEpoch: String, serverRevision: Long): Boolean {

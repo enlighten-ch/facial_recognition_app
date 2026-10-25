@@ -31,4 +31,8 @@ tasks.test {
     // A real Android server can be targeted with -Pfaith.it.serverUrl=http://host:18080
     project.findProperty("faith.it.serverUrl")?.let { systemProperty("faith.it.serverUrl", it) }
     project.findProperty("faith.it.seed")?.let { systemProperty("faith.it.seed", it) }
+    // SyncPerformanceTest: -Pfaith.it.perfUrl=http://host:18080 [-Pfaith.it.adbSerial=...]
+    listOf("faith.it.perfUrl", "faith.it.adbSerial", "faith.it.perfPeople", "faith.it.perfLoadSeconds").forEach { key ->
+        project.findProperty(key)?.let { systemProperty(key, it) }
+    }
 }
