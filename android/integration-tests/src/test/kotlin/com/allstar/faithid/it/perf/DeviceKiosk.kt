@@ -17,6 +17,17 @@ class DeviceKiosk(private val serial: String) {
         device - (before + after) / 2
     }.sorted()[2]
 
+    /**
+     * Brings the kiosk app to the front. Android may destroy it while another app is in front, and
+     * it only syncs while its screen exists. Waits for it to report the server connection.
+     */
+    fun bringToFront() {
+        val since = System.currentTimeMillis()
+        adb("shell", "am", "start", "-n", "com.example.facetestbed/com.allstar.faithid.kiosk.ui.MainActivity")
+        waitForLog("서버 연결 상태: 연결됨", since, timeoutMillis = 20_000)
+        Thread.sleep(2_000)
+    }
+
     /** No face in front of the camera, so downloaded changes are applied immediately. */
     fun pauseCamera(paused: Boolean) {
         adb("shell", "am", "broadcast", "-n", receiver, "-a", "com.allstar.faithid.kiosk.DEBUG_CAMERA", "--ez", "paused", "$paused")

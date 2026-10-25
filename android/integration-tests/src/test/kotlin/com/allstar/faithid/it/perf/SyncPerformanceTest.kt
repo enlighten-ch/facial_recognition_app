@@ -293,6 +293,7 @@ class SyncPerformanceTest {
 
     private fun measureDeviceKiosk(device: DeviceKiosk, origin: SimKiosk, runId: String) {
         notes["deviceClockOffsetMs"] = device.clockOffsetMillis
+        device.bringToFront()
         device.pauseCamera(true)
         try {
             Thread.sleep(2_000)

@@ -5,7 +5,8 @@ ADB="${ADB:-$HOME/Android/Sdk/platform-tools/adb}"
 adbs() { "$ADB" -s "$SERIAL" "$@"; }
 ui_dump() { adbs shell uiautomator dump /sdcard/faith_ui.xml >/dev/null 2>&1; adbs shell cat /sdcard/faith_ui.xml; }
 ui_texts() { ui_dump | grep -o 'text="[^"]\+"' | sed 's/^text="//; s/"$//'; }
-ui_has() { ui_dump | grep -q "text=\"$1\""; }
+# Captured first: with pipefail, grep -q closing the pipe early on a large dump fails the pipeline.
+ui_has() { local xml; xml=$(ui_dump); [[ "$xml" == *"text=\"$1\""* ]]; }
 # Taps the n-th element whose text, content-desc or resource id equals $1.
 ui_tap() {
   local query="$1" nth="${2:-1}" bounds
