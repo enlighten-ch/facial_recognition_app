@@ -102,7 +102,7 @@ check "명단 외 출석 기록" 'wait_for 20 sheet "[ \"\$(sheet_count GUEST-$R
 
 step "5. 서버에서 삭제 → 키오스크에서도 사라짐"
 adbs shell am start -n "$SERVER/com.allstar.faithid.serverapp.ui.MainActivity" >/dev/null; sleep 3
-if ui_has "로그인"; then ui_tap loginIdInput; ui_type admin; ui_tap loginPasswordInput; ui_type "$ADMIN_PASSWORD"; adbs shell input keyevent KEYCODE_ENTER; sleep 2; fi
+if ui_has "로그인"; then ui_tap loginIdInput; ui_type admin; ui_tap loginPasswordInput; ui_type "$ADMIN_PASSWORD"; ui_tap loginButton; sleep 2; fi
 ui_tap "명단"; sleep 1
 ui_tap peopleSearchInput; ui_type "$NAME"; adbs shell input keyevent KEYCODE_BACK; sleep 1
 ui_tap personDeleteButton; sleep 1; ui_tap "삭제"; sleep 2

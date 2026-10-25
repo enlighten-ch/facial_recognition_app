@@ -2,9 +2,12 @@
 # Runs RemoteServerScenarioTest (6 simulated kiosks) against the Faith DB Server app on a device.
 #
 # Preconditions: the server app is installed, logged in, on the "현황" tab, and the server is running.
-# Usage: tools/e2e_server_scenario.sh <adb-serial>
+# Usage: tools/e2e_server_scenario.sh <adb-serial> [server-url]
+#   server-url defaults to http://127.0.0.1:18080 through adb forward; pass the tablet's Wi-Fi
+#   address (http://192.168.x.y:18080) to test over the real network.
 set -euo pipefail
 SERIAL="$1"
+SERVER_URL="${2:-http://127.0.0.1:18080}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 source "$HERE/ui_automation.sh" "$SERIAL"
@@ -14,7 +17,7 @@ LOG="$ROOT/integration-tests/build/remote-scenario.log"
 mkdir -p "$(dirname "$LOG")"
 rm -f "$ROOT/integration-tests/build/remote-scenario.properties"
 (cd "$ROOT" && ./gradlew :integration-tests:test --tests '*RemoteServerScenarioTest*' --rerun \
-  -Pfaith.it.serverUrl=http://127.0.0.1:18080 --console=plain > "$LOG" 2>&1; echo "GRADLE_EXIT=$?" >> "$LOG") &
+  -Pfaith.it.serverUrl=$SERVER_URL --console=plain > "$LOG" 2>&1; echo "GRADLE_EXIT=$?" >> "$LOG") &
 GRADLE_PID=$!
 
 # Act as the administrator: approve kiosks whenever some are waiting.
