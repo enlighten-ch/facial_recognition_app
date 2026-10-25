@@ -1,0 +1,1169 @@
+<title>Faith ID 개발 현황 보고서</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@500;700&family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: 기술 보고서. 넓은 화면은 왼쪽 목차 + 본문 한 단, 그림과 표는 본문 폭 전체를 쓴다. 색은 앱 로고의 별 파랑과 금색에서 가져왔다. */
+:root {
+  --paper: #f4f6fa;
+  --surface: #ffffff;
+  --surface-2: #eaeef6;
+  --ink: #161d2f;
+  --ink-2: #3a4458;
+  --muted: #646e83;
+  --line: #d6dce8;
+  --line-strong: #9aa5bb;
+  --blue: #2346a6;
+  --blue-soft: #e3e9f8;
+  --gold: #d99410;
+  --gold-soft: #fbefd4;
+  --crit: #b8322a;
+  --crit-soft: #f8e1de;
+  --warn: #a8670f;
+  --warn-soft: #f7ead2;
+  --ok: #2c7a4b;
+  --ok-soft: #dcefe3;
+  --plain-soft: #e8ebf1;
+
+  --font-display: "Hahmlet", "Nanum Myeongjo", "AppleMyungjo", serif;
+  --font-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+  --font-mono: "IBM Plex Mono", "D2Coding", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  --step--1: 0.8125rem;
+  --step-0: 0.9688rem;
+  --step-1: 1.125rem;
+  --step-2: 1.375rem;
+  --step-3: 1.75rem;
+  --step-4: 2.5rem;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --paper: #0f1421;
+    --surface: #161d2d;
+    --surface-2: #1d2639;
+    --ink: #e7ebf4;
+    --ink-2: #c3cad9;
+    --muted: #96a0b6;
+    --line: #2b3449;
+    --line-strong: #56627d;
+    --blue: #86a3ff;
+    --blue-soft: #1f2b4d;
+    --gold: #f0b440;
+    --gold-soft: #3a2f16;
+    --crit: #f07a6c;
+    --crit-soft: #3d1f1d;
+    --warn: #e7a84f;
+    --warn-soft: #3a2c16;
+    --ok: #66c792;
+    --ok-soft: #173326;
+    --plain-soft: #252e42;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #0f1421;
+  --surface: #161d2d;
+  --surface-2: #1d2639;
+  --ink: #e7ebf4;
+  --ink-2: #c3cad9;
+  --muted: #96a0b6;
+  --line: #2b3449;
+  --line-strong: #56627d;
+  --blue: #86a3ff;
+  --blue-soft: #1f2b4d;
+  --gold: #f0b440;
+  --gold-soft: #3a2f16;
+  --crit: #f07a6c;
+  --crit-soft: #3d1f1d;
+  --warn: #e7a84f;
+  --warn-soft: #3a2c16;
+  --ok: #66c792;
+  --ok-soft: #173326;
+  --plain-soft: #252e42;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  line-height: 1.7;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.shell {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding-block: 40px 96px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 40px;
+}
+@media (min-width: 1100px) {
+  .shell { grid-template-columns: 200px minmax(0, 1fr); }
+}
+nav.toc { display: none; }
+@media (min-width: 1100px) {
+  nav.toc {
+    display: block;
+    position: sticky;
+    top: calc(env(safe-area-inset-top, 0px) + 24px);
+    align-self: start;
+    font-size: var(--step--1);
+  }
+}
+nav.toc p {
+  margin: 0 0 10px;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 600;
+}
+nav.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+nav.toc a {
+  display: block;
+  padding: 4px 10px;
+  border-left: 2px solid var(--line);
+  color: var(--ink-2);
+  text-decoration: none;
+}
+nav.toc a:hover { border-left-color: var(--blue); color: var(--blue); }
+main { min-width: 0; display: grid; gap: 64px; }
+section { display: grid; gap: 18px; min-width: 0; scroll-margin-top: 24px; }
+
+a { color: var(--blue); }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; line-height: 1.3; color: var(--ink); }
+h1 { font-size: var(--step-4); font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: var(--step-3); font-weight: 700; }
+h3 { font-size: var(--step-2); font-weight: 500; margin-top: 12px; }
+h2 .num { font-family: var(--font-mono); font-size: 0.55em; color: var(--muted); font-weight: 500; margin-right: 10px; vertical-align: 0.3em; }
+p { margin: 0; max-width: 68ch; }
+.lede { font-size: var(--step-1); color: var(--ink-2); max-width: 62ch; }
+.eyebrow { font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--blue); font-weight: 600; }
+code, .mono { font-family: var(--font-mono); font-size: 0.88em; }
+code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+ul.plain { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; max-width: 70ch; }
+
+/* 머리말 */
+header.cover {
+  display: grid;
+  gap: 32px;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  padding-bottom: 32px;
+  border-bottom: 1px solid var(--line);
+}
+@media (min-width: 820px) {
+  header.cover { grid-template-columns: minmax(0, 1fr) 300px; }
+}
+.cover-text { display: grid; gap: 16px; }
+.brand { display: flex; gap: 12px; align-items: center; }
+.brand img { width: 44px; height: 44px; border-radius: 10px; }
+.brand span { font-weight: 600; color: var(--ink-2); }
+dl.meta {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px 16px;
+  margin: 8px 0 0;
+  font-size: var(--step--1);
+}
+dl.meta dt { color: var(--muted); }
+dl.meta dd { margin: 0; color: var(--ink-2); }
+
+/* 이름표 견본: 기본 용지 Nemonic 72×50mm */
+.nametag-wrap { display: grid; gap: 8px; justify-items: center; }
+.nametag {
+  width: 100%;
+  max-width: 300px;
+  aspect-ratio: 72 / 50;
+  background: #fffdf7;
+  color: #1a1a1a;
+  border-radius: 6px;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.05), 0 10px 24px -12px rgba(22, 29, 47, 0.45);
+  position: relative;
+  display: grid;
+  align-content: center;
+  padding: 0 26px;
+  gap: 4px;
+  outline: 1px dashed #c9c2b2;
+  outline-offset: -8px;
+}
+.nametag .nt-name { font-family: var(--font-display); font-size: 2.6rem; font-weight: 700; line-height: 1.1; color: #1a1a1a; }
+.nametag .nt-sub { font-size: 1rem; color: #3b3b3b; display: flex; gap: 10px; }
+.nametag .nt-sub b { color: #2346a6; font-weight: 600; }
+.nametag::after {
+  content: "72 × 50 mm";
+  position: absolute;
+  right: 12px; bottom: 10px;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: #8b8474;
+}
+.nametag-wrap figcaption { font-size: var(--step--1); color: var(--muted); text-align: center; max-width: 30ch; }
+
+/* 요약 */
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 20px 22px;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+.panel h3 { margin: 0; font-size: var(--step-1); font-family: var(--font-body); font-weight: 600; }
+.tally { display: grid; gap: 8px; }
+.tally-row { display: grid; grid-template-columns: 74px minmax(0, 1fr) 30px; gap: 10px; align-items: center; font-size: var(--step--1); }
+.tally-bar { height: 10px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
+.tally-bar span { display: block; height: 100%; border-radius: 3px; }
+.tally-row .n { font-family: var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; color: var(--ink-2); }
+.fill-ok { background: var(--ok); }
+.fill-part { background: var(--warn); }
+.fill-crit { background: var(--crit); }
+.fill-plain { background: var(--line-strong); }
+.fill-blue { background: var(--blue); }
+
+.callout {
+  border-left: 3px solid var(--crit);
+  background: var(--crit-soft);
+  padding: 14px 18px;
+  border-radius: 0 8px 8px 0;
+  display: grid;
+  gap: 6px;
+  max-width: 78ch;
+}
+.callout strong { color: var(--crit); }
+.callout.note { border-left-color: var(--blue); background: var(--blue-soft); }
+.callout.note strong { color: var(--blue); }
+
+/* 그림 */
+figure { margin: 0; display: grid; gap: 10px; min-width: 0; }
+figcaption { font-size: var(--step--1); color: var(--muted); max-width: 80ch; }
+figcaption b { color: var(--ink-2); font-weight: 600; }
+.diagram {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 18px;
+  overflow-x: auto;
+}
+.diagram svg { display: block; width: 100%; height: auto; min-width: 760px; color: var(--ink-2); font-family: var(--font-body); }
+.diagram svg.narrow { min-width: 620px; }
+
+svg .bx { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1.2; }
+svg .bx-soft { fill: var(--surface-2); stroke: var(--line); stroke-width: 1; }
+svg .bx-blue { fill: var(--blue-soft); stroke: var(--blue); stroke-width: 1.4; }
+svg .bx-gold { fill: var(--gold-soft); stroke: var(--gold); stroke-width: 1.4; }
+svg .bx-crit { fill: var(--crit-soft); stroke: var(--crit); stroke-width: 1.4; }
+svg .bx-ok { fill: var(--ok-soft); stroke: var(--ok); stroke-width: 1.2; }
+svg .bx-warn { fill: var(--warn-soft); stroke: var(--warn); stroke-width: 1.2; }
+svg .t { fill: var(--ink); font-size: 14px; font-weight: 600; }
+svg .ts { fill: var(--ink-2); font-size: 11.5px; }
+svg .tm { fill: var(--ink-2); font-size: 11px; font-family: var(--font-mono); }
+svg .tl { fill: var(--muted); font-size: 11px; }
+svg .t-blue { fill: var(--blue); }
+svg .t-crit { fill: var(--crit); }
+svg .t-ok { fill: var(--ok); }
+svg .t-warn { fill: var(--warn); }
+svg .e { fill: none; stroke: var(--line-strong); stroke-width: 1.4; }
+svg .e-dash { fill: none; stroke: var(--line-strong); stroke-width: 1.3; stroke-dasharray: 5 4; }
+svg .e-blue { fill: none; stroke: var(--blue); stroke-width: 1.6; }
+svg .e-crit { fill: none; stroke: var(--crit); stroke-width: 1.4; stroke-dasharray: 4 4; }
+svg .e-crit-solid { fill: none; stroke: var(--crit); stroke-width: 1.6; }
+svg .life { stroke: var(--line); stroke-width: 1.2; stroke-dasharray: 3 5; }
+svg .m-def { fill: var(--line-strong); }
+svg .m-blue { fill: var(--blue); }
+svg .m-crit { fill: var(--crit); }
+svg .bus { fill: var(--line-strong); }
+svg .hatch { fill: var(--gold); opacity: 0.85; }
+
+/* 화면 캡처 */
+.shots { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.shot { display: grid; gap: 8px; align-content: start; }
+.shot img {
+  width: 100%;
+  height: auto;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+}
+.shot.device img { border: 6px solid #1c2232; border-radius: 16px; }
+.shot figcaption { font-size: var(--step--1); }
+.shots.wide { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.shot-single { max-width: 900px; }
+
+/* 표 */
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: var(--step--1); line-height: 1.55; }
+th, td { padding: 10px 14px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+thead th {
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-weight: 600;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+}
+tbody tr:last-child td { border-bottom: 0; }
+td.id { font-family: var(--font-mono); white-space: nowrap; color: var(--muted); font-variant-numeric: tabular-nums; }
+td.where { font-family: var(--font-mono); font-size: 0.75rem; color: var(--ink-2); min-width: 190px; }
+td.req { min-width: 220px; font-weight: 500; color: var(--ink); }
+td.note { min-width: 220px; color: var(--ink-2); }
+table.req-table { min-width: 860px; }
+table.api-table { min-width: 720px; }
+table.issue-table { min-width: 920px; }
+.pill {
+  display: inline-block;
+  padding: 1px 9px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+.pill.ok { background: var(--ok-soft); color: var(--ok); border-color: color-mix(in srgb, var(--ok) 35%, transparent); }
+.pill.part { background: var(--warn-soft); color: var(--warn); border-color: color-mix(in srgb, var(--warn) 35%, transparent); }
+.pill.crit { background: var(--crit-soft); color: var(--crit); border-color: color-mix(in srgb, var(--crit) 35%, transparent); }
+.pill.none { background: var(--plain-soft); color: var(--muted); border-color: var(--line); }
+.pill.blue { background: var(--blue-soft); color: var(--blue); border-color: color-mix(in srgb, var(--blue) 35%, transparent); }
+.sev { border-left: 4px solid var(--line-strong); }
+tr.sev-crit td:first-child { border-left: 4px solid var(--crit); }
+tr.sev-high td:first-child { border-left: 4px solid var(--warn); }
+tr.sev-mid td:first-child { border-left: 4px solid var(--gold); }
+tr.sev-low td:first-child { border-left: 4px solid var(--line-strong); }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: var(--step--1); color: var(--muted); align-items: center; }
+
+pre.sample {
+  margin: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px 18px;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  line-height: 1.6;
+  overflow-x: auto;
+  color: var(--ink-2);
+}
+pre.sample .hl { color: var(--ok); font-weight: 500; }
+pre.sample .dim { color: var(--muted); }
+
+.two-col { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); align-items: start; }
+ol.steps { margin: 0; padding-left: 1.3em; display: grid; gap: 8px; max-width: 72ch; }
+ol.steps li::marker { font-family: var(--font-mono); color: var(--blue); }
+footer { font-size: var(--step--1); color: var(--muted); border-top: 1px solid var(--line); padding-top: 20px; }
+</style>
+
+<div class="shell">
+  <nav class="toc" aria-label="목차">
+    <p>목차</p>
+    <ol>
+      <li><a href="#summary">1. 요약</a></li>
+      <li><a href="#system">2. 시스템 구성</a></li>
+      <li><a href="#client">3. Faith ID 키오스크</a></li>
+      <li><a href="#server">4. Faith DB Server</a></li>
+      <li><a href="#sync">5. 동기화 프로토콜</a></li>
+      <li><a href="#attendance">6. 출석 관리</a></li>
+      <li><a href="#requirements">7. 요구사항 표</a></li>
+      <li><a href="#issues">8. 확인된 문제</a></li>
+      <li><a href="#next">9. 다음 단계</a></li>
+      <li><a href="#method">부록. 검증 방법</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <header class="cover">
+      <div class="cover-text">
+        <div class="brand">
+          <img src="img/app_icon.webp" alt="Dream Allstar Faith 앱 아이콘" width="44" height="44">
+          <span>Allstar Faith ID · 개발 현황 보고서</span>
+        </div>
+        <h1>얼굴로 출석하고 이름표를 뽑는 키오스크, 지금 어디까지 왔나</h1>
+        <p class="lede">태블릿 키오스크(Faith ID)가 얼굴을 인식해 이름표를 출력하고 출석을 남깁니다. 별도 태블릿의 DB 서버(Faith DB Server)가 얼굴 데이터와 출석부를 모아 여러 키오스크에 나눠 줍니다. 이 문서는 두 앱의 기능과 처리 흐름, 요구사항별 구현 상태, 실제 실행으로 확인한 문제를 기록합니다.</p>
+        <dl class="meta">
+          <dt>기준일</dt><dd>2026-10-25</dd>
+          <dt>코드 기준</dt><dd><code>android</code> 브랜치, 커밋 <code>9de9781</code> (2026-05-30)</dd>
+          <dt>대상 앱</dt><dd>Faith ID <code>com.example.facetestbed</code> · Faith DB Server <code>com.example.facedbserver</code> · 공통 모듈 <code>:common</code></dd>
+          <dt>실행 검증</dt><dd>Android 15 (API 35) 에뮬레이터, 1752×2800 · 320dpi (Galaxy Tab S7+ 해상도)</dd>
+        </dl>
+      </div>
+      <figure class="nametag-wrap">
+        <div class="nametag" role="img" aria-label="이름표 견본: 홍길동, 청년부, 3학년">
+          <div class="nt-name">홍길동</div>
+          <div class="nt-sub"><b>청년부</b><span>3학년</span></div>
+        </div>
+        <figcaption>키오스크가 출력하는 이름표 견본. 기본 용지는 Nemonic 72×50 mm입니다. 이 문서의 인물은 모두 가명입니다.</figcaption>
+      </figure>
+    </header>
+
+    <section id="summary" aria-labelledby="h-summary">
+      <h2 id="h-summary"><span class="num">1</span>요약</h2>
+      <p>핵심 기능인 얼굴 등록, 실시간 인식, 이름표 출력, 서버 승인, 증분 동기화는 코드로 모두 구현돼 있습니다. 하지만 실행해 보니 <b>서버 앱이 Android 14 이상에서 켜지자마자 종료</b>되고, <b>승인·관리 API에 인증 검사가 빠져</b> 있었습니다. 출석 기능은 이름 하나만 기록하는 최소 형태라서, 출석 관리를 본격적으로 쓰려면 데이터 모델부터 다시 잡아야 합니다.</p>
+      <div class="summary-grid">
+        <div class="panel">
+          <h3>요구사항 42건 구현 상태</h3>
+          <div class="tally">
+            <div class="tally-row"><span>구현</span><div class="tally-bar"><span class="fill-ok" style="width:59.5%"></span></div><span class="n">25</span></div>
+            <div class="tally-row"><span>부분 구현</span><div class="tally-bar"><span class="fill-part" style="width:26.2%"></span></div><span class="n">11</span></div>
+            <div class="tally-row"><span>결함</span><div class="tally-bar"><span class="fill-crit" style="width:9.5%"></span></div><span class="n">4</span></div>
+            <div class="tally-row"><span>미구현</span><div class="tally-bar"><span class="fill-plain" style="width:4.8%"></span></div><span class="n">2</span></div>
+          </div>
+        </div>
+        <div class="panel">
+          <h3>확인된 문제 16건</h3>
+          <div class="tally">
+            <div class="tally-row"><span>치명</span><div class="tally-bar"><span class="fill-crit" style="width:12.5%"></span></div><span class="n">2</span></div>
+            <div class="tally-row"><span>높음</span><div class="tally-bar"><span class="fill-part" style="width:25%"></span></div><span class="n">4</span></div>
+            <div class="tally-row"><span>보통</span><div class="tally-bar"><span class="fill-blue" style="width:31.25%"></span></div><span class="n">5</span></div>
+            <div class="tally-row"><span>낮음</span><div class="tally-bar"><span class="fill-plain" style="width:31.25%"></span></div><span class="n">5</span></div>
+          </div>
+        </div>
+        <div class="panel">
+          <h3>코드 규모</h3>
+          <div class="tally">
+            <div class="tally-row"><span>키오스크</span><div class="tally-bar"><span class="fill-blue" style="width:100%"></span></div><span class="n" style="width:auto">8.4k</span></div>
+            <div class="tally-row"><span>DB 서버</span><div class="tally-bar"><span class="fill-blue" style="width:45.6%"></span></div><span class="n">3.9k</span></div>
+            <div class="tally-row"><span>공통</span><div class="tally-bar"><span class="fill-blue" style="width:2.3%"></span></div><span class="n">0.2k</span></div>
+          </div>
+          <p style="font-size:var(--step--1);color:var(--muted)">Kotlin 줄 수. 테스트 코드는 0줄입니다.</p>
+        </div>
+      </div>
+      <div class="callout">
+        <strong>운영 전에 반드시 고칠 두 가지</strong>
+        <p><b>I-01</b> 서버 앱 Manifest에 <code>FOREGROUND_SERVICE_DATA_SYNC</code> 권한이 없어 Android 14 이상에서 서버를 시작하는 순간 앱이 종료됩니다. 현재 Galaxy Tab S7+의 최신 OS도 해당합니다.</p>
+        <p><b>I-02</b> 서버의 승인·관리 API에 인증 검사가 없습니다. 관리자 로그인은 서버 화면에만 걸려 있어서, 얼굴 데이터를 승인된 키오스크만 쓴다는 전제가 지켜지지 않습니다.</p>
+      </div>
+    </section>
+
+    <section id="system" aria-labelledby="h-system">
+      <h2 id="h-system"><span class="num">2</span>시스템 구성</h2>
+      <p>키오스크 여러 대와 서버 한 대가 같은 사내 Wi-Fi에 연결됩니다. 서버는 별도 PC가 아니라 Android 태블릿 위에서 앱으로 실행됩니다. 키오스크는 얼굴 DB 사본을 로컬에 들고 인식하므로, 서버가 하는 일은 데이터의 기준본 보관, 변경 전파, 출석부 기록입니다.</p>
+      <figure>
+        <div class="diagram">
+          <svg viewBox="0 0 900 460" role="img" aria-label="키오스크 두 대가 사내 Wi-Fi를 거쳐 Faith DB Server와 HTTP 요청과 WebSocket 알림을 주고받고, 서버는 /sdcard/faceDB 폴더에 DB와 출석부 파일을 쓴다">
+            <defs>
+              <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="m-def"/></marker>
+              <marker id="a1b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="m-blue"/></marker>
+            </defs>
+            <rect x="30" y="30" width="240" height="104" rx="8" class="bx-blue"/>
+            <text x="46" y="56" class="t">Faith ID 키오스크 #1</text>
+            <text x="46" y="80" class="ts">카메라 → 얼굴 검출 → 판정</text>
+            <text x="46" y="100" class="ts">로컬 DB 사본 · 동기화 로그</text>
+            <text x="46" y="120" class="ts">등록 · 이름표 출력 · 출석 요청</text>
+            <rect x="30" y="156" width="240" height="40" rx="6" class="bx-soft"/>
+            <text x="46" y="181" class="ts">이름표 프린터 (Bluetooth · 시스템 인쇄)</text>
+            <line x1="150" y1="134" x2="150" y2="154" class="e" marker-end="url(#a1)"/>
+
+            <rect x="30" y="250" width="240" height="104" rx="8" class="bx-blue"/>
+            <text x="46" y="276" class="t">Faith ID 키오스크 #2</text>
+            <text x="46" y="300" class="ts">카메라 → 얼굴 검출 → 판정</text>
+            <text x="46" y="320" class="ts">로컬 DB 사본 · 동기화 로그</text>
+            <text x="46" y="340" class="ts">등록 · 이름표 출력 · 출석 요청</text>
+            <rect x="30" y="376" width="240" height="40" rx="6" class="bx-soft"/>
+            <text x="46" y="401" class="ts">이름표 프린터 (Bluetooth · 시스템 인쇄)</text>
+            <line x1="150" y1="354" x2="150" y2="374" class="e" marker-end="url(#a1)"/>
+
+            <rect x="364" y="60" width="10" height="282" rx="3" class="bus"/>
+            <text x="369" y="48" text-anchor="middle" class="tl">사내 Wi-Fi</text>
+            <line x1="270" y1="82" x2="364" y2="82" class="e"/>
+            <line x1="270" y1="302" x2="364" y2="302" class="e"/>
+
+            <line x1="374" y1="196" x2="560" y2="196" class="e-blue" marker-end="url(#a1b)"/>
+            <text x="467" y="174" text-anchor="middle" class="ts t-blue">HTTP REST</text>
+            <text x="467" y="189" text-anchor="middle" class="tl">델타 동기화 · 출석 기록</text>
+            <line x1="560" y1="238" x2="376" y2="238" class="e-dash" marker-end="url(#a1)"/>
+            <text x="467" y="258" text-anchor="middle" class="ts">WebSocket 알림</text>
+            <text x="467" y="273" text-anchor="middle" class="tl">db_update (revision)</text>
+
+            <rect x="560" y="30" width="300" height="60" rx="8" class="bx-soft"/>
+            <text x="576" y="54" class="t">관리자</text>
+            <text x="576" y="76" class="ts">서버 태블릿에서 로그인해 승인·편집</text>
+            <line x1="710" y1="90" x2="710" y2="148" class="e" marker-end="url(#a1)"/>
+            <text x="720" y="123" class="tl">승인 · 수정 · 삭제</text>
+
+            <rect x="560" y="150" width="300" height="130" rx="8" class="bx-gold"/>
+            <text x="576" y="176" class="t">Faith DB Server</text>
+            <text x="576" y="200" class="ts">Ktor CIO 웹서버 · 포트 18080</text>
+            <text x="576" y="220" class="ts">포그라운드 서비스로 상시 실행</text>
+            <text x="576" y="240" class="ts">승인 토큰 · DB 리비전 · 접속 세션</text>
+            <text x="576" y="260" class="ts">관리 화면: 승인 · DB 표 · 로그</text>
+
+            <line x1="710" y1="280" x2="710" y2="318" class="e" marker-end="url(#a1)"/>
+            <text x="720" y="303" class="tl">읽기 · 쓰기</text>
+            <rect x="560" y="320" width="300" height="120" rx="8" class="bx"/>
+            <text x="576" y="345" class="t mono">/sdcard/faceDB</text>
+            <text x="576" y="368" class="tm">face_db.csv           메타데이터</text>
+            <text x="576" y="387" class="tm">face_meta.db          SQLite 인덱스</text>
+            <text x="576" y="406" class="tm">face_embeddings.bin   임베딩</text>
+            <text x="576" y="425" class="tm">attendance_날짜.csv   출석부</text>
+          </svg>
+        </div>
+        <figcaption><b>그림 1.</b> 전체 구성. 실선은 키오스크가 거는 요청, 점선은 서버가 보내는 변경 알림입니다. 출석부 CSV는 서버 태블릿의 <code>/sdcard/faceDB</code>에 날짜별로 쌓이고, 엑셀에서 바로 열 수 있습니다.</figcaption>
+      </figure>
+      <h3>저장소 구성</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>위치</th><th>내용</th><th>상태</th></tr></thead>
+          <tbody>
+            <tr><td class="where">android_testbed/app</td><td>Faith ID 키오스크. Kotlin 10개 파일, 8,452줄. Buffalo-L 모델(174 MB)을 APK에 넣어 APK가 230 MB입니다.</td><td><span class="pill blue">현재 개발 본체</span></td></tr>
+            <tr><td class="where">android_testbed/dbserver</td><td>Faith DB Server. Kotlin 6개 파일, 3,868줄. Ktor CIO 서버와 관리 화면.</td><td><span class="pill blue">현재 개발 본체</span></td></tr>
+            <tr><td class="where">android_testbed/common</td><td>두 앱이 함께 쓰는 메타데이터 처리 (<code>FaceRecordMetadata.kt</code>). 2026-05-30 커밋에서 분리.</td><td><span class="pill blue">공통</span></td></tr>
+            <tr><td class="where">루트 *.py</td><td>PySide6 + insightface로 만든 데스크톱 프로토타입. 3월 이후 변경 없음.</td><td><span class="pill none">보관용</span></td></tr>
+            <tr><td class="where">reports/*.md</td><td>2026-03-14 기준 보고서 2건. JSON DB와 예전 API를 설명하고 있어 현재 코드와 맞지 않습니다.</td><td><span class="pill part">구버전</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="client" aria-labelledby="h-client">
+      <h2 id="h-client"><span class="num">3</span>Faith ID 키오스크</h2>
+      <p>키오스크는 카메라 앞 사람을 계속 분석해서 세 갈래로 나눕니다. 처음 보는 얼굴이면 등록을 권하고, 확실히 아는 얼굴이면 바로 출력 버튼을 띄우고, 비슷한 사람이 여럿이면 후보를 보여 주고 고르게 합니다. 서버에 연결되지 않으면 인식 자체를 멈춥니다.</p>
+
+      <h3>화면 흐름</h3>
+      <figure>
+        <div class="diagram">
+          <svg viewBox="0 0 950 420" role="img" aria-label="키오스크 화면 상태 흐름: 서버 미연결에서 대기로, 얼굴 판정 후 미등록, 인식 확정, 후보 선택으로 나뉘고 등록 또는 이름표 출력을 거쳐 출석 기록 후 대기로 돌아온다">
+            <defs>
+              <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="m-def"/></marker>
+              <marker id="a2b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="m-blue"/></marker>
+            </defs>
+            <rect x="20" y="40" width="170" height="54" rx="8" class="bx-soft"/>
+            <text x="105" y="63" text-anchor="middle" class="t">서버 미연결</text>
+            <text x="105" y="82" text-anchor="middle" class="ts">승인 대기도 여기에 포함</text>
+            <line x1="105" y1="94" x2="105" y2="188" class="e" marker-end="url(#a2)"/>
+            <text x="113" y="146" class="tl">연결·승인</text>
+
+            <rect x="20" y="190" width="170" height="54" rx="8" class="bx"/>
+            <text x="105" y="213" text-anchor="middle" class="t">대기</text>
+            <text x="105" y="232" text-anchor="middle" class="ts">환영 문구 표시</text>
+            <line x1="190" y1="217" x2="248" y2="217" class="e" marker-end="url(#a2)"/>
+            <text x="219" y="209" text-anchor="middle" class="tl">얼굴 감지</text>
+
+            <rect x="250" y="190" width="170" height="54" rx="8" class="bx-gold"/>
+            <text x="335" y="213" text-anchor="middle" class="t">얼굴 판정</text>
+            <text x="335" y="232" text-anchor="middle" class="ts">6프레임마다 실행</text>
+
+            <path d="M420 205 L450 205 L450 67 L478 67" class="e" marker-end="url(#a2)"/>
+            <path d="M420 217 L478 217" class="e" marker-end="url(#a2)"/>
+            <path d="M420 229 L450 229 L450 357 L478 357" class="e" marker-end="url(#a2)"/>
+
+            <rect x="480" y="40" width="170" height="54" rx="8" class="bx"/>
+            <text x="565" y="63" text-anchor="middle" class="t">미등록</text>
+            <text x="565" y="82" text-anchor="middle" class="ts">최고 점수 &lt; 0.40</text>
+            <rect x="480" y="190" width="170" height="54" rx="8" class="bx-blue"/>
+            <text x="565" y="213" text-anchor="middle" class="t">인식 확정</text>
+            <text x="565" y="232" text-anchor="middle" class="ts">1·2위 점수 차 ≥ 0.10</text>
+            <rect x="480" y="330" width="170" height="54" rx="8" class="bx"/>
+            <text x="565" y="353" text-anchor="middle" class="t">후보 선택</text>
+            <text x="565" y="372" text-anchor="middle" class="ts">상위 3명을 버튼으로</text>
+
+            <line x1="650" y1="67" x2="758" y2="67" class="e" marker-end="url(#a2)"/>
+            <text x="704" y="60" text-anchor="middle" class="tl">등록 시작</text>
+            <path d="M650 82 L700 82 L700 160 L758 160" class="e-dash" marker-end="url(#a2)"/>
+            <text x="706" y="128" class="tl">이름표만</text>
+
+            <rect x="760" y="40" width="170" height="54" rx="8" class="bx"/>
+            <text x="845" y="63" text-anchor="middle" class="t">등록 촬영</text>
+            <text x="845" y="82" text-anchor="middle" class="ts">좌·우·상·하 × 3장</text>
+            <line x1="845" y1="94" x2="845" y2="131" class="e" marker-end="url(#a2)"/>
+            <text x="853" y="117" class="tl">12장 수집</text>
+
+            <rect x="760" y="133" width="170" height="54" rx="8" class="bx"/>
+            <text x="845" y="156" text-anchor="middle" class="t">정보 입력</text>
+            <text x="845" y="175" text-anchor="middle" class="ts">이름 · 부서 · 학년</text>
+            <text x="900" y="206" text-anchor="middle" class="tl">저장하면</text>
+            <text x="900" y="220" text-anchor="middle" class="tl">대기로 복귀</text>
+            <line x1="800" y1="187" x2="800" y2="248" class="e-dash" marker-end="url(#a2)"/>
+            <text x="794" y="222" text-anchor="end" class="tl">이름표만</text>
+
+            <path d="M650 217 L720 217 L720 266 L758 266" class="e-blue" marker-end="url(#a2b)"/>
+            <text x="655" y="209" class="tl">이름 출력</text>
+            <path d="M650 357 L720 357 L720 288 L758 288" class="e" marker-end="url(#a2)"/>
+            <text x="655" y="349" class="tl">고른 뒤</text>
+
+            <rect x="760" y="250" width="170" height="54" rx="8" class="bx-blue"/>
+            <text x="845" y="273" text-anchor="middle" class="t">이름표 출력</text>
+            <text x="845" y="292" text-anchor="middle" class="ts">결과 표시 · 카운트다운</text>
+            <line x1="845" y1="304" x2="845" y2="328" class="e" marker-end="url(#a2)"/>
+            <text x="853" y="320" class="tl">인쇄 성공</text>
+            <rect x="760" y="330" width="170" height="54" rx="8" class="bx-gold"/>
+            <text x="845" y="353" text-anchor="middle" class="t">출석 기록</text>
+            <text x="845" y="372" text-anchor="middle" class="ts">서버로 이름 전송</text>
+
+            <path d="M760 400 L105 400 L105 246" class="e-dash" marker-end="url(#a2)"/>
+            <text x="430" y="394" text-anchor="middle" class="tl">자동 복귀 (출력 화면 카운트다운 종료)</text>
+          </svg>
+        </div>
+        <figcaption><b>그림 2.</b> 키오스크 화면 상태. 판정은 6프레임마다 한 번 합니다. 미등록자는 등록 없이 이름표만 뽑을 수도 있고(점선), 이 경우에도 출석이 기록됩니다. 함수: <code>computeMonitorDecision</code>, <code>applyMonitorDecision</code>, <code>goTo</code>.</figcaption>
+      </figure>
+
+      <h3>인식 파이프라인</h3>
+      <p>프레임 하나가 판정 점수가 되기까지 일곱 단계를 거칩니다. 얼굴 검출은 Google ML Kit, 얼굴 특징값(임베딩)은 InsightFace Buffalo-L 패키지의 ArcFace ResNet-50 모델을 ONNX Runtime으로 돌려 얻습니다. 비교 대상은 사람마다 저장된 임베딩들의 평균(중심 벡터) 하나입니다.</p>
+      <figure>
+        <div class="diagram">
+          <svg viewBox="0 0 950 126" role="img" aria-label="인식 파이프라인 7단계: 카메라 프레임, 얼굴 검출, 얼굴 선택, 자르기, 정규화, 임베딩, 코사인 비교">
+            <defs>
+              <marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="m-def"/></marker>
+            </defs>
+            <rect x="10" y="20" width="120" height="86" rx="8" class="bx"/>
+            <text x="70" y="46" text-anchor="middle" class="t">카메라 프레임</text>
+            <text x="70" y="68" text-anchor="middle" class="ts">CameraX</text>
+            <text x="70" y="85" text-anchor="middle" class="ts">YUV → 정방향 비트맵</text>
+            <rect x="144" y="20" width="120" height="86" rx="8" class="bx"/>
+            <text x="204" y="46" text-anchor="middle" class="t">얼굴 검출</text>
+            <text x="204" y="68" text-anchor="middle" class="ts">ML Kit FAST 모드</text>
+            <text x="204" y="85" text-anchor="middle" class="ts">랜드마크 전체</text>
+            <rect x="278" y="20" width="120" height="86" rx="8" class="bx"/>
+            <text x="338" y="46" text-anchor="middle" class="t">얼굴 선택</text>
+            <text x="338" y="68" text-anchor="middle" class="ts">가이드 타원 안의</text>
+            <text x="338" y="85" text-anchor="middle" class="ts">가장 큰 얼굴</text>
+            <rect x="412" y="20" width="120" height="86" rx="8" class="bx"/>
+            <text x="472" y="46" text-anchor="middle" class="t">자르기</text>
+            <text x="472" y="68" text-anchor="middle" class="ts">타원 밖 마스킹 후</text>
+            <text x="472" y="85" text-anchor="middle" class="tm">112×112</text>
+            <rect x="546" y="20" width="120" height="86" rx="8" class="bx"/>
+            <text x="606" y="46" text-anchor="middle" class="t">정규화</text>
+            <text x="606" y="68" text-anchor="middle" class="tm">(v−127.5)/127.5</text>
+            <text x="606" y="85" text-anchor="middle" class="ts">NCHW 텐서</text>
+            <rect x="680" y="20" width="120" height="86" rx="8" class="bx-gold"/>
+            <text x="740" y="46" text-anchor="middle" class="t">임베딩</text>
+            <text x="740" y="68" text-anchor="middle" class="tm">w600k_r50.onnx</text>
+            <text x="740" y="85" text-anchor="middle" class="ts">512차원 · L2 정규화</text>
+            <rect x="814" y="20" width="120" height="86" rx="8" class="bx-blue"/>
+            <text x="874" y="46" text-anchor="middle" class="t">비교</text>
+            <text x="874" y="68" text-anchor="middle" class="ts">인물별 중심 벡터와</text>
+            <text x="874" y="85" text-anchor="middle" class="ts">코사인 유사도</text>
+            <line x1="130" y1="63" x2="143" y2="63" class="e" marker-end="url(#a3)"/>
+            <line x1="264" y1="63" x2="277" y2="63" class="e" marker-end="url(#a3)"/>
+            <line x1="398" y1="63" x2="411" y2="63" class="e" marker-end="url(#a3)"/>
+            <line x1="532" y1="63" x2="545" y2="63" class="e" marker-end="url(#a3)"/>
+            <line x1="666" y1="63" x2="679" y2="63" class="e" marker-end="url(#a3)"/>
+            <line x1="800" y1="63" x2="813" y2="63" class="e" marker-end="url(#a3)"/>
+          </svg>
+        </div>
+        <figcaption><b>그림 3.</b> 프레임에서 점수까지. 얼굴 정렬(5점 랜드마크 기반 회전 보정) 없이 검출 상자를 그대로 잘라 넣습니다. ArcFace 계열은 정렬된 입력을 전제로 학습되므로 정확도 개선 여지가 큰 부분입니다. 파일: <code>FaceRecognitionEngine.kt</code>, <code>MainActivity.analyzeFrame</code>.</figcaption>
+      </figure>
+
+      <h3>판정 기준과 등록 품질 필터</h3>
+      <figure>
+        <div class="diagram">
+          <svg viewBox="0 0 950 230" role="img" aria-label="유사도 0에서 1 사이 구간: 인식은 0.40 미만 미등록, 이상이면 등록자 후보, 0.40에서 0.62는 자동 보정 수집 구간. 등록 샘플은 0.35 미만과 0.85 초과를 거부">
+            <text x="10" y="58" class="t">인식</text>
+            <text x="10" y="76" class="tl">최고 점수</text>
+            <rect x="150" y="40" width="300" height="36" class="bx-soft"/>
+            <text x="300" y="63" text-anchor="middle" class="ts">미등록으로 처리</text>
+            <rect x="450" y="40" width="450" height="36" class="bx-blue"/>
+            <text x="675" y="63" text-anchor="middle" class="ts t-blue">등록자 후보: 1·2위 차 ≥ 0.10 이면 확정, 아니면 상위 3명 제시</text>
+            <rect x="450" y="82" width="165" height="10" class="hatch"/>
+            <text x="622" y="91" class="tl">자동 보정 수집 구간 0.40–0.62</text>
+
+            <text x="10" y="138" class="t">등록 샘플</text>
+            <text x="10" y="156" class="tl">이번 촬영분과의 최대 유사도</text>
+            <rect x="150" y="122" width="262.5" height="36" class="bx-crit"/>
+            <text x="281" y="145" text-anchor="middle" class="ts t-crit">거부: 다른 사람으로 판단</text>
+            <rect x="412.5" y="122" width="375" height="36" class="bx-ok"/>
+            <text x="600" y="145" text-anchor="middle" class="ts t-ok">샘플로 채택</text>
+            <rect x="787.5" y="122" width="112.5" height="36" class="bx-warn"/>
+            <text x="844" y="145" text-anchor="middle" class="ts t-warn">거부: 중복</text>
+
+            <line x1="150" y1="184" x2="900" y2="184" class="e"/>
+            <line x1="150" y1="179" x2="150" y2="189" class="e"/><text x="150" y="204" text-anchor="middle" class="tm">0</text>
+            <line x1="412.5" y1="179" x2="412.5" y2="189" class="e"/><text x="406" y="204" text-anchor="end" class="tm">0.35</text>
+            <line x1="450" y1="179" x2="450" y2="189" class="e"/><text x="456" y="204" class="tm">0.40</text>
+            <line x1="615" y1="179" x2="615" y2="189" class="e"/><text x="615" y="204" text-anchor="middle" class="tm">0.62</text>
+            <line x1="787.5" y1="179" x2="787.5" y2="189" class="e"/><text x="787.5" y="204" text-anchor="middle" class="tm">0.85</text>
+            <line x1="900" y1="179" x2="900" y2="189" class="e"/><text x="900" y="204" text-anchor="middle" class="tm">1.0</text>
+            <text x="525" y="224" text-anchor="middle" class="tl">코사인 유사도 (설정 화면 기본값)</text>
+          </svg>
+        </div>
+        <figcaption><b>그림 4.</b> 같은 0–1 눈금 위의 두 기준. 인식은 저장된 중심 벡터와 비교하고, 등록 품질 필터는 <em>이번 등록에서 모은 샘플끼리만</em> 비교합니다. 그래서 이미 등록된 사람이 다른 이름으로 다시 등록해도 막지 못합니다(I-06). 자동 보정 구간에서 확정된 얼굴은 세션당 최대 20장까지 그 사람의 샘플로 추가됩니다.</figcaption>
+      </figure>
+
+      <div class="two-col">
+        <div class="panel">
+          <h3>등록 절차</h3>
+          <ol class="steps">
+            <li>미등록 판정에서 <b>등록 시작하기</b>를 누릅니다.</li>
+            <li>4프레임마다 얼굴 방향을 랜드마크로 계산합니다. 코가 눈 중심에서 좌우로 0.10 이상 벗어나면 좌·우, 세로 비율이 0.42 이하·0.62 이상이면 상·하로 봅니다.</li>
+            <li>요청한 방향과 일치하고 유사도 필터(0.35–0.85)를 통과하면 샘플로 저장합니다. 방향마다 3장, 모두 12장.</li>
+            <li>이름·부서·학년을 입력하고 저장합니다. 로컬 DB에 쓰고 곧바로 서버로 업로드합니다.</li>
+          </ol>
+        </div>
+        <div class="panel">
+          <h3>출력 경로</h3>
+          <ul class="plain">
+            <li><b>Nemonic</b>: 전용 SDK, Bluetooth MAC 지정. 결과 코드가 OK일 때 출석 기록.</li>
+            <li><b>Brother QL-820NWB</b>: Brother Print SDK. 페어링 기기 검색과 장착 용지 읽기 지원.</li>
+            <li><b>시스템 인쇄</b>: Android 인쇄 프레임워크. 인쇄 대화상자로 넘기는 순간 성공으로 처리합니다(I-05).</li>
+            <li>공통으로 이미지 템플릿 위에 속성 3개(기본 이름·부서·학년)를 크기와 위치를 지정해 그립니다.</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>실제 화면</h3>
+      <p>아래는 에뮬레이터에서 원본 APK를 실행해 캡처한 화면입니다. 에뮬레이터 카메라는 사람 얼굴 대신 테스트 패턴을 보여 주므로, 인식 결과 화면은 그림 2로 대신합니다.</p>
+      <div class="shots">
+        <figure class="shot device">
+          <img src="img/client_disconnected.webp" alt="키오스크 운영 화면, 서버 미연결 문구" width="620" height="991" loading="lazy">
+          <figcaption><b>서버 미연결.</b> 실제로는 승인 대기 중인데도 같은 문구만 나옵니다(I-08).</figcaption>
+        </figure>
+        <figure class="shot device">
+          <img src="img/client_idle.webp" alt="키오스크 운영 화면, 환영 문구와 가이드 타원" width="620" height="991" loading="lazy">
+          <figcaption><b>운영 화면 대기.</b> 전체 화면 카메라 위에 가이드 타원과 환영 문구를 띄웁니다.</figcaption>
+        </figure>
+        <figure class="shot device">
+          <img src="img/client_developer.webp" alt="키오스크 개발자 화면, DB 서버 연결 상태와 수동 동기화 버튼" width="620" height="991" loading="lazy">
+          <figcaption><b>개발자 화면.</b> 서버 연결·DB 로드·DB 전송 상태등과 복구·다운로드·업로드 버튼이 보입니다.</figcaption>
+        </figure>
+      </div>
+
+      <h3>설정 화면</h3>
+      <p>설정은 탭 6개로 나뉩니다. 운영 현장에서 바꿀 값과 개발 중에만 만질 값이 한 화면에 섞여 있고, 모든 값이 숫자 입력란이라 범위 안내가 없습니다.</p>
+      <div class="shots">
+        <figure class="shot"><img src="img/settings_general.webp" alt="설정 일반 탭" width="560" height="1178" loading="lazy"><figcaption><b>일반.</b> 저장 폴더, 개발자 화면, 안내 문구 10종.</figcaption></figure>
+        <figure class="shot"><img src="img/settings_recognition.webp" alt="설정 인식 탭" width="560" height="1054" loading="lazy"><figcaption><b>인식.</b> 최소 유사도 0.4, 점수 차 0.1, 후보 3명, 6프레임 주기, 타원 비율.</figcaption></figure>
+        <figure class="shot"><img src="img/settings_register.webp" alt="설정 등록 탭" width="560" height="916" loading="lazy"><figcaption><b>등록.</b> 방향별 3장, 유사도 0.35–0.85, 최대 100개, 자동 보정.</figcaption></figure>
+        <figure class="shot"><img src="img/settings_sync.webp" alt="설정 DB 동기화 탭" width="560" height="732" loading="lazy"><figcaption><b>DB 동기화.</b> 서버 주소와 재시도. 인증 토큰이 평문으로 그대로 보입니다(I-09).</figcaption></figure>
+        <figure class="shot"><img src="img/settings_print.webp" alt="설정 인쇄 탭" width="560" height="1178" loading="lazy"><figcaption><b>인쇄.</b> 프린터 모델, MAC 주소, Brother 검색, 용지 프로필.</figcaption></figure>
+        <figure class="shot"><img src="img/settings_template.webp" alt="설정 출력 템플릿 탭, 미리보기에서 글자가 겹침" width="700" height="481" loading="lazy"><figcaption><b>출력 템플릿.</b> 기본값 그대로인데 미리보기에서 이름·부서·학년이 겹칩니다(I-11).</figcaption></figure>
+      </div>
+    </section>
+
+    <section id="server" aria-labelledby="h-server">
+      <h2 id="h-server"><span class="num">4</span>Faith DB Server</h2>
+      <p>서버 앱은 실행하면 저장 폴더의 DB를 읽고 곧바로 웹서버를 띄운 다음 로그인 화면을 보여 줍니다. 로그인하면 관리 대시보드 한 화면에서 서버 시작·중지, 승인, 접속 상태, DB 표, 로그를 다룹니다.</p>
+      <div class="callout">
+        <strong>원본 APK로는 이 화면들을 볼 수 없습니다</strong>
+        <p>원본 <code>faith_db.apk</code>는 API 35에서 시작 1초 안에 <code>SecurityException: Starting FGS with type dataSync … requires FOREGROUND_SERVICE_DATA_SYNC</code>로 종료됐습니다. 아래 캡처는 작업 사본에서 이 권한 한 줄만 추가해 빌드한 APK로 찍었습니다. 저장소 코드는 바꾸지 않았습니다.</p>
+      </div>
+      <div class="shots wide">
+        <figure class="shot"><img src="img/server_login.webp" alt="서버 로그인 화면" width="900" height="288" loading="lazy"><figcaption><b>로그인.</b> 기본 계정 admin / 1234. 이 화면이 뜨기 전에 이미 서버가 시작돼 있습니다.</figcaption></figure>
+        <figure class="shot"><img src="img/server_pending.webp" alt="승인 대기 목록과 클라이언트 연결 상태" width="900" height="308" loading="lazy"><figcaption><b>승인 대기.</b> 새 키오스크는 승인 대기에 올라오고, 개별 승인이나 전체 승인으로 토큰을 받습니다.</figcaption></figure>
+      </div>
+      <figure class="shot shot-single">
+        <img src="img/server_dashboard.webp" alt="서버 대시보드 전체" width="900" height="1007" loading="lazy">
+        <figcaption><b>대시보드 전체.</b> DB 표는 높이가 고정돼 두 줄만 보입니다(I-12). 맨 위 제목이 상태 표시줄과 겹칩니다(I-07). 표의 인물은 테스트용 가명 12명입니다.</figcaption>
+      </figure>
+      <div class="two-col">
+        <figure class="shot"><img src="img/server_delete.webp" alt="DB 항목 삭제 확인 대화상자" width="620" height="253" loading="lazy"><figcaption><b>DB 항목 삭제.</b> 행마다 수정·삭제가 있고, 바뀌면 모든 키오스크에 알림이 갑니다.</figcaption></figure>
+        <div class="panel">
+          <h3>관리 기능</h3>
+          <ul class="plain">
+            <li>서버 시작·중지, 포트 변경</li>
+            <li>DB 재로드, CSV 메타데이터 재로드(엑셀로 이름·부서를 고친 뒤 반영)</li>
+            <li>클라이언트 개별·전체 승인, 연결 상태와 세션 수</li>
+            <li>인물별 이름·부서·학년 수정, 삭제</li>
+            <li>설정: 관리자 ID·PW, 기본 포트, DB 폴더 (<code>config.yaml</code>)</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>API</h3>
+      <div class="table-wrap">
+        <table class="api-table">
+          <thead><tr><th>메서드</th><th>경로</th><th>인증</th><th>용도</th></tr></thead>
+          <tbody>
+            <tr><td class="id">GET</td><td class="where">/api/health</td><td><span class="pill none">없음</span></td><td>서버 생존 확인. 키오스크는 주소 후보를 돌며 이것으로 서버를 찾습니다.</td></tr>
+            <tr><td class="id">POST</td><td class="where">/api/auth/request</td><td><span class="pill none">없음</span></td><td>승인 요청. 처음이면 대기 목록에 올리고, 승인된 기기에는 토큰을 줍니다.</td></tr>
+            <tr><td class="id">GET</td><td class="where">/api/auth/status</td><td><span class="pill crit">없음 (I-02)</span></td><td>승인 상태 조회.</td></tr>
+            <tr><td class="id">GET</td><td class="where">/api/auth/pending · /approved</td><td><span class="pill crit">없음 (I-02)</span></td><td>대기·승인 기기 목록. 관리 화면용.</td></tr>
+            <tr><td class="id">POST</td><td class="where">/api/auth/approve · /approve-all</td><td><span class="pill crit">없음 (I-02)</span></td><td>승인 처리. 관리 화면용.</td></tr>
+            <tr><td class="id">GET</td><td class="where">/api/db/hash-summary</td><td><span class="pill ok">토큰</span></td><td>인물별 <code>personKey → hash</code> 목록.</td></tr>
+            <tr><td class="id">POST</td><td class="where">/api/db/delta/pull · /push</td><td><span class="pill ok">토큰</span></td><td>변경분 내려받기·올리기 (FDD1 바이너리).</td></tr>
+            <tr><td class="id">GET · POST</td><td class="where">/api/db/structured/meta · /bin · /push</td><td><span class="pill ok">토큰</span></td><td>DB 전체 파일 교환. 스키마가 다르거나 델타 적용이 실패할 때 사용.</td></tr>
+            <tr><td class="id">POST</td><td class="where">/api/attendance/mark</td><td><span class="pill ok">토큰</span></td><td>출석 기록. 본문은 <code>name</code>, <code>affiliation</code>, <code>department</code>.</td></tr>
+            <tr><td class="id">WS</td><td class="where">/ws/db-updates?token=…</td><td><span class="pill ok">토큰</span></td><td>DB 리비전이 오를 때 <code>db_update</code> 알림. 접속 직후 한 번 보냄.</td></tr>
+            <tr><td class="id">GET · POST</td><td class="where">/api/db · /db/push · /db/diff</td><td><span class="pill none">토큰</span></td><td>예전 JSON 방식. 410 Gone으로 막혀 있습니다.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>승인 흐름</h3>
+      <p>새 키오스크는 처음 접속할 때 승인 요청을 보내고 대기합니다. 관리자가 서버 화면에서 승인하면 토큰이 발급되고, 키오스크는 이 토큰을 저장해 두었다가 이후 모든 요청에 씁니다. 승인 정보는 서버 내부 저장소의 <code>auth_state.json</code>에 남아 서버를 다시 켜도 유지됩니다. 토큰에는 만료나 폐기 기능이 없습니다. 승인·관리 API의 인증 문제는 8장 I-02에 정리했습니다.</p>
+    </section>
+
+    <section id="sync" aria-labelledby="h-sync">
+      <h2 id="h-sync"><span class="num">5</span>동기화 프로토콜</h2>
+      <p>키오스크와 서버는 인물마다 해시를 비교해 달라진 사람만 주고받습니다. 등록이나 자동 보정으로 바뀐 사람을 올리면 서버가 리비전을 올리고 WebSocket으로 알립니다. 알림을 받은 다른 키오스크는 자기 해시 목록을 보내 차이만 내려받고, 인식이 5초 동안 없을 때 적용합니다.</p>
+      <figure>
+        <div class="diagram">
+          <svg viewBox="0 0 950 625" role="img" aria-label="동기화 순서도: 키오스크 A의 연결과 승인, 해시 비교, 변경분 업로드, 서버의 알림, 키오스크 B의 변경분 내려받기, 출석 기록">
+            <defs>
+              <marker id="a5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="m-def"/></marker>
+              <marker id="a5b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="m-blue"/></marker>
+            </defs>
+            <rect x="40" y="16" width="200" height="40" rx="8" class="bx-blue"/>
+            <text x="140" y="41" text-anchor="middle" class="t">키오스크 A</text>
+            <rect x="375" y="16" width="200" height="40" rx="8" class="bx-gold"/>
+            <text x="475" y="41" text-anchor="middle" class="t">Faith DB Server</text>
+            <rect x="710" y="16" width="200" height="40" rx="8" class="bx-blue"/>
+            <text x="810" y="41" text-anchor="middle" class="t">키오스크 B</text>
+            <line x1="140" y1="56" x2="140" y2="612" class="life"/>
+            <line x1="475" y1="56" x2="475" y2="612" class="life"/>
+            <line x1="810" y1="56" x2="810" y2="612" class="life"/>
+
+            <line x1="140" y1="90" x2="473" y2="90" class="e" marker-end="url(#a5)"/>
+            <text x="307" y="83" text-anchor="middle" class="tm">GET /api/health</text>
+
+            <line x1="140" y1="128" x2="473" y2="128" class="e" marker-end="url(#a5)"/>
+            <text x="307" y="121" text-anchor="middle" class="tm">POST /api/auth/request</text>
+            <line x1="475" y1="152" x2="142" y2="152" class="e-dash" marker-end="url(#a5)"/>
+            <text x="307" y="146" text-anchor="middle" class="tl">pending · 3초마다 다시 요청</text>
+
+            <rect x="385" y="174" width="180" height="30" rx="6" class="bx-gold"/>
+            <text x="475" y="194" text-anchor="middle" class="ts">관리자 승인 → 토큰 발급</text>
+
+            <line x1="140" y1="230" x2="473" y2="230" class="e" marker-end="url(#a5)"/>
+            <text x="307" y="223" text-anchor="middle" class="tm">POST /api/auth/request</text>
+            <line x1="475" y1="254" x2="142" y2="254" class="e-dash" marker-end="url(#a5)"/>
+            <text x="307" y="248" text-anchor="middle" class="tl">approved · 토큰 저장</text>
+
+            <line x1="140" y1="292" x2="473" y2="292" class="e" marker-end="url(#a5)"/>
+            <text x="307" y="285" text-anchor="middle" class="tm">WS /ws/db-updates</text>
+            <line x1="475" y1="316" x2="142" y2="316" class="e-dash" marker-end="url(#a5)"/>
+            <text x="307" y="310" text-anchor="middle" class="tl">db_update (접속 직후 1회)</text>
+
+            <line x1="140" y1="354" x2="473" y2="354" class="e" marker-end="url(#a5)"/>
+            <text x="307" y="347" text-anchor="middle" class="tm">GET /api/db/hash-summary</text>
+            <line x1="475" y1="378" x2="142" y2="378" class="e-dash" marker-end="url(#a5)"/>
+            <text x="307" y="372" text-anchor="middle" class="tl">personKey → hash 목록</text>
+
+            <line x1="140" y1="416" x2="473" y2="416" class="e-blue" marker-end="url(#a5b)"/>
+            <text x="307" y="409" text-anchor="middle" class="tm t-blue">POST /api/db/delta/push</text>
+            <text x="307" y="432" text-anchor="middle" class="tl">해시가 다른 사람만 FDD1로</text>
+
+            <line x1="475" y1="466" x2="808" y2="466" class="e-dash" marker-end="url(#a5)"/>
+            <text x="642" y="460" text-anchor="middle" class="tl">db_update · revision + 1</text>
+
+            <line x1="810" y1="504" x2="477" y2="504" class="e" marker-end="url(#a5)"/>
+            <text x="642" y="497" text-anchor="middle" class="tm">POST /api/db/delta/pull</text>
+            <line x1="475" y1="528" x2="808" y2="528" class="e-dash" marker-end="url(#a5)"/>
+            <text x="642" y="522" text-anchor="middle" class="tl">FDD1: 추가·수정 + 삭제</text>
+
+            <rect x="720" y="546" width="180" height="30" rx="6" class="bx-soft"/>
+            <text x="810" y="566" text-anchor="middle" class="ts">인식 5초 쉬면 적용</text>
+
+            <line x1="140" y1="598" x2="473" y2="598" class="e" marker-end="url(#a5)"/>
+            <text x="307" y="591" text-anchor="middle" class="tm">POST /api/attendance/mark</text>
+          </svg>
+        </div>
+        <figcaption><b>그림 5.</b> 동기화 순서. 접속 직후에는 업로드를 먼저 하고 내려받기를 합니다(<code>reconcileLatestCore</code>). 델타 적용이 실패하거나 인원 수가 서버와 다르면 DB 파일 전체(<code>structured/meta</code>, <code>structured/bin</code>)를 받아 복구합니다. 실측에서는 접속 직후 같은 내려받기가 3번 연달아 실행됐습니다(I-13).</figcaption>
+      </figure>
+
+      <h3>변경분 형식 (FDD1)</h3>
+      <figure>
+        <div class="diagram">
+          <svg viewBox="0 0 950 190" role="img" aria-label="FDD1 바이너리 형식: 머리표, 삭제 수, 삭제 키 목록, 추가 수정 수, 인물 레코드. 인물 레코드는 키, ID, 이름, 부서, 학년, 해시, 수정 시각, 메타데이터, 메타 해시, 개수와 차원, float32 임베딩">
+            <rect x="10" y="20" width="80" height="44" class="bx-gold"/><text x="50" y="47" text-anchor="middle" class="tm">"FDD1"</text>
+            <rect x="90" y="20" width="120" height="44" class="bx"/><text x="150" y="47" text-anchor="middle" class="ts">삭제 수 int32</text>
+            <rect x="210" y="20" width="200" height="44" class="bx"/><text x="310" y="47" text-anchor="middle" class="ts">삭제할 personKey × N</text>
+            <rect x="410" y="20" width="150" height="44" class="bx"/><text x="485" y="47" text-anchor="middle" class="ts">추가·수정 수 int32</text>
+            <rect x="560" y="20" width="380" height="44" class="bx-blue"/><text x="750" y="47" text-anchor="middle" class="ts t-blue">인물 레코드 × M</text>
+            <line x1="560" y1="64" x2="10" y2="110" class="e-dash"/>
+            <line x1="940" y1="64" x2="940" y2="110" class="e-dash"/>
+            <rect x="10" y="110" width="80" height="44" class="bx-soft"/><text x="50" y="137" text-anchor="middle" class="tm">personKey</text>
+            <rect x="90" y="110" width="72" height="44" class="bx-soft"/><text x="126" y="137" text-anchor="middle" class="tm">personId</text>
+            <rect x="162" y="110" width="60" height="44" class="bx-soft"/><text x="192" y="137" text-anchor="middle" class="tm">name</text>
+            <rect x="222" y="110" width="82" height="44" class="bx-soft"/><text x="263" y="137" text-anchor="middle" class="tm">department</text>
+            <rect x="304" y="110" width="58" height="44" class="bx-soft"/><text x="333" y="137" text-anchor="middle" class="tm">grade</text>
+            <rect x="362" y="110" width="58" height="44" class="bx-soft"/><text x="391" y="137" text-anchor="middle" class="tm">hash</text>
+            <rect x="420" y="110" width="96" height="44" class="bx-soft"/><text x="468" y="137" text-anchor="middle" class="tm">updatedAt i64</text>
+            <rect x="516" y="110" width="104" height="44" class="bx-soft"/><text x="568" y="137" text-anchor="middle" class="tm">메타 (MDT1)</text>
+            <rect x="620" y="110" width="104" height="44" class="bx-soft"/><text x="672" y="137" text-anchor="middle" class="tm">metadataHash</text>
+            <rect x="724" y="110" width="76" height="44" class="bx-soft"/><text x="762" y="137" text-anchor="middle" class="tm">개수·차원</text>
+            <rect x="800" y="110" width="140" height="44" class="bx-gold"/><text x="870" y="137" text-anchor="middle" class="tm">float32 × N × 512</text>
+            <text x="475" y="180" text-anchor="middle" class="tl">정수와 실수는 little-endian, 문자열은 int32 길이 + UTF-8</text>
+          </svg>
+        </div>
+        <figcaption><b>그림 6.</b> 키오스크와 서버가 주고받는 변경분 형식. 사람 한 명이 임베딩 100개면 약 200 KB입니다. 키오스크가 올리는 변경분에는 삭제 목록이 항상 비어 있습니다(<code>exportDeltaBundle</code>). 그래서 서버에서 지운 사람이 오프라인이던 키오스크가 다시 올릴 때 되살아날 수 있습니다(I-10).</figcaption>
+      </figure>
+
+      <h3>저장 파일</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>파일</th><th>위치</th><th>내용</th></tr></thead>
+          <tbody>
+            <tr><td class="where">face_db.csv</td><td>키오스크·서버 /sdcard/faceDB</td><td>사람이 엑셀로 고칠 수 있는 메타데이터. person_id, name, department, grade와 추가 열.</td></tr>
+            <tr><td class="where">face_meta.db</td><td>키오스크·서버 /sdcard/faceDB</td><td>SQLite 인덱스. person_key, 순번, 임베딩 위치·개수·차원, 해시, 메타데이터 묶음.</td></tr>
+            <tr><td class="where">face_embeddings.bin</td><td>키오스크·서버 /sdcard/faceDB</td><td>모든 사람의 임베딩을 float32로 이어 붙인 파일.</td></tr>
+            <tr><td class="where">attendance_YYYY-MM-DD.csv</td><td>서버 /sdcard/faceDB</td><td>날짜별 출석부. 6장 참고.</td></tr>
+            <tr><td class="where">auth_state.json · config.yaml</td><td>서버 앱 내부 저장소</td><td>승인된 기기와 토큰, 관리자 계정·포트·DB 폴더. 비밀번호는 평문입니다.</td></tr>
+            <tr><td class="where">logs/db_sync_client.log</td><td>키오스크 /sdcard/faceDB</td><td>연결·동기화·출력 진단 로그.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="attendance" aria-labelledby="h-attendance">
+      <h2 id="h-attendance"><span class="num">6</span>출석 관리</h2>
+      <p>출석은 별도 기능이 아니라 이름표 출력의 부수 효과로 기록됩니다. 출력에 성공하면 키오스크가 이름을 서버로 보내고, 서버는 그날의 출석부 파일을 처음부터 다시 씁니다. 명단은 서버 DB의 전체 인원이고, 받은 이름에 "출석", 나머지에 "미출석"을 적습니다.</p>
+      <figure>
+        <div class="diagram">
+          <svg viewBox="0 0 960 280" role="img" aria-label="출석 기록 흐름: 출력 요청, 프린터 분기, 전용 SDK 또는 시스템 인쇄, 출석 요청, 서버 출석부. 아래에 기록이 빠지거나 틀어지는 지점 네 곳">
+            <defs>
+              <marker id="a7" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="m-def"/></marker>
+            </defs>
+            <rect x="10" y="40" width="150" height="56" rx="8" class="bx"/>
+            <text x="85" y="63" text-anchor="middle" class="t">출력 요청</text>
+            <text x="85" y="82" text-anchor="middle" class="ts">확정 또는 후보 선택</text>
+            <rect x="200" y="40" width="150" height="56" rx="8" class="bx"/>
+            <text x="275" y="63" text-anchor="middle" class="t">프린터 분기</text>
+            <text x="275" y="82" text-anchor="middle" class="ts">설정의 프린터 모델</text>
+            <rect x="400" y="10" width="150" height="56" rx="8" class="bx"/>
+            <text x="475" y="33" text-anchor="middle" class="t">Nemonic · Brother</text>
+            <text x="475" y="52" text-anchor="middle" class="ts">SDK 결과가 OK</text>
+            <rect x="400" y="100" width="150" height="56" rx="8" class="bx-crit"/>
+            <text x="475" y="123" text-anchor="middle" class="t">시스템 인쇄</text>
+            <text x="475" y="142" text-anchor="middle" class="ts">대화상자로 넘긴 즉시</text>
+            <rect x="600" y="40" width="150" height="56" rx="8" class="bx-blue"/>
+            <text x="675" y="63" text-anchor="middle" class="t">출석 요청</text>
+            <text x="675" y="82" text-anchor="middle" class="ts">동기화 사용 중일 때만</text>
+            <rect x="790" y="40" width="160" height="56" rx="8" class="bx-gold"/>
+            <text x="870" y="63" text-anchor="middle" class="t">서버 출석부</text>
+            <text x="870" y="82" text-anchor="middle" class="ts">날짜별 CSV 다시 쓰기</text>
+            <line x1="160" y1="68" x2="198" y2="68" class="e" marker-end="url(#a7)"/>
+            <path d="M350 60 L375 60 L375 38 L398 38" class="e" marker-end="url(#a7)"/>
+            <path d="M350 76 L375 76 L375 128 L398 128" class="e" marker-end="url(#a7)"/>
+            <path d="M550 38 L575 38 L575 60 L598 60" class="e" marker-end="url(#a7)"/>
+            <path d="M550 128 L575 128 L575 76 L598 76" class="e" marker-end="url(#a7)"/>
+            <line x1="750" y1="68" x2="788" y2="68" class="e" marker-end="url(#a7)"/>
+
+            <rect x="95" y="190" width="180" height="74" rx="8" class="bx-crit"/>
+            <text x="185" y="212" text-anchor="middle" class="ts t-crit" font-weight="600">출력을 끄면 출석도 없음</text>
+            <text x="185" y="232" text-anchor="middle" class="tl">printEnabled가 꺼져 있으면</text>
+            <text x="185" y="250" text-anchor="middle" class="tl">출석 요청을 보내지 않음</text>
+            <rect x="385" y="190" width="180" height="74" rx="8" class="bx-crit"/>
+            <text x="475" y="212" text-anchor="middle" class="ts t-crit" font-weight="600">인쇄를 취소해도 출석</text>
+            <text x="475" y="232" text-anchor="middle" class="tl">작업을 넘기는 순간</text>
+            <text x="475" y="250" text-anchor="middle" class="tl">성공으로 처리</text>
+            <rect x="585" y="190" width="180" height="74" rx="8" class="bx-crit"/>
+            <text x="675" y="212" text-anchor="middle" class="ts t-crit" font-weight="600">재전송 없음</text>
+            <text x="675" y="232" text-anchor="middle" class="tl">서버가 끊겨 있으면</text>
+            <text x="675" y="250" text-anchor="middle" class="tl">출석 요청이 그대로 사라짐</text>
+            <rect x="775" y="190" width="180" height="74" rx="8" class="bx-crit"/>
+            <text x="865" y="212" text-anchor="middle" class="ts t-crit" font-weight="600">이름이 유일한 키</text>
+            <text x="865" y="232" text-anchor="middle" class="tl">동명이인은 한 줄로 합쳐지고</text>
+            <text x="865" y="250" text-anchor="middle" class="tl">출석 시각은 남지 않음</text>
+            <line x1="185" y1="190" x2="275" y2="98" class="e-crit"/>
+            <line x1="475" y1="190" x2="475" y2="158" class="e-crit"/>
+            <line x1="675" y1="190" x2="675" y2="98" class="e-crit"/>
+            <line x1="865" y1="190" x2="865" y2="98" class="e-crit"/>
+          </svg>
+        </div>
+        <figcaption><b>그림 7.</b> 출석 기록 경로와, 기록이 빠지거나 틀어지는 네 지점. 함수: <code>recordAttendanceOnPrintSuccess</code> (MainActivity.kt:1116), <code>FaceDbSyncClient.markAttendance</code>, 서버 <code>markAttendance</code> (FaceDbServerEngine.kt:978).</figcaption>
+      </figure>
+
+      <div class="two-col">
+        <div>
+          <pre class="sample" aria-label="실측 출석부 파일 내용"><span class="dim">출석부 기록일자,2026-10-25</span>
+<span class="dim">이름,소속,부서,출석여부</span>
+강다온,2학년,고등부,미출석
+김철수,2학년,중등부,미출석
+<span class="hl">박민준,4학년,청년부,출석</span>
+오태양,4학년,초등부,미출석
+윤시우,6학년,초등부,미출석
+<span class="hl">이영희,1학년,고등부,출석</span>
+임도윤,3학년,고등부,미출석
+장예린,1학년,청년부,미출석
+정하늘,3학년,중등부,미출석
+최서연,5학년,초등부,미출석
+한지아,1학년,중등부,미출석
+<span class="hl">홍길동,3학년,청년부,출석</span></pre>
+          <p style="font-size:var(--step--1);color:var(--muted);margin-top:8px">테스트 서버에 가명 12명을 넣고 출석 요청 4번(홍길동 2번 포함)을 보낸 뒤의 <code>attendance_2026-10-25.csv</code>.</p>
+        </div>
+        <div class="panel">
+          <h3>파일에서 보이는 한계</h3>
+          <ul class="plain">
+            <li><b>시각이 없습니다.</b> 몇 시에 왔는지, 몇 번 찍었는지 알 수 없습니다. 홍길동의 두 번째 출력도 흔적이 없습니다.</li>
+            <li><b>열 이름이 맞지 않습니다.</b> "소속" 열에 학년이 들어갑니다(<code>affiliation = grade</code>).</li>
+            <li><b>어느 키오스크인지 없습니다.</b> 서버 로그에만 clientId가 남습니다.</li>
+            <li><b>매번 파일 전체를 다시 씁니다.</b> 그날 명단에 없던 사람(이름표만 출력)은 출석으로 한 줄 추가됩니다.</li>
+            <li><b>조회 화면이 없습니다.</b> 서버 앱에서 출석 현황을 볼 수 없고, 파일을 꺼내 엑셀로 열어야 합니다.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="requirements" aria-labelledby="h-req">
+      <h2 id="h-req"><span class="num">7</span>요구사항 표</h2>
+      <p>2026-03 보고서의 요구사항 23건에 이후 추가된 기능을 더해 앱별로 정리했습니다. 상태는 코드 검토와 에뮬레이터 실행 결과를 함께 보고 매겼습니다.</p>
+      <div class="legend">
+        <span><span class="pill ok">구현</span> 의도대로 동작</span>
+        <span><span class="pill part">부분</span> 동작하지만 빠진 조건이 있음</span>
+        <span><span class="pill crit">결함</span> 실행 시 실패하거나 요구를 깨뜨림</span>
+        <span><span class="pill none">미구현</span> 코드 없음</span>
+      </div>
+
+      <h3>Faith ID 키오스크 (23건)</h3>
+      <div class="table-wrap">
+        <table class="req-table">
+          <thead><tr><th>ID</th><th>요구사항</th><th>상태</th><th>구현 위치</th><th>비고</th></tr></thead>
+          <tbody>
+            <tr><td class="id">CL-01</td><td class="req">네이티브 Android 앱, 태블릿 전용 레이아웃</td><td><span class="pill ok">구현</span></td><td class="where">res/layout-sw600dp</td><td class="note">minSdk 28, targetSdk 35</td></tr>
+            <tr><td class="id">CL-02</td><td class="req">ML Kit 얼굴 검출 + Buffalo-L ONNX 임베딩</td><td><span class="pill ok">구현</span></td><td class="where">FaceRecognitionEngine.kt</td><td class="note">모델 174 MB를 APK에 포함해 APK가 230 MB</td></tr>
+            <tr><td class="id">CL-03</td><td class="req">실시간 자동 인식과 3갈래 판정(미등록·확정·후보)</td><td><span class="pill ok">구현</span></td><td class="where">MainActivity.computeMonitorDecision</td><td class="note">기준값은 설정에서 조절</td></tr>
+            <tr><td class="id">CL-04</td><td class="req">비슷한 사람이 여럿이면 상위 후보를 보여 주고 선택</td><td><span class="pill ok">구현</span></td><td class="where">applyRegisteredAmbiguousState</td><td class="note">후보 교체·유지 프레임으로 깜빡임 억제</td></tr>
+            <tr><td class="id">CL-05</td><td class="req">방향 기반 등록(좌·우·상·하)과 샘플 품질 필터</td><td><span class="pill part">부분</span></td><td class="where">handleRegisterCapture · evaluateSimilarityBand</td><td class="note">이미 등록된 얼굴인지 검사하지 않음 (I-06)</td></tr>
+            <tr><td class="id">CL-06</td><td class="req">등록 시 이름·부서·학년 입력과 저장</td><td><span class="pill part">부분</span></td><td class="where">saveRegistration · FaceDatabase.upsertPerson</td><td class="note">같은 이름이면 기존 사람을 덮어씀 (I-03)</td></tr>
+            <tr><td class="id">CL-07</td><td class="req">인식 결과로 임베딩 자동 보정</td><td><span class="pill part">부분</span></td><td class="where">tryAdaptiveUpdate · appendSamplesToPerson</td><td class="note">이름으로 대상을 찾아 동명이인에게 잘못 붙을 수 있음</td></tr>
+            <tr><td class="id">CL-08</td><td class="req">등록·인식 화면 타원 가이드와 마스크</td><td><span class="pill ok">구현</span></td><td class="where">EllipseMaskOverlayView.kt</td><td class="note"></td></tr>
+            <tr><td class="id">CL-09</td><td class="req">전면 카메라 좌우 반전</td><td><span class="pill ok">구현</span></td><td class="where">applyPreviewMirror</td><td class="note"></td></tr>
+            <tr><td class="id">CL-10</td><td class="req">운영 화면과 개발자 화면 전환</td><td><span class="pill ok">구현</span></td><td class="where">applyScreenMode</td><td class="note">설정 › 일반 › 개발자 화면보기</td></tr>
+            <tr><td class="id">CL-11</td><td class="req">안내 문구를 현장에서 수정</td><td><span class="pill ok">구현</span></td><td class="where">SettingsDialog · AppSettings.ui*</td><td class="note">10종, {name}·{label} 치환</td></tr>
+            <tr><td class="id">CL-12</td><td class="req">이름표 출력: 시스템 프린터, Nemonic, Brother QL-820NWB</td><td><span class="pill ok">구현</span></td><td class="where">printWith* · BrotherPrinterManager.kt</td><td class="note">이번 검증에서는 실제 프린터를 연결하지 않음</td></tr>
+            <tr><td class="id">CL-13</td><td class="req">이미지 템플릿 위에 속성 배치, 용지 프로필</td><td><span class="pill part">부분</span></td><td class="where">buildNemonicPrintBitmap · drawTemplateAttributes</td><td class="note">기본값 미리보기에서 글자가 겹침 (I-11)</td></tr>
+            <tr><td class="id">CL-14</td><td class="req">미등록자도 등록 없이 이름표만 출력</td><td><span class="pill ok">구현</span></td><td class="where">startLabelOnlyPrint</td><td class="note">출석부에 명단 밖 인원으로 추가됨</td></tr>
+            <tr><td class="id">CL-15</td><td class="req">출력 후 카운트다운 뒤 처음 화면으로 복귀</td><td><span class="pill ok">구현</span></td><td class="where">startOutputAutoReturnCountdown</td><td class="note"></td></tr>
+            <tr><td class="id">CL-16</td><td class="req">얼굴 DB 저장 위치 선택</td><td><span class="pill ok">구현</span></td><td class="where">FaceDatabase (File · TreeUri)</td><td class="note">기본 /sdcard/faceDB, 전체 파일 접근 권한 필요</td></tr>
+            <tr><td class="id">CL-17</td><td class="req">서버 승인 후 연결, 승인 토큰 재사용</td><td><span class="pill part">부분</span></td><td class="where">FaceDbSyncClient.awaitAuthorization</td><td class="note">승인 대기 중이라는 안내가 운영 화면에 없음 (I-08)</td></tr>
+            <tr><td class="id">CL-18</td><td class="req">변경분만 주고받는 동기화와 실시간 갱신</td><td><span class="pill part">부분</span></td><td class="where">FaceDbSyncClient · FaceDatabase.DeltaCodec</td><td class="note">서버 삭제가 되살아날 위험 (I-10)</td></tr>
+            <tr><td class="id">CL-19</td><td class="req">인식 중에는 DB 교체를 미루고 쉬는 시간에 적용</td><td><span class="pill ok">구현</span></td><td class="where">waitForRecognitionIdleBeforeDbApply</td><td class="note">기본 5초</td></tr>
+            <tr><td class="id">CL-20</td><td class="req">출석 기록을 서버로 전송</td><td><span class="pill part">부분</span></td><td class="where">recordAttendanceOnPrintSuccess</td><td class="note">출력 성공에 묶여 있고 재전송 없음 (I-05)</td></tr>
+            <tr><td class="id">CL-21</td><td class="req">수동 연결 복구·다운로드·업로드</td><td><span class="pill ok">구현</span></td><td class="where">requestDbReconnect 외</td><td class="note">개발자 화면에서만 보임</td></tr>
+            <tr><td class="id">CL-22</td><td class="req">동기화·출력 진단 로그 파일</td><td><span class="pill ok">구현</span></td><td class="where">appendSyncLog · appendPrintLog</td><td class="note">/sdcard/faceDB/logs</td></tr>
+            <tr><td class="id">CL-23</td><td class="req">최신 Android(15)에서 화면 정상 동작</td><td><span class="pill crit">결함</span></td><td class="where">res/layout*/activity_main.xml</td><td class="note">홈·설정 버튼이 상태 표시줄 밑에 있어 눌리지 않음 (I-07)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Faith DB Server (15건)</h3>
+      <div class="table-wrap">
+        <table class="req-table">
+          <thead><tr><th>ID</th><th>요구사항</th><th>상태</th><th>구현 위치</th><th>비고</th></tr></thead>
+          <tbody>
+            <tr><td class="id">SV-01</td><td class="req">Android 태블릿에서 앱으로 DB 서버 실행</td><td><span class="pill crit">결함</span></td><td class="where">FaceDbServerEngine.start</td><td class="note">Android 14 이상에서 시작 즉시 종료 (I-01)</td></tr>
+            <tr><td class="id">SV-02</td><td class="req">화면이 꺼져도 서버 유지(포그라운드 서비스)</td><td><span class="pill crit">결함</span></td><td class="where">FaceDbServerService · AndroidManifest.xml</td><td class="note">I-01과 같은 원인</td></tr>
+            <tr><td class="id">SV-03</td><td class="req">관리자 로그인(ID/PW)</td><td><span class="pill part">부분</span></td><td class="where">MainActivity.tryLogin</td><td class="note">로그인 전에 서버가 먼저 시작됨, 기본 계정·평문 저장 (I-09)</td></tr>
+            <tr><td class="id">SV-04</td><td class="req">설정 파일 저장·재로드(config.yaml)</td><td><span class="pill ok">구현</span></td><td class="where">ServerConfigStore.kt</td><td class="note">계정, 포트, DB 폴더</td></tr>
+            <tr><td class="id">SV-05</td><td class="req">관리자가 승인한 기기만 접속, 승인은 계속 유지</td><td><span class="pill crit">결함</span></td><td class="where">FaceDbServerEngine (auth 라우트)</td><td class="note">승인·관리 API에 인증 검사가 없음 (I-02)</td></tr>
+            <tr><td class="id">SV-06</td><td class="req">여러 키오스크 동시 접속과 연결 상태 표시</td><td><span class="pill ok">구현</span></td><td class="where">clientStatuses · onlineSessionsByClient</td><td class="note"></td></tr>
+            <tr><td class="id">SV-07</td><td class="req">DB가 바뀌면 모든 키오스크에 알림</td><td><span class="pill ok">구현</span></td><td class="where">broadcastDbUpdate</td><td class="note">WebSocket</td></tr>
+            <tr><td class="id">SV-08</td><td class="req">해시 기반 변경분 동기화 API</td><td><span class="pill ok">구현</span></td><td class="where">/api/db/hash-summary · delta/*</td><td class="note"></td></tr>
+            <tr><td class="id">SV-09</td><td class="req">DB 파일 전체 전송(복구용)</td><td><span class="pill ok">구현</span></td><td class="where">/api/db/structured/*</td><td class="note"></td></tr>
+            <tr><td class="id">SV-10</td><td class="req">DB를 표로 조회</td><td><span class="pill part">부분</span></td><td class="where">MainActivity.renderDbTable</td><td class="note">표 높이가 고정돼 두 줄만 보임 (I-12)</td></tr>
+            <tr><td class="id">SV-11</td><td class="req">인물 정보 수정·삭제</td><td><span class="pill ok">구현</span></td><td class="where">updatePersonRow · deletePersonRow</td><td class="note">같은 이름으로 수정은 막음</td></tr>
+            <tr><td class="id">SV-12</td><td class="req">DB 재로드, 엑셀로 고친 CSV 반영</td><td><span class="pill ok">구현</span></td><td class="where">reloadDbFromStorage · reloadDbMetadataFromCsv</td><td class="note"></td></tr>
+            <tr><td class="id">SV-13</td><td class="req">날짜별 출석부 생성</td><td><span class="pill part">부분</span></td><td class="where">markAttendance · buildAttendanceCsv</td><td class="note">이름 기준, 시각·기기 없음 (I-04)</td></tr>
+            <tr><td class="id">SV-14</td><td class="req">서버 로그 패널</td><td><span class="pill ok">구현</span></td><td class="where">FaceDbServerService.snapshotLogs</td><td class="note"></td></tr>
+            <tr><td class="id">SV-15</td><td class="req">예전 JSON API 차단</td><td><span class="pill ok">구현</span></td><td class="where">/api/db, /api/db/push, /api/db/diff</td><td class="note">410 Gone</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>공통·비기능 (4건)</h3>
+      <div class="table-wrap">
+        <table class="req-table">
+          <thead><tr><th>ID</th><th>요구사항</th><th>상태</th><th>구현 위치</th><th>비고</th></tr></thead>
+          <tbody>
+            <tr><td class="id">CM-01</td><td class="req">두 앱이 같은 메타데이터 규칙 사용</td><td><span class="pill part">부분</span></td><td class="where">common/FaceRecordMetadata.kt</td><td class="note"><code>personIdFromIdentity</code>가 항상 0을 반환 (I-14)</td></tr>
+            <tr><td class="id">CM-02</td><td class="req">CSV + SQLite + 바이너리 저장 형식</td><td><span class="pill ok">구현</span></td><td class="where">FaceDatabase.StructuredCodec · FaceDbCsvCodec</td><td class="note">예전 JSON에서 자동 변환</td></tr>
+            <tr><td class="id">CM-03</td><td class="req">전송 암호화, 토큰 만료·폐기</td><td><span class="pill none">미구현</span></td><td class="where">—</td><td class="note">평문 HTTP, usesCleartextTraffic=true</td></tr>
+            <tr><td class="id">CM-04</td><td class="req">자동화 테스트</td><td><span class="pill none">미구현</span></td><td class="where">—</td><td class="note">단위·계측 테스트 0건</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="issues" aria-labelledby="h-issues">
+      <h2 id="h-issues"><span class="num">8</span>확인된 문제</h2>
+      <p>"실측"은 에뮬레이터에서 직접 일어난 것을 확인한 항목, "코드"는 코드를 읽고 판단한 항목입니다. 줄 번호는 커밋 <code>9de9781</code> 기준입니다.</p>
+      <div class="table-wrap">
+        <table class="issue-table">
+          <thead><tr><th>ID</th><th>심각도</th><th>문제</th><th>근거</th><th>위치</th></tr></thead>
+          <tbody>
+            <tr class="sev-crit"><td class="id">I-01</td><td><span class="pill crit">치명</span></td><td class="note"><b>서버 앱이 Android 14 이상에서 시작 즉시 종료.</b> 포그라운드 서비스 유형 dataSync에 필요한 권한이 Manifest에 없습니다.</td><td><span class="pill blue">실측</span></td><td class="where">dbserver/src/main/AndroidManifest.xml</td></tr>
+            <tr class="sev-crit"><td class="id">I-02</td><td><span class="pill crit">치명</span></td><td class="note"><b>승인·관리 API에 인증 검사가 없음.</b> 관리 화면의 로그인과 별개로 승인 관련 기능이 네트워크에 열려 있어, 얼굴 데이터를 승인된 키오스크만 쓴다는 전제가 지켜지지 않습니다. 관리 기능은 서버 기기 안에서만 쓰게 하고, 토큰을 응답에 싣지 않도록 바꿔야 합니다.</td><td><span class="pill blue">실측</span></td><td class="where">FaceDbServerEngine.kt:178–282</td></tr>
+            <tr class="sev-high"><td class="id">I-03</td><td><span class="pill part">높음</span></td><td class="note"><b>동명이인을 등록하면 기존 사람이 지워짐.</b> 저장할 때 같은 이름을 모두 지우고 새로 넣습니다. 자동 보정도 이름으로 대상을 찾습니다.</td><td><span class="pill none">코드</span></td><td class="where">FaceDatabase.kt:114, 152, 172</td></tr>
+            <tr class="sev-high"><td class="id">I-04</td><td><span class="pill part">높음</span></td><td class="note"><b>출석 데이터가 이름 한 칸뿐.</b> 시각·기기·횟수가 없고, 동명이인이 합쳐지며, "소속" 열에 학년이 들어갑니다.</td><td><span class="pill blue">실측</span></td><td class="where">FaceDbServerEngine.kt:978–1070</td></tr>
+            <tr class="sev-high"><td class="id">I-05</td><td><span class="pill part">높음</span></td><td class="note"><b>출석이 빠지거나 잘못 남음.</b> 출력을 끄면 기록되지 않고, 서버가 끊겨 있으면 버려지며, 시스템 인쇄는 취소해도 출석으로 남습니다.</td><td><span class="pill none">코드</span></td><td class="where">MainActivity.kt:1079, 1116, 1353</td></tr>
+            <tr class="sev-high"><td class="id">I-06</td><td><span class="pill part">높음</span></td><td class="note"><b>중복 등록을 막지 않음.</b> 등록 필터가 이번 촬영분끼리만 비교해서, 이미 등록된 사람이 다른 이름으로 다시 등록돼도 그대로 저장됩니다. 이후 인식 결과가 두 사람 사이에서 흔들립니다.</td><td><span class="pill none">코드</span></td><td class="where">MainActivity.kt:1722</td></tr>
+            <tr class="sev-mid"><td class="id">I-07</td><td><span class="pill blue">보통</span></td><td class="note"><b>Android 15 화면 겹침.</b> targetSdk 35에서는 앱이 상태 표시줄 밑까지 그려집니다. 키오스크의 홈·설정 버튼(높이 28–124px)이 상태 표시줄 영역(0–154px) 안에 있어 터치가 닿지 않고, 서버 제목도 겹칩니다.</td><td><span class="pill blue">실측</span></td><td class="where">res/layout*/activity_main.xml</td></tr>
+            <tr class="sev-mid"><td class="id">I-08</td><td><span class="pill blue">보통</span></td><td class="note"><b>승인 대기 상태가 키오스크에 안 보임.</b> 운영 화면에는 "서버 앱 실행 및 연동 후 사용해주세요"만 나와, 현장에서 서버에서 승인해야 한다는 걸 알 수 없습니다.</td><td><span class="pill blue">실측</span></td><td class="where">applyServerDisconnectedState</td></tr>
+            <tr class="sev-mid"><td class="id">I-09</td><td><span class="pill blue">보통</span></td><td class="note"><b>계정·토큰 관리가 개발용 수준.</b> 로그인 전에 서버가 시작되고, 기본 계정 admin/1234가 평문으로 저장되며, 키오스크 설정 화면에 토큰이 그대로 보입니다. 통신은 평문 HTTP이고 토큰 만료가 없습니다.</td><td><span class="pill blue">실측</span></td><td class="where">ServerConfigStore.kt · SettingsDialog.kt</td></tr>
+            <tr class="sev-mid"><td class="id">I-10</td><td><span class="pill blue">보통</span></td><td class="note"><b>서버에서 지운 사람이 되살아날 수 있음.</b> 키오스크가 올리는 변경분에는 삭제가 없고, 서버에 없는 사람을 "변경됨"으로 보고 다시 올립니다. 오프라인이던 키오스크가 접속하면 업로드를 먼저 하므로 삭제가 취소됩니다.</td><td><span class="pill none">코드 · 미재현</span></td><td class="where">FaceDatabase.kt:268 · FaceDbSyncClient.kt:247</td></tr>
+            <tr class="sev-mid"><td class="id">I-11</td><td><span class="pill blue">보통</span></td><td class="note"><b>출력 템플릿 기본값이 깨져 보임.</b> 템플릿 없이 기본 설정 그대로 미리보기를 열면 세 속성이 한곳에 크게 겹쳐 그려집니다.</td><td><span class="pill blue">실측</span></td><td class="where">buildNemonicPrintBitmap</td></tr>
+            <tr class="sev-low"><td class="id">I-12</td><td><span class="pill none">낮음</span></td><td class="note">서버 DB 표가 두 줄 높이로 고정돼 있어 명단을 보기 어렵습니다.</td><td><span class="pill blue">실측</span></td><td class="where">dbserver/res/layout/activity_main.xml</td></tr>
+            <tr class="sev-low"><td class="id">I-13</td><td><span class="pill none">낮음</span></td><td class="note">접속 직후 같은 내려받기가 3번 연달아 실행됩니다(초기 동기화, 재시도 예비 동작, 접속 알림).</td><td><span class="pill blue">실측</span></td><td class="where">scheduleInitialSyncFallback</td></tr>
+            <tr class="sev-low"><td class="id">I-14</td><td><span class="pill none">낮음</span></td><td class="note">사람 ID가 저장할 때마다 이름순으로 다시 매겨져 고정되지 않습니다. 공통 모듈의 ID 함수는 항상 0을 반환합니다.</td><td><span class="pill none">코드</span></td><td class="where">FaceRecordMetadata.kt:46 · FaceDatabase.kt:396</td></tr>
+            <tr class="sev-low"><td class="id">I-15</td><td><span class="pill none">낮음</span></td><td class="note">유지보수: 2천 줄이 넘는 파일 3개(MainActivity 2,994줄), 테스트 0건, Gradle 캐시 폴더가 git에 포함, 3월 보고서가 현재와 불일치, tmp_* 폴더 방치.</td><td><span class="pill none">코드</span></td><td class="where">저장소 전반</td></tr>
+            <tr class="sev-low"><td class="id">I-16</td><td><span class="pill none">낮음</span></td><td class="note">키오스크와 서버의 기본 폴더가 모두 /sdcard/faceDB여서, 한 기기에서 두 앱을 같이 쓰면 같은 파일을 공유합니다.</td><td><span class="pill blue">실측</span></td><td class="where">AppSettings.kt · DbStorageLocation.kt</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="next" aria-labelledby="h-next">
+      <h2 id="h-next"><span class="num">9</span>다음 단계</h2>
+      <p>순서는 "현장에서 쓸 수 있게 만들기, 데이터가 틀어지지 않게 하기, 출석 기능 확장"입니다. 각 단계는 앞 단계가 끝나야 의미가 있습니다.</p>
+      <div class="two-col">
+        <div class="panel">
+          <h3>1단계 · 바로 고칠 것</h3>
+          <ul class="plain">
+            <li>서버 Manifest 권한 추가 (I-01)</li>
+            <li>승인·관리 API를 서버 기기 전용으로 제한하고 응답에서 토큰 제거 (I-02)</li>
+            <li>로그인 후 서버 시작, 첫 실행 때 비밀번호 변경 (I-09)</li>
+            <li>상태 표시줄 여백 처리, 승인 대기 안내 문구 (I-07, I-08)</li>
+          </ul>
+        </div>
+        <div class="panel">
+          <h3>2단계 · 데이터 정합성</h3>
+          <ul class="plain">
+            <li>이름 대신 personKey로 저장·보정 대상 찾기 (I-03)</li>
+            <li>등록 전에 DB 전체와 비교해 중복 얼굴 경고 (I-06)</li>
+            <li>삭제를 기록으로 남겨 동기화로 전파 (I-10)</li>
+            <li>고정된 사람 ID 부여 (I-14)</li>
+          </ul>
+        </div>
+        <div class="panel">
+          <h3>3단계 · 출석 기능</h3>
+          <ul class="plain">
+            <li>출석을 이벤트 단위로 기록: 사람 키, 시각, 키오스크, 인식 점수</li>
+            <li>인식 확정 시점에 출석, 출력과 분리 (I-05)</li>
+            <li>서버가 끊겼을 때 키오스크에 보관했다가 재전송</li>
+            <li>서버 앱에 오늘 출석 현황 화면, 기간별 CSV 내보내기</li>
+          </ul>
+        </div>
+        <div class="panel">
+          <h3>함께 진행할 것</h3>
+          <ul class="plain">
+            <li>매칭·판정·델타 코덱 단위 테스트부터 작성</li>
+            <li>MainActivity를 화면·인식·출력 단위로 분리</li>
+            <li><code>.gradle</code>를 git에서 제외, 3월 보고서는 이 문서로 대체</li>
+            <li>얼굴 정렬(랜드마크 기반 회전 보정)로 인식 정확도 확인</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="method" aria-labelledby="h-method">
+      <h2 id="h-method"><span class="num">부록</span>검증 방법</h2>
+      <ul class="plain">
+        <li><b>환경</b>: Android 15 (API 35) x86_64 에뮬레이터. 화면을 1752×2800, 320dpi로 바꿔 Galaxy Tab S7+와 같은 태블릿 레이아웃(sw600dp)을 쓰게 했습니다.</li>
+        <li><b>앱</b>: 저장소에 있는 빌드 결과물 <code>faith_id.apk</code>, <code>faith_db.apk</code>(2026-05-30 빌드)를 그대로 설치했습니다. 서버 화면 캡처만 I-01 권한 한 줄을 더한 임시 빌드로 찍었고, 저장소 코드는 바꾸지 않았습니다.</li>
+        <li><b>데이터</b>: 가명 12명과 무작위 512차원 임베딩으로 만든 테스트 CSV. 실제 인물 데이터(<code>face_app_data</code>)는 쓰지 않았습니다.</li>
+        <li><b>한계</b>: 에뮬레이터 카메라에는 사람 얼굴이 없어 인식·등록 화면은 실행으로 확인하지 못했습니다. 프린터 출력도 확인하지 않았습니다. 키오스크와 서버가 한 기기의 같은 폴더를 써서 I-10은 재현할 수 없었습니다.</li>
+      </ul>
+    </section>
+
+    <footer>
+      Allstar Faith ID 개발 현황 보고서 · 2026-10-25 · 이 문서는 <code>reports/faith_id_status_2026-10-25/</code>에 이미지와 함께 보관됩니다.
+    </footer>
+  </main>
+</div>
