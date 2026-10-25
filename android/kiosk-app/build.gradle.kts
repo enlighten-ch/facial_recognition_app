@@ -4,15 +4,16 @@ plugins {
 }
 
 android {
-    namespace = "com.example.facetestbed"
+    namespace = "com.allstar.faithid.kiosk"
     compileSdk = 35
 
     defaultConfig {
+        // Kept from the first release so installed kiosks upgrade in place.
         applicationId = "com.example.facetestbed"
         minSdk = 28
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk {
@@ -21,6 +22,10 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Emulators are x86_64; tablets are arm64.
+            ndk { abiFilters += listOf("x86_64") }
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(
@@ -55,12 +60,11 @@ android {
 dependencies {
     val cameraxVersion = "1.4.1"
 
-    implementation(project(":core"))
+    implementation(project(":client-core"))
+    implementation(project(":android-support"))
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("com.google.android.material:material:1.12.0")
-    implementation("androidx.constraintlayout:constraintlayout:2.2.0")
-    implementation("androidx.documentfile:documentfile:1.0.1")
     implementation(files("libs/BrotherPrintLibrary.aar"))
     implementation(files("libs/NemonicSdk.aar"))
 
@@ -73,6 +77,9 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     testImplementation("junit:junit:4.13.2")
+    testImplementation(testFixtures(project(":core")))
+    // Real org.json for JVM unit tests (the Android jar only has stubs).
+    testImplementation("org.json:json:20240303")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
 }
