@@ -129,6 +129,7 @@ class MainActivity : AppCompatActivity() {
         }
         applyScreenMode()
         screen.render(flow.state, settings.uiSavingMessage)
+        DebugBridge.observe = { observation -> main.post { flow.onObservation(observation) } }
 
         camera = CameraController(this, findViewById<PreviewView>(R.id.previewView), ::onFrame, ::showError)
         applyGuide()
@@ -153,6 +154,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        DebugBridge.observe = null
         camera.shutdown()
         data?.close()
         printer.shutdown()
@@ -163,7 +165,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun onFrame(bitmap: android.graphics.Bitmap) {
         val current = analyzer
-        if (current == null) bitmap.recycle() else current.onFrame(bitmap)
+        if (current == null || DebugBridge.cameraPaused) bitmap.recycle() else current.onFrame(bitmap)
     }
 
     private fun loadModel() {
