@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="screen_padding">12dp</dimen>
+    <dimen name="title_text">24sp</dimen>
+    <dimen name="subtitle_text">13sp</dimen>
+    <dimen name="status_text">13sp</dimen>
+    <dimen name="status_button_height">36dp</dimen>
+    <dimen name="page_width">300dp</dimen>
+    <dimen name="monitor_text">18sp</dimen>
+    <dimen name="detail_text">14sp</dimen>
+    <dimen name="action_button_height">48dp</dimen>
+    <dimen name="print_button_height">72dp</dimen>
+    <dimen name="print_button_text">22sp</dimen>
+    <dimen name="register_progress_text">18sp</dimen>
+    <dimen name="input_height">52dp</dimen>
+    <dimen name="output_name_text">34sp</dimen>
+    <dimen name="output_sub_text">20sp</dimen>
+    <dimen name="operation_message_text">24sp</dimen>
+    <dimen name="operation_side_padding">32dp</dimen>
+    <dimen name="operation_panel_width">340dp</dimen>
+    <dimen name="floating_button_width">300dp</dimen>
+</resources>

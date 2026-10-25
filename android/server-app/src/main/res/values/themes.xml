@@ -1,0 +1,10 @@
+<resources>
+    <style name="Theme.FaithServer" parent="Theme.Material3.Light.NoActionBar">
+        <item name="colorPrimary">#2346A6</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorSecondary">#D99410</item>
+        <item name="android:colorBackground">#F4F6FA</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+    </style>
+</resources>

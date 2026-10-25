@@ -1,0 +1,558 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Two presentations of the same pages (ViewFlipper "pageFlipper") and camera panel:
+  - developerRoot: status rows, camera on the left, pages on the right
+  - operationRoot: full-screen camera with overlaid messages (normal kiosk use)
+  KioskScreen moves the camera panel and the pages between the two hosts.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/kioskRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000">
+
+    <LinearLayout
+        android:id="@+id/developerRoot"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#F6F7FB"
+        android:orientation="vertical"
+        android:padding="@dimen/screen_padding">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/headerTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="얼굴 인식"
+                    android:textColor="#111111"
+                    android:textSize="@dimen/title_text"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/headerSubtitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="#666666"
+                    android:textSize="@dimen/subtitle_text" />
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/backButton"
+                android:layout_width="wrap_content"
+                android:layout_height="@dimen/status_button_height"
+                android:layout_marginStart="8dp"
+                android:text="처음으로" />
+
+            <Button
+                android:id="@+id/logButton"
+                android:layout_width="wrap_content"
+                android:layout_height="@dimen/status_button_height"
+                android:layout_marginStart="8dp"
+                android:text="로그" />
+
+            <Button
+                android:id="@+id/settingsButton"
+                android:layout_width="wrap_content"
+                android:layout_height="@dimen/status_button_height"
+                android:layout_marginStart="8dp"
+                android:text="설정" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="#FFFFFF"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="8dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="서버"
+                android:textColor="#1A3D8F"
+                android:textSize="@dimen/status_text"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/connectionStatusText"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:maxLines="2"
+                android:textSize="@dimen/status_text" />
+
+            <Button
+                android:id="@+id/syncNowButton"
+                android:layout_width="wrap_content"
+                android:layout_height="@dimen/status_button_height"
+                android:layout_marginStart="8dp"
+                android:text="지금 동기화" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:background="#FFFFFF"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="8dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="로컬 DB"
+                android:textColor="#1A3D8F"
+                android:textSize="@dimen/status_text"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/dbStatusText"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:textSize="@dimen/status_text" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:text="출력"
+                android:textColor="#1A3D8F"
+                android:textSize="@dimen/status_text"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/printStatusText"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:maxLines="2"
+                android:textSize="@dimen/status_text" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginTop="12dp"
+            android:layout_weight="1"
+            android:orientation="horizontal">
+
+            <FrameLayout
+                android:id="@+id/cameraPreviewPanel"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_marginEnd="10dp"
+                android:layout_weight="1"
+                android:background="#FFFFFF"
+                android:padding="12dp">
+
+                <androidx.camera.view.PreviewView
+                    android:id="@+id/previewView"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent" />
+
+                <com.allstar.faithid.kiosk.camera.GuideOverlayView
+                    android:id="@+id/guideOverlay"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent" />
+            </FrameLayout>
+
+            <FrameLayout
+                android:id="@+id/developerPageHost"
+                android:layout_width="@dimen/page_width"
+                android:layout_height="match_parent"
+                android:background="#FFFFFF"
+                android:padding="16dp">
+
+                <ViewFlipper
+                    android:id="@+id/pageFlipper"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent">
+
+                    <!-- Page 0: monitor -->
+                    <ScrollView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:id="@+id/monitorStatusText"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:textColor="#111111"
+                                android:textSize="@dimen/monitor_text"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/monitorDetailText"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="8dp"
+                                android:textColor="#666666"
+                                android:textSize="@dimen/detail_text" />
+
+                            <Button
+                                android:id="@+id/registerStartButton"
+                                android:layout_width="match_parent"
+                                android:layout_height="@dimen/action_button_height"
+                                android:layout_marginTop="14dp"
+                                android:text="등록 시작하기"
+                                android:textSize="18sp"
+                                android:visibility="gone" />
+
+                            <Button
+                                android:id="@+id/labelOnlyPrintButton"
+                                android:layout_width="match_parent"
+                                android:layout_height="@dimen/action_button_height"
+                                android:layout_marginTop="10dp"
+                                android:text="이름표만 출력하기"
+                                android:textSize="18sp"
+                                android:visibility="gone" />
+
+                            <LinearLayout
+                                android:id="@+id/candidateContainer"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="10dp"
+                                android:orientation="vertical" />
+
+                            <Button
+                                android:id="@+id/printButton"
+                                android:layout_width="match_parent"
+                                android:layout_height="@dimen/print_button_height"
+                                android:layout_marginTop="14dp"
+                                android:enabled="false"
+                                android:text="이름표 출력하기"
+                                android:textSize="@dimen/print_button_text"
+                                android:textStyle="bold"
+                                android:visibility="gone" />
+                        </LinearLayout>
+                    </ScrollView>
+
+                    <!-- Page 1: registration capture -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/registerStatusText"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:textColor="#111111"
+                            android:textSize="@dimen/monitor_text"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/registerDetailText"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:textColor="#666666"
+                            android:textSize="@dimen/detail_text" />
+
+                        <ProgressBar
+                            android:id="@+id/registerProgressBar"
+                            style="?android:attr/progressBarStyleHorizontal"
+                            android:layout_width="match_parent"
+                            android:layout_height="24dp"
+                            android:layout_marginTop="12dp"
+                            android:max="12" />
+
+                        <TextView
+                            android:id="@+id/registerCountText"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="10dp"
+                            android:lineSpacingExtra="5dp"
+                            android:textColor="#111111"
+                            android:textSize="@dimen/register_progress_text"
+                            android:textStyle="bold" />
+
+                        <Button
+                            android:id="@+id/duplicateIsMeButton"
+                            android:layout_width="match_parent"
+                            android:layout_height="@dimen/action_button_height"
+                            android:layout_marginTop="14dp"
+                            android:text="본인이 맞아요"
+                            android:textSize="18sp"
+                            android:visibility="gone" />
+
+                        <Button
+                            android:id="@+id/duplicateNotMeButton"
+                            android:layout_width="match_parent"
+                            android:layout_height="@dimen/action_button_height"
+                            android:layout_marginTop="10dp"
+                            android:text="처음 등록이에요"
+                            android:textSize="18sp"
+                            android:visibility="gone" />
+                    </LinearLayout>
+
+                    <!-- Page 2: name, department, grade -->
+                    <ScrollView
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:id="@+id/infoTitleText"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:textColor="#111111"
+                                android:textSize="@dimen/monitor_text"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/infoDetailText"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:textColor="#B8322A"
+                                android:textSize="@dimen/detail_text" />
+
+                            <EditText
+                                android:id="@+id/nameInput"
+                                android:layout_width="match_parent"
+                                android:layout_height="@dimen/input_height"
+                                android:layout_marginTop="12dp"
+                                android:hint="이름"
+                                android:importantForAutofill="no"
+                                android:inputType="textPersonName"
+                                android:singleLine="true"
+                                android:textSize="20sp" />
+
+                            <EditText
+                                android:id="@+id/departmentInput"
+                                android:layout_width="match_parent"
+                                android:layout_height="@dimen/input_height"
+                                android:layout_marginTop="10dp"
+                                android:hint="부서"
+                                android:importantForAutofill="no"
+                                android:inputType="text"
+                                android:singleLine="true"
+                                android:textSize="20sp" />
+
+                            <EditText
+                                android:id="@+id/gradeInput"
+                                android:layout_width="match_parent"
+                                android:layout_height="@dimen/input_height"
+                                android:layout_marginTop="10dp"
+                                android:hint="학년"
+                                android:importantForAutofill="no"
+                                android:imeOptions="actionDone"
+                                android:inputType="text"
+                                android:singleLine="true"
+                                android:textSize="20sp" />
+
+                            <Button
+                                android:id="@+id/submitInfoButton"
+                                android:layout_width="match_parent"
+                                android:layout_height="@dimen/action_button_height"
+                                android:layout_marginTop="14dp"
+                                android:text="저장하기"
+                                android:textSize="20sp" />
+                        </LinearLayout>
+                    </ScrollView>
+
+                    <!-- Page 3: output -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:gravity="center"
+                        android:orientation="vertical">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                android:id="@+id/outputNameText"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textColor="#111111"
+                                android:textSize="@dimen/output_name_text"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/outputDepartmentText"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="14dp"
+                                android:textColor="#1A3D8F"
+                                android:textSize="@dimen/output_sub_text"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/outputGradeText"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="14dp"
+                                android:textColor="#24633D"
+                                android:textSize="@dimen/output_sub_text"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/outputStatusText"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="10dp"
+                            android:gravity="center"
+                            android:textColor="#666666"
+                            android:textSize="@dimen/detail_text" />
+                    </LinearLayout>
+                </ViewFlipper>
+            </FrameLayout>
+        </LinearLayout>
+    </LinearLayout>
+
+    <FrameLayout
+        android:id="@+id/operationRoot"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#000000"
+        android:visibility="gone">
+
+        <FrameLayout
+            android:id="@+id/operationCameraHost"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <LinearLayout
+            android:id="@+id/operationMessagePanel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top"
+            android:orientation="vertical"
+            android:paddingHorizontal="@dimen/operation_side_padding"
+            android:paddingTop="72dp">
+
+            <TextView
+                android:id="@+id/operationMessageText"
+                style="@style/OverlayText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="@dimen/operation_message_text"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/operationDetailText"
+                style="@style/OverlayText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:textSize="18sp" />
+        </LinearLayout>
+
+        <FrameLayout
+            android:id="@+id/operationActionPanel"
+            android:layout_width="@dimen/operation_panel_width"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_vertical|end"
+            android:layout_margin="28dp"
+            android:background="#CCFFFFFF"
+            android:padding="16dp"
+            android:visibility="gone">
+
+            <FrameLayout
+                android:id="@+id/operationPageHost"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+        </FrameLayout>
+
+        <Button
+            android:id="@+id/operationPrintButton"
+            android:layout_width="@dimen/floating_button_width"
+            android:layout_height="86dp"
+            android:layout_gravity="bottom|end"
+            android:layout_marginEnd="42dp"
+            android:layout_marginBottom="64dp"
+            android:background="@drawable/bg_floating_print_button"
+            android:elevation="10dp"
+            android:text="이름표 출력하기"
+            android:textColor="#FFFFFF"
+            android:textSize="25sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/operationMotionHint"
+            style="@style/OverlayText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:alpha="0.9"
+            android:textSize="96sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/operationBanner"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|start"
+            android:layout_margin="18dp"
+            android:background="#99000000"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="6dp"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp"
+            android:visibility="gone" />
+
+        <LinearLayout
+            android:id="@+id/operationCorner"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|end"
+            android:orientation="horizontal"
+            android:padding="14dp">
+
+            <Button
+                android:id="@+id/operationHomeButton"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:alpha="0.75"
+                android:background="@drawable/ic_home_return"
+                android:contentDescription="처음으로" />
+
+            <Button
+                android:id="@+id/operationSettingsButton"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:layout_marginStart="12dp"
+                android:alpha="0.75"
+                android:background="@drawable/ic_settings_gear"
+                android:contentDescription="설정" />
+        </LinearLayout>
+    </FrameLayout>
+</FrameLayout>

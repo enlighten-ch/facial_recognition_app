@@ -1,0 +1,605 @@
+<title>Faith ID 테스트 보고서</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@500;700&family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: 개발 현황 보고서와 같은 체계. 넓은 화면은 왼쪽 목차 + 본문 한 단. 측정값은 표와 그림 하나씩으로 보여 준다. */
+:root {
+  --paper: #f4f6fa;
+  --surface: #ffffff;
+  --surface-2: #eaeef6;
+  --ink: #161d2f;
+  --ink-2: #3a4458;
+  --muted: #646e83;
+  --line: #d6dce8;
+  --line-strong: #9aa5bb;
+  --blue: #2346a6;
+  --blue-soft: #e3e9f8;
+  --blue-light: #93a9e3;
+  --gold: #d99410;
+  --gold-soft: #fbefd4;
+  --crit: #b8322a;
+  --crit-soft: #f8e1de;
+  --warn: #a8670f;
+  --warn-soft: #f7ead2;
+  --ok: #2c7a4b;
+  --ok-soft: #dcefe3;
+  --plain-soft: #e8ebf1;
+
+  --font-display: "Hahmlet", "Nanum Myeongjo", "AppleMyungjo", serif;
+  --font-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+  --font-mono: "IBM Plex Mono", "D2Coding", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  --step--1: 0.8125rem;
+  --step-0: 0.9688rem;
+  --step-1: 1.125rem;
+  --step-2: 1.375rem;
+  --step-3: 1.75rem;
+  --step-4: 2.5rem;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --paper: #0f1421;
+    --surface: #161d2d;
+    --surface-2: #1d2639;
+    --ink: #e7ebf4;
+    --ink-2: #c3cad9;
+    --muted: #96a0b6;
+    --line: #2b3449;
+    --line-strong: #56627d;
+    --blue: #86a3ff;
+    --blue-soft: #1f2b4d;
+    --blue-light: #3f5592;
+    --gold: #f0b440;
+    --gold-soft: #3a2f16;
+    --crit: #f07a6c;
+    --crit-soft: #3d1f1d;
+    --warn: #e7a84f;
+    --warn-soft: #3a2c16;
+    --ok: #66c792;
+    --ok-soft: #173326;
+    --plain-soft: #252e42;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #0f1421;
+  --surface: #161d2d;
+  --surface-2: #1d2639;
+  --ink: #e7ebf4;
+  --ink-2: #c3cad9;
+  --muted: #96a0b6;
+  --line: #2b3449;
+  --line-strong: #56627d;
+  --blue: #86a3ff;
+  --blue-soft: #1f2b4d;
+  --blue-light: #3f5592;
+  --gold: #f0b440;
+  --gold-soft: #3a2f16;
+  --crit: #f07a6c;
+  --crit-soft: #3d1f1d;
+  --warn: #e7a84f;
+  --warn-soft: #3a2c16;
+  --ok: #66c792;
+  --ok-soft: #173326;
+  --plain-soft: #252e42;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  line-height: 1.7;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.shell {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding-block: 40px 96px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 40px;
+}
+@media (min-width: 1100px) { .shell { grid-template-columns: 200px minmax(0, 1fr); } }
+nav.toc { display: none; }
+@media (min-width: 1100px) {
+  nav.toc {
+    display: block;
+    position: sticky;
+    top: calc(env(safe-area-inset-top, 0px) + 24px);
+    align-self: start;
+    font-size: var(--step--1);
+  }
+}
+nav.toc p { margin: 0 0 10px; font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+nav.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+nav.toc a { display: block; padding: 4px 10px; border-left: 2px solid var(--line); color: var(--ink-2); text-decoration: none; }
+nav.toc a:hover { border-left-color: var(--blue); color: var(--blue); }
+main { min-width: 0; display: grid; gap: 64px; }
+section { display: grid; gap: 18px; min-width: 0; scroll-margin-top: 24px; }
+a { color: var(--blue); }
+a:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; line-height: 1.3; color: var(--ink); }
+h1 { font-size: var(--step-4); font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: var(--step-3); font-weight: 700; }
+h3 { font-size: var(--step-2); font-weight: 500; margin-top: 12px; }
+h2 .num { font-family: var(--font-mono); font-size: 0.55em; color: var(--muted); font-weight: 500; margin-right: 10px; vertical-align: 0.3em; }
+p { margin: 0; max-width: 70ch; }
+.lede { font-size: var(--step-1); color: var(--ink-2); max-width: 64ch; }
+code, .mono { font-family: var(--font-mono); font-size: 0.88em; }
+code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+ul.plain { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; max-width: 72ch; }
+
+header.cover { display: grid; gap: 16px; padding-bottom: 32px; border-bottom: 1px solid var(--line); }
+.eyebrow { font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--blue); font-weight: 600; }
+dl.meta { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 16px; margin: 8px 0 0; font-size: var(--step--1); }
+dl.meta dt { color: var(--muted); }
+dl.meta dd { margin: 0; color: var(--ink-2); }
+
+/* 판정 요약 */
+.verdicts { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
+.verdict {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px 18px;
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+.verdict .what { font-weight: 600; }
+.verdict .figure { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: var(--step-1); color: var(--ink); }
+.verdict .detail { font-size: var(--step--1); color: var(--muted); }
+.verdict-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+
+.callout { border-left: 3px solid var(--blue); background: var(--blue-soft); padding: 14px 18px; border-radius: 0 8px 8px 0; display: grid; gap: 6px; max-width: 80ch; }
+.callout strong { color: var(--blue); }
+.callout.warn { border-left-color: var(--warn); background: var(--warn-soft); }
+.callout.warn strong { color: var(--warn); }
+
+figure { margin: 0; display: grid; gap: 10px; min-width: 0; }
+figcaption { font-size: var(--step--1); color: var(--muted); max-width: 84ch; }
+figcaption b { color: var(--ink-2); font-weight: 600; }
+.diagram { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px; overflow-x: auto; }
+.diagram svg { display: block; width: 100%; height: auto; min-width: 760px; font-family: var(--font-body); }
+svg .t { fill: var(--ink); font-size: 13px; font-weight: 600; }
+svg .ts { fill: var(--ink-2); font-size: 12px; }
+svg .tm { fill: var(--ink-2); font-size: 11.5px; font-family: var(--font-mono); }
+svg .tl { fill: var(--muted); font-size: 11px; }
+svg .grid { stroke: var(--line); stroke-width: 1; }
+svg .axis { stroke: var(--line-strong); stroke-width: 1; }
+svg .goal { stroke: var(--gold); stroke-width: 1.4; stroke-dasharray: 5 4; }
+svg .t-gold { fill: var(--gold); }
+svg .stem { stroke: var(--line-strong); stroke-width: 2; }
+svg .dot-before { fill: var(--blue-light); stroke: var(--surface); stroke-width: 2; }
+svg .dot-after { fill: var(--blue); stroke: var(--surface); stroke-width: 2; }
+svg .row-hit { fill: transparent; }
+svg .row-hit:hover { fill: var(--surface-2); }
+svg .seg-a { fill: var(--blue); }
+svg .seg-b { fill: var(--blue-light); }
+svg .seg-rest { fill: var(--surface-2); stroke: var(--line-strong); stroke-width: 1; stroke-dasharray: 3 3; }
+svg .seg-label { fill: var(--surface); font-size: 11.5px; font-weight: 600; }
+svg .seg-label-dark { fill: var(--ink); font-size: 11.5px; font-weight: 600; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: var(--step--1); color: var(--muted); align-items: center; }
+.swatch { display: inline-block; width: 11px; height: 11px; border-radius: 50%; vertical-align: -1px; margin-right: 6px; }
+.swatch.before { background: var(--blue-light); }
+.swatch.after { background: var(--blue); }
+.swatch.goal { width: 16px; height: 0; border-top: 2px dashed var(--gold); border-radius: 0; vertical-align: 3px; }
+
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: var(--step--1); line-height: 1.55; }
+th, td { padding: 9px 14px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+thead th { background: var(--surface-2); color: var(--ink-2); font-weight: 600; font-size: 0.75rem; letter-spacing: 0.04em; white-space: nowrap; }
+tbody tr:last-child td { border-bottom: 0; }
+td.n, th.n { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.n.good { color: var(--ok); font-weight: 500; }
+td.n.bad { color: var(--crit); font-weight: 500; }
+td.id { font-family: var(--font-mono); white-space: nowrap; color: var(--muted); }
+tr.group td { background: var(--surface-2); font-weight: 600; color: var(--ink-2); font-size: 0.75rem; letter-spacing: 0.04em; }
+table.wide { min-width: 780px; }
+table.mid { min-width: 620px; }
+.pill { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; white-space: nowrap; border: 1px solid transparent; }
+.pill.ok { background: var(--ok-soft); color: var(--ok); border-color: color-mix(in srgb, var(--ok) 35%, transparent); }
+.pill.part { background: var(--warn-soft); color: var(--warn); border-color: color-mix(in srgb, var(--warn) 35%, transparent); }
+.pill.crit { background: var(--crit-soft); color: var(--crit); border-color: color-mix(in srgb, var(--crit) 35%, transparent); }
+.pill.none { background: var(--plain-soft); color: var(--muted); border-color: var(--line); }
+.two-col { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); align-items: start; }
+footer { font-size: var(--step--1); color: var(--muted); border-top: 1px solid var(--line); padding-top: 20px; }
+</style>
+<div class="shell">
+  <nav class="toc" aria-label="목차">
+    <p>목차</p>
+    <ol>
+      <li><a href="#summary">1. 결과 요약</a></li>
+      <li><a href="#env">2. 시험 환경</a></li>
+      <li><a href="#perf">3. 응답·전파 시간</a></li>
+      <li><a href="#multi">4. 다중 키오스크 통합</a></li>
+      <li><a href="#unit">5. 단위 테스트</a></li>
+      <li><a href="#device">6. 기기 E2E</a></li>
+      <li><a href="#face">7. 실제 얼굴 검증</a></li>
+      <li><a href="#issues">8. 발견한 문제</a></li>
+      <li><a href="#limits">9. 한계와 다음 일</a></li>
+    </ol>
+  </nav>
+  <main>
+    <header class="cover">
+      <span class="eyebrow">Allstar Faith ID · 테스트 보고서</span>
+      <h1>여러 키오스크가 동시에 써도 1초 안에 맞춰지는가</h1>
+      <p class="lede">개선한 키오스크(Faith ID)와 DB 서버(Faith DB Server)를 단위·통합·기기 단계로 시험했습니다. 키오스크 여러 대가 순서 없이 내려받고 변경을 보내는 상황에서, 변경이 서버와 다른 키오스크에 닿는 시간과 서버 응답 시간을 측정했고, 측정에서 찾은 서버 지연을 고친 뒤 다시 측정했습니다.</p>
+      <dl class="meta">
+        <dt>시험일</dt><dd>2026-10-25</dd>
+        <dt>코드</dt><dd>브랜치 <code>improve/stability-attendance</code>, 커밋 <code>9f2b781</code></dd>
+        <dt>관련 문서</dt><dd>개발 현황 보고서(같은 날짜), GitHub 이슈 #1~#19</dd>
+      </dl>
+    </header>
+
+    <section id="summary" aria-labelledby="h-summary">
+      <h2 id="h-summary"><span class="num">1</span>결과 요약</h2>
+      <div class="verdicts">
+        <div class="verdict">
+          <div class="verdict-head"><span class="what">자동 테스트</span><span class="pill ok">통과</span></div>
+          <div class="figure">121 / 122</div>
+          <div class="detail">단위 116, 통합 6. 1건은 서버 주소를 줄 때만 도는 원격 시나리오라 건너뜀</div>
+        </div>
+        <div class="verdict">
+          <div class="verdict-head"><span class="what">등록 → 다른 키오스크 7대</span><span class="pill ok">1초 이내</span></div>
+          <div class="figure">p95 0.31 s · 부하 0.49 s</div>
+          <div class="detail">태블릿 서버, Wi-Fi, 1,000명 DB. 실제 키오스크 앱 반영은 p50 0.18 s</div>
+        </div>
+        <div class="verdict">
+          <div class="verdict-head"><span class="what">출석 → 서버 저장</span><span class="pill ok">1초 이내</span></div>
+          <div class="figure">p95 0.24 s</div>
+          <div class="detail">유휴·부하 모두. 수정 전 PC 서버 부하 시 p95 1.26 s</div>
+        </div>
+        <div class="verdict">
+          <div class="verdict-head"><span class="what">새 키오스크 전체 수신</span><span class="pill ok">10초 이내</span></div>
+          <div class="figure">1.8 s · 8대 동시 5.3 s</div>
+          <div class="detail">1,000명 × 샘플 12개, 24.7 MB. 내려받기 + 해석 + 저장</div>
+        </div>
+        <div class="verdict">
+          <div class="verdict-head"><span class="what">기기 E2E · 실제 얼굴</span><span class="pill ok">통과</span></div>
+          <div class="figure">11 / 11 · 1명</div>
+          <div class="detail">등록, 인식, 출석, 본인 확인, 삭제 전파. 실제 얼굴은 1명만 시험</div>
+        </div>
+        <div class="verdict">
+          <div class="verdict-head"><span class="what">시험 중 발견한 문제</span><span class="pill ok">8건</span></div>
+          <div class="figure">모두 수정</div>
+          <div class="detail">화면 회전, 출석 전송 지연, 서버 쓰기 지연, CSV 경합, 서버 중지 시 DB 열림, 한 태블릿 운영 시 동기화 멈춤, 재로드 알림 무시, 서버 종료 중 반복 동기화</div>
+        </div>
+      </div>
+      <div class="callout">
+        <p><strong>가장 큰 개선.</strong> 측정해 보니 서버가 변경 1건을 저장할 때마다 디스크 동기화를 여러 번 하고(SQLite 롤백 저널), 출석 1건마다 그날 출석부 CSV 전체를 다시 썼습니다. WAL 저널(<code>synchronous=FULL</code>, 응답한 출석은 정전에도 남음)로 바꾸고 출석부는 백그라운드에서 쓰게 했습니다. PC 서버에서 부하 시 등록 전파 p95가 8.1초에서 0.45초로, 태블릿 서버에서 출석 API가 181 ms에서 40 ms로 줄었습니다.</p>
+      </div>
+    </section>
+
+    <section id="env" aria-labelledby="h-env">
+      <h2 id="h-env"><span class="num">2</span>시험 환경</h2>
+      <div class="table-wrap">
+        <table class="mid">
+          <thead><tr><th>구분</th><th>내용</th></tr></thead>
+          <tbody>
+            <tr><td>태블릿</td><td>Galaxy Tab S7+ (SM-T970), Android 13. Faith DB Server와 Faith ID(디버그 빌드)를 함께 실행. 가로 거치</td></tr>
+            <tr><td>에뮬레이터</td><td>Android 15 (API 35), 1752×2800. 키오스크 E2E와 저장소 계측 테스트</td></tr>
+            <tr><td>PC</td><td>Linux x86-64, JDK 21. 단위·통합 테스트와 모의 키오스크 실행. 태블릿과 같은 Wi-Fi (192.168.45.x)</td></tr>
+            <tr><td>측정 DB</td><td>1,000명 × 얼굴 샘플 12개(512차원) = 전체 24.7 MB. 측정용 빈 데이터 폴더에서 진행하고 끝나면 원래 폴더로 되돌림(실제 데이터 80명은 건드리지 않음)</td></tr>
+            <tr><td>동기화 설정</td><td>운영값 그대로: 변경은 WebSocket 알림으로 즉시, 30초 주기 조회는 알림이 끊겼을 때만 의미 있음</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="perf" aria-labelledby="h-perf">
+      <h2 id="h-perf"><span class="num">3</span>응답·전파 시간</h2>
+      <p>모의 키오스크 8대를 서버에 붙여 두고 한 번에 하나씩 변경할 때(유휴)와, 7대가 0.5~1.5초마다 출석·샘플 추가·등록을 섞어 보내는 동안 나머지 1대로 측정할 때(부하, 초당 약 6.7건)를 비교했습니다. 각 항목은 20~55회 측정의 중앙값(p50)과 95번째 값(p95)입니다. 같은 측정을 PC 안의 서버와 태블릿 서버(Wi-Fi 경유)에 대해, 수정 전과 후로 돌렸습니다.</p>
+
+      <figure>
+        <div class="legend" aria-hidden="true">
+          <span><span class="swatch before"></span>수정 전 p95</span>
+          <span><span class="swatch after"></span>수정 후 p95</span>
+          <span><span class="swatch goal"></span>기준 1초</span>
+        </div>
+        <div class="diagram">
+          <svg viewBox="0 0 1000 340" role="img" aria-label="수정 전후 p95 비교. PC 서버에서 부하 시 등록 전파는 8.1초에서 0.45초로, 출석 API는 1.7초에서 0.14초로 줄었고, 태블릿 서버에서는 출석 API가 0.19초에서 0.04초로 줄었다. 수정 후 모든 항목이 1초 기준 안에 있다.">
+            <!-- x = 230 + (log10(ms) - log10(20)) / log10(500) * 630 -->
+            <g>
+              <line class="grid" x1="322.9" y1="22" x2="322.9" y2="290"/>
+              <line class="grid" x1="393.2" y1="22" x2="393.2" y2="290"/>
+              <line class="grid" x1="463.4" y1="22" x2="463.4" y2="290"/>
+              <line class="grid" x1="556.3" y1="22" x2="556.3" y2="290"/>
+              <line class="grid" x1="696.8" y1="22" x2="696.8" y2="290"/>
+              <line class="grid" x1="789.7" y1="22" x2="789.7" y2="290"/>
+              <line class="goal" x1="626.6" y1="22" x2="626.6" y2="290"/>
+              <text class="tl t-gold" x="632" y="34">1초</text>
+              <line class="axis" x1="230" y1="290" x2="860" y2="290"/>
+              <text class="tm" x="322.9" y="308" text-anchor="middle">50</text>
+              <text class="tm" x="393.2" y="308" text-anchor="middle">100</text>
+              <text class="tm" x="463.4" y="308" text-anchor="middle">200</text>
+              <text class="tm" x="556.3" y="308" text-anchor="middle">500</text>
+              <text class="tm" x="626.6" y="308" text-anchor="middle">1000</text>
+              <text class="tm" x="696.8" y="308" text-anchor="middle">2000</text>
+              <text class="tm" x="789.7" y="308" text-anchor="middle">5000</text>
+              <text class="tl" x="860" y="328" text-anchor="end">ms, 로그 눈금</text>
+            </g>
+            <text class="t" x="10" y="30">PC 서버</text>
+            <text class="tl" x="880" y="30">전 → 후</text>
+            <g>
+              <rect class="row-hit" x="0" y="40" width="1000" height="26"><title>등록 → 모든 키오스크 (부하) p95: 8,135 ms → 454 ms</title></rect>
+              <text class="ts" x="10" y="57">등록 → 모든 키오스크 · 부하</text>
+              <line class="stem" x1="546.5" y1="53" x2="839.1" y2="53"/>
+              <circle class="dot-before" cx="839.1" cy="53" r="6"/><circle class="dot-after" cx="546.5" cy="53" r="6"/>
+              <text class="tm" x="880" y="57">8.1 s → 454</text>
+            </g>
+            <g>
+              <rect class="row-hit" x="0" y="68" width="1000" height="26"><title>등록 → 모든 키오스크 (유휴) p95: 1,156 ms → 253 ms</title></rect>
+              <text class="ts" x="10" y="85">등록 → 모든 키오스크 · 유휴</text>
+              <line class="stem" x1="487.2" y1="81" x2="641.3" y2="81"/>
+              <circle class="dot-before" cx="641.3" cy="81" r="6"/><circle class="dot-after" cx="487.2" cy="81" r="6"/>
+              <text class="tm" x="880" y="85">1.2 s → 253</text>
+            </g>
+            <g>
+              <rect class="row-hit" x="0" y="96" width="1000" height="26"><title>출석 → 서버 저장 (부하) p95: 1,262 ms → 238 ms</title></rect>
+              <text class="ts" x="10" y="113">출석 → 서버 저장 · 부하</text>
+              <line class="stem" x1="481.1" y1="109" x2="650.2" y2="109"/>
+              <circle class="dot-before" cx="650.2" cy="109" r="6"/><circle class="dot-after" cx="481.1" cy="109" r="6"/>
+              <text class="tm" x="880" y="113">1.3 s → 238</text>
+            </g>
+            <g>
+              <rect class="row-hit" x="0" y="124" width="1000" height="26"><title>출석 API 응답 (부하) p95: 1,666 ms → 138 ms</title></rect>
+              <text class="ts" x="10" y="141">출석 API 응답 · 부하</text>
+              <line class="stem" x1="425.8" y1="137" x2="678.3" y2="137"/>
+              <circle class="dot-before" cx="678.3" cy="137" r="6"/><circle class="dot-after" cx="425.8" cy="137" r="6"/>
+              <text class="tm" x="880" y="141">1.7 s → 138</text>
+            </g>
+            <text class="t" x="10" y="176">태블릿 서버 (Wi-Fi)</text>
+            <g>
+              <rect class="row-hit" x="0" y="186" width="1000" height="26"><title>등록 → 모든 키오스크 (부하) p95: 596 ms → 493 ms</title></rect>
+              <text class="ts" x="10" y="203">등록 → 모든 키오스크 · 부하</text>
+              <line class="stem" x1="554.9" y1="199" x2="574.1" y2="199"/>
+              <circle class="dot-before" cx="574.1" cy="199" r="6"/><circle class="dot-after" cx="554.9" cy="199" r="6"/>
+              <text class="tm" x="880" y="203">596 → 493</text>
+            </g>
+            <g>
+              <rect class="row-hit" x="0" y="214" width="1000" height="26"><title>출석 → 서버 저장 (유휴) p95: 358 ms → 240 ms</title></rect>
+              <text class="ts" x="10" y="231">출석 → 서버 저장 · 유휴</text>
+              <line class="stem" x1="481.9" y1="227" x2="522.5" y2="227"/>
+              <circle class="dot-before" cx="522.5" cy="227" r="6"/><circle class="dot-after" cx="481.9" cy="227" r="6"/>
+              <text class="tm" x="880" y="231">358 → 240</text>
+            </g>
+            <g>
+              <rect class="row-hit" x="0" y="242" width="1000" height="26"><title>출석 API 응답 (유휴) p95: 230 ms → 50 ms</title></rect>
+              <text class="ts" x="10" y="259">출석 API 응답 · 유휴</text>
+              <line class="stem" x1="322.9" y1="255" x2="477.6" y2="255"/>
+              <circle class="dot-before" cx="477.6" cy="255" r="6"/><circle class="dot-after" cx="322.9" cy="255" r="6"/>
+              <text class="tm" x="880" y="259">230 → 50</text>
+            </g>
+            <g>
+              <rect class="row-hit" x="0" y="268" width="1000" height="20"><title>출석 API 응답 (부하) p95: 189 ms → 41 ms</title></rect>
+              <text class="ts" x="10" y="283">출석 API 응답 · 부하</text>
+              <line class="stem" x1="302.8" y1="279" x2="457.7" y2="279"/>
+              <circle class="dot-before" cx="457.7" cy="279" r="6"/><circle class="dot-after" cx="302.8" cy="279" r="6"/>
+              <text class="tm" x="880" y="283">189 → 41</text>
+            </g>
+          </svg>
+        </div>
+        <figcaption><b>수정 전후 p95.</b> 왼쪽이 빠릅니다. PC의 디스크는 동기화 한 번이 40 ms 안팎이라 롤백 저널의 영향이 컸고, 태블릿 저장소는 동기화가 빨라 개선 폭이 작습니다. 두 환경 모두 출석 API는 출석부 CSV를 요청 밖으로 뺀 효과로 4배 이상 빨라졌습니다. 오른쪽 숫자 단위는 ms.</figcaption>
+      </figure>
+
+      <h3>수정 후 상세 (태블릿 서버, Wi-Fi)</h3>
+      <div class="table-wrap">
+        <table class="wide">
+          <thead><tr><th>항목</th><th>무엇을 쟀나</th><th class="n">유휴 p50</th><th class="n">유휴 p95</th><th class="n">부하 p50</th><th class="n">부하 p95</th></tr></thead>
+          <tbody>
+            <tr class="group"><td colspan="6">변경 전파 (키오스크 → 서버 → 다른 키오스크)</td></tr>
+            <tr><td>등록 전파</td><td>한 키오스크에서 등록(샘플 12개) 후 다른 7대 모두의 로컬 DB에 들어올 때까지</td><td class="n">278</td><td class="n">309</td><td class="n">328</td><td class="n">493</td></tr>
+            <tr><td>등록 전파, 키오스크별</td><td>위와 같고 키오스크 한 대씩</td><td class="n">268</td><td class="n">309</td><td class="n">272</td><td class="n">429</td></tr>
+            <tr><td>실제 키오스크 앱 반영</td><td>PC에서 등록 후 태블릿의 Faith ID가 반영 로그를 남길 때까지 (기기 시계 보정, ±35 ms)</td><td class="n">181</td><td class="n">204</td><td class="n">-</td><td class="n">-</td></tr>
+            <tr><td>관리자 수정·삭제 전파</td><td>서버에서 이름 수정·삭제 후 8대 모두 반영 (PC 서버에서 측정, 태블릿 서버는 관리 기능이 화면에만 있음)</td><td class="n">112 / 116</td><td class="n">156 / 135</td><td class="n">-</td><td class="n">-</td></tr>
+            <tr class="group"><td colspan="6">출석</td></tr>
+            <tr><td>출석 저장</td><td>출력 버튼 시점에 기록 → 서버가 저장했다고 답할 때까지</td><td class="n">180</td><td class="n">240</td><td class="n">160</td><td class="n">232</td></tr>
+            <tr class="group"><td colspan="6">서버 API 응답 (요청 전송 → 응답 끝)</td></tr>
+            <tr><td>변경 올리기 <code>/ops</code></td><td>등록·샘플 추가 1~2건 저장</td><td class="n">79</td><td class="n">97</td><td class="n">52</td><td class="n">75</td></tr>
+            <tr><td>출석 올리기 <code>/attendance</code></td><td>출석 1건 저장</td><td class="n">40</td><td class="n">50</td><td class="n">30</td><td class="n">41</td></tr>
+            <tr><td>변경 받기 <code>/changes</code></td><td>마지막 리비전 이후 변경분</td><td class="n">29</td><td class="n">37</td><td class="n">22</td><td class="n">38</td></tr>
+            <tr><td>접근 확인 <code>/auth/request</code></td><td>동기화 주기마다 한 번. Wi-Fi 왕복 시간에 가까움</td><td class="n">22</td><td class="n">41</td><td class="n">19</td><td class="n">31</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="mono" style="font-size: var(--step--1); color: var(--muted);">단위 ms. 측정이 끝난 뒤 8대와 서버의 DB가 모두 일치하는지 자동으로 검증했습니다.</p>
+
+      <figure>
+        <div class="diagram">
+          <svg viewBox="0 0 1000 150" role="img" aria-label="등록 전파 278 ms의 구성. 키오스크 A의 접근 확인 21 ms와 변경 올리기 79 ms, 키오스크 B의 접근 확인 21 ms와 변경 받기 28 ms, 나머지 약 130 ms는 알림 전달과 로컬 DB 저장과 대기.">
+            <!-- 1 ms = 3.2 px, start x = 20 -->
+            <text class="t" x="20" y="22">등록 1건이 다른 키오스크에 닿기까지 (태블릿 서버, 유휴 p50 278 ms)</text>
+            <rect class="seg-a" x="20" y="40" width="67.2" height="34" rx="3"/>
+            <rect class="seg-a" x="89.2" y="40" width="250.8" height="34" rx="3"/>
+            <rect class="seg-b" x="342" y="40" width="65.2" height="34" rx="3"/>
+            <rect class="seg-b" x="409.2" y="40" width="87.6" height="34" rx="3"/>
+            <rect class="seg-rest" x="498.8" y="40" width="410.8" height="34" rx="3"/>
+            <text class="seg-label" x="53.6" y="62" text-anchor="middle">21</text>
+            <text class="seg-label" x="214.6" y="62" text-anchor="middle">변경 올리기 79</text>
+            <text class="seg-label-dark" x="374.6" y="62" text-anchor="middle">21</text>
+            <text class="seg-label-dark" x="453" y="62" text-anchor="middle">받기 28</text>
+            <text class="seg-label-dark" x="704.2" y="62" text-anchor="middle">알림 전달 · 로컬 DB 저장 · 대기 ≈ 130</text>
+            <text class="tl" x="20" y="94">키오스크 A: 접근 확인 → 변경 올리기 (서버가 저장 후 모두에게 알림)</text>
+            <text class="tl" x="342" y="112">키오스크 B: 알림 받고 접근 확인 → 변경 받기 → 저장</text>
+            <line class="axis" x1="20" y1="128" x2="909.6" y2="128"/>
+            <text class="tm" x="20" y="144">0</text>
+            <text class="tm" x="340" y="144" text-anchor="middle">100</text>
+            <text class="tm" x="660" y="144" text-anchor="middle">200</text>
+            <text class="tm" x="909.6" y="144" text-anchor="end">278 ms</text>
+          </svg>
+        </div>
+        <figcaption><b>전파 시간의 구성.</b> 진한 칸은 키오스크 A, 옅은 칸은 키오스크 B가 기다린 API 응답(각 중앙값)입니다. 남은 약 130 ms는 WebSocket 알림, 샘플 12개를 로컬 SQLite에 쓰는 시간, 스레드 깨어남이 섞여 있어 따로 나누지 않았습니다. 한 주기마다 접근 확인을 한 번씩 하므로, 이를 줄이면 40 ms 정도 더 줄일 수 있습니다.</figcaption>
+      </figure>
+
+      <h3>새 키오스크가 처음 받을 때</h3>
+      <div class="table-wrap">
+        <table class="mid">
+          <thead><tr><th>단계 (1,000명, 24.7 MB)</th><th class="n">PC 서버</th><th class="n">태블릿 서버</th></tr></thead>
+          <tbody>
+            <tr><td>내려받기 (HTTP)</td><td class="n">605</td><td class="n">1,424</td></tr>
+            <tr><td>해석</td><td class="n">10</td><td class="n">19</td></tr>
+            <tr><td>로컬 DB 저장 (SQLite, PC)</td><td class="n">419</td><td class="n">393</td></tr>
+            <tr><td>8대가 동시에 처음 받기, 대당 전체</td><td class="n">1,304</td><td class="n">5,309 (최대 6,607)</td></tr>
+            <tr><td>실제 키오스크 앱 (태블릿): 앱 시작 → 1,116명 전체 수신·저장</td><td class="n">-</td><td class="n">약 4,200</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>8대 동시 수신은 태블릿 Wi-Fi 대역폭(합계 약 37 MB/s)이 상한입니다. 1,000명 규모에서 주일 아침 키오스크 여러 대를 한꺼번에 켜도 10초 안에 준비됩니다.</p>
+      <div class="callout warn">
+        <p><strong>의도된 대기.</strong> 키오스크는 카메라 앞에 사람이 있는 동안 받은 변경을 적용하지 않고 최대 30초 기다립니다(인식 중에 DB가 바뀌지 않도록). 측정 중 태블릿 앞에 사람이 있었던 회차에서는 전체 수신이 39초 걸렸고, 이 값은 표에서 뺐습니다. 출석 전송은 이 대기와 상관없이 바로 나가도록 이번에 고쳤습니다(#14).</p>
+      </div>
+    </section>
+
+    <section id="multi" aria-labelledby="h-multi">
+      <h2 id="h-multi"><span class="num">4</span>다중 키오스크 통합 시험</h2>
+      <p>키오스크마다 독립된 DB와 네트워크를 두고, 각자 무작위 순서로 등록·샘플 추가·출석을 하면서 동시에 내려받게 했습니다. 네트워크 장애는 일부러 넣었고, 관리자도 동시에 수정·삭제·승인 해제·서버 재시작을 했습니다. 끝나면 모든 키오스크와 서버의 DB를 사람·샘플 단위로 비교합니다.</p>
+      <div class="table-wrap">
+        <table class="wide">
+          <thead><tr><th>시나리오</th><th>조건</th><th>마지막 실행 규모</th><th>검증</th><th>결과</th></tr></thead>
+          <tbody>
+            <tr><td>8대 + 관리자 + 재시작</td><td>요청 유실, 응답 유실(서버는 처리했지만 답이 사라짐), Wi-Fi 끊김을 무작위로. 중간에 1대 승인 해제, 서버 재시작</td><td>동작 1,507 · 등록 267 · 출석 443 · 삭제 7 · 수정 26 · 요청 유실 85 · 응답 유실 34</td><td>전원 DB 일치, 등록·샘플 손실 0, 삭제된 사람 부활 0, 출석 정확히 443건</td><td><span class="pill ok">통과</span></td></tr>
+            <tr><td>샘플 상한 8개</td><td>위와 같고 사람당 샘플을 8개로 제한</td><td>동작 725 · 등록 143 · 출석 212</td><td>서버와 키오스크가 같은 샘플을 남김</td><td><span class="pill ok">통과</span></td></tr>
+            <tr><td>20대 동시 시작</td><td>200명 × 20샘플 DB를 20대가 한꺼번에 내려받고 동시에 등록</td><td>2.3초에 완료</td><td>220명, 전원 일치</td><td><span class="pill ok">통과</span></td></tr>
+            <tr><td>응답 40% 유실</td><td>4대가 등록·출석을 보내는데 응답의 40%가 사라짐</td><td>등록 40 · 출석 40</td><td>중복 등록 0, 중복 출석 0</td><td><span class="pill ok">통과</span></td></tr>
+            <tr><td>성능 측정 (PC·태블릿)</td><td>3장의 측정 전체. 8대, 1,000명</td><td>부하 중 변경 약 300건</td><td>측정 후 전원 DB 일치</td><td><span class="pill ok">통과</span></td></tr>
+            <tr><td>태블릿 서버 대상 6대</td><td>태블릿 서버 앱에 Wi-Fi로 6대, 승인은 실제 화면에서</td><td>등록 79 · 출석 96 (수정 전 빌드에서 실행)</td><td>태블릿 출석부와 정확히 일치</td><td><span class="pill ok">통과</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="unit" aria-labelledby="h-unit">
+      <h2 id="h-unit"><span class="num">5</span>단위 테스트</h2>
+      <div class="table-wrap">
+        <table class="wide">
+          <thead><tr><th>모듈</th><th class="n">개수</th><th>다루는 것</th><th>결과</th></tr></thead>
+          <tbody>
+            <tr><td><code>core</code></td><td class="n">56</td><td>메타데이터·샘플 집합 병합, 바이너리·CSV 코덱, 인식 판정 기준, 후보 안정화, 등록 세션, 얼굴 정렬, 출석부 생성, 저장소와 이전 DB 이전</td><td><span class="pill ok">통과</span></td></tr>
+            <tr><td><code>server-core</code></td><td class="n">27</td><td>리비전 저장소(동시 병합, 삭제 유지, 재시작), 키오스크 승인, 출석 원장, HTTP API, 관리자 비밀번호, CSV 동시 내보내기</td><td><span class="pill ok">통과</span></td></tr>
+            <tr><td><code>client-core</code></td><td class="n">15</td><td>미전송함, 서버 변경 적용, 동기화 엔진(승인 대기, 오프라인, 승인 해제, 알림, 카메라 사용 중 출석 전송)</td><td><span class="pill ok">통과</span></td></tr>
+            <tr><td><code>kiosk-app</code></td><td class="n">18</td><td>키오스크 흐름(인식, 후보 선택, 등록, 본인 확인, 출석 시점), 이름표 배치, 설정 저장·이전</td><td><span class="pill ok">통과</span></td></tr>
+            <tr><td><code>android-support</code></td><td class="n">2</td><td>기기 SQLite(WAL)에서 저장소와 이전 DB 이전. 태블릿(Android 13)과 에뮬레이터(Android 15)</td><td><span class="pill ok">통과</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>이번 시험에서 고친 문제는 모두 고치기 전에 실패하는 테스트를 먼저 만들고, 고친 뒤 통과를 확인했습니다(#14, #16).</p>
+    </section>
+
+    <section id="device" aria-labelledby="h-device">
+      <h2 id="h-device"><span class="num">6</span>기기 E2E</h2>
+      <p>디버그 빌드에만 있는 합성 얼굴 주입으로 카메라 없이 키오스크 화면을 실제로 조작하고, 서버 앱의 출석부와 명단 파일로 결과를 확인했습니다. 최종 빌드로 에뮬레이터에서 다시 돌렸습니다.</p>
+      <div class="table-wrap">
+        <table class="mid">
+          <thead><tr><th>단계</th><th>확인</th><th>결과</th></tr></thead>
+          <tbody>
+            <tr><td>처음 보는 얼굴 → 등록</td><td>미등록 안내, 4방향 12장 수집, 서버 명단 반영</td><td><span class="pill ok">3/3</span></td></tr>
+            <tr><td>인식 → 출력 버튼</td><td>이름 표시, 인쇄를 취소해도 출석 1회</td><td><span class="pill ok">2/2</span></td></tr>
+            <tr><td>등록된 얼굴로 다시 등록</td><td>본인 확인 질문, 새 사람 없이 출석 2회</td><td><span class="pill ok">2/2</span></td></tr>
+            <tr><td>이름표만 출력</td><td>명단 외 출석 기록</td><td><span class="pill ok">1/1</span></td></tr>
+            <tr><td>서버에서 삭제</td><td>서버·키오스크에서 사라짐, 오늘 출석 기록은 유지</td><td><span class="pill ok">3/3</span></td></tr>
+            <tr><td>화면 회전 (태블릿)</td><td>0°/90°/180°/270° 전환 시 미리보기와 인식 프레임이 화면 방향과 일치, 가로에서 안내 패널이 얼굴 타원을 가리지 않음</td><td><span class="pill ok">확인</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 id="one-tablet">서버와 키오스크를 한 태블릿에서 (#19)</h3>
+      <p>교회 한 곳의 태블릿은 서버 앱과 키오스크 앱을 함께 써야 합니다. 서버 앱을 앞에 띄운 동안 Android가 키오스크를 종료하면 동기화가 멈추던 문제를, 키오스크의 DB와 서버 연결을 포그라운드 서비스로 옮겨 해결했습니다. 카메라와 인식은 화면에 남습니다. <code>tools/e2e_background_sync.sh</code>로 같은 절차를 수정 전후 빌드에 돌렸습니다(Galaxy Tab S7+).</p>
+      <div class="table-wrap">
+        <table class="mid">
+          <thead><tr><th>확인</th><th>수정 전</th><th>수정 후</th></tr></thead>
+          <tbody>
+            <tr><td>키오스크 화면을 닫고 서버 앱을 앞으로 → 키오스크 프로세스 유지</td><td><span class="pill ok">유지</span></td><td><span class="pill ok">유지</span></td></tr>
+            <tr><td>백그라운드 정리(<code>am kill</code>)에도 살아남음</td><td><span class="pill crit">종료됨</span></td><td><span class="pill ok">유지</span></td></tr>
+            <tr><td>뒤에 있는 동안 서버 변경(DB 다시 읽기) 수신·적용</td><td><span class="pill crit">40초 안에 못 받음</span></td><td><span class="pill ok">0.61초</span></td></tr>
+            <tr><td>키오스크로 돌아오면 같은 프로세스로 바로 인식 대기</td><td><span class="pill crit">처음부터 다시 시작</span></td><td><span class="pill ok">바로 대기</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>이 시험 중 서버의 'DB 다시 읽기'를 키오스크가 30초 늦게 반영하는 문제(#20)를 찾아 함께 고쳤습니다. 수정 후 키오스크 E2E 11/11, JVM 테스트 120건(원격 1건 건너뜀)을 다시 통과했습니다.</p>
+
+      <h3 id="restart">서버 재시작 중 반복 동기화 (#18)</h3>
+      <p>서버가 꺼지는 짧은 동안 알림 소켓만 닫히고 HTTP는 응답하면, 키오스크가 '닫힘 → 동기화 → 재연결'을 지연 없이 반복했습니다(태블릿에서 0.5초에 22번). 재연결을 1초에 한 번으로 제한하고, 변화 없는 빈 전체 스냅샷은 적용하지 않게 했습니다.</p>
+      <div class="table-wrap">
+        <table class="mid">
+          <thead><tr><th>확인</th><th class="n">수정 전</th><th class="n">수정 후</th></tr></thead>
+          <tbody>
+            <tr><td>서버가 3초 동안 20 ms마다 소켓을 끊을 때 동기화 횟수 (단위 테스트)</td><td class="n bad">51</td><td class="n good">5</td></tr>
+            <tr><td>빈 서버에서 동기화 4번 중 '전체 수신' 기록 (단위 테스트)</td><td class="n bad">3</td><td class="n good">1</td></tr>
+            <tr><td>태블릿에서 서버 중지·시작 시 키오스크 동기화 로그</td><td class="n bad">22줄 / 0.5초</td><td class="n good">오프라인 1 · 연결됨 1</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>정상 동작에는 영향이 없습니다. 수정 후 PC 성능 측정에서 부하 시 등록 전파 p95는 496 ms로 이전 범위(453~543 ms) 안이고, 한 태블릿 운영 시나리오도 6/6을 다시 통과했습니다.</p>
+    </section>
+
+    <section id="face" aria-labelledby="h-face">
+      <h2 id="h-face"><span class="num">7</span>실제 얼굴 검증 (Galaxy Tab S7+)</h2>
+      <p>태블릿을 가로로 세운 상태에서 1명이 직접 등록하고 출석했습니다. 아래는 키오스크 로그의 값입니다. 판정 기준은 점수 0.40 이상, 2위와 차이 0.10 이상입니다.</p>
+      <div class="table-wrap">
+        <table class="wide">
+          <thead><tr><th>시각</th><th>일어난 일</th><th class="n">점수</th><th class="n">2위와 차이</th></tr></thead>
+          <tbody>
+            <tr><td class="id">19:14:18</td><td>등록 (4방향 12장), 서버 반영 136 ms</td><td class="n">-</td><td class="n">-</td></tr>
+            <tr><td class="id">19:14:18</td><td>등록 직후 인식</td><td class="n good">0.844</td><td class="n good">0.741</td></tr>
+            <tr><td class="id">19:14:20</td><td>출력 버튼 → 출석 1회 (서버 출석부 반영)</td><td class="n">-</td><td class="n">-</td></tr>
+            <tr><td class="id">19:15:10</td><td>다시 인식 → 출석 2회. 출석부: 첫 19:14:20, 마지막 19:15:10, 2회</td><td class="n">-</td><td class="n">-</td></tr>
+            <tr><td class="id">19:15:26~43</td><td>자동 보정 샘플 2개 추가 (점수가 0.45~0.65일 때만)</td><td class="n">0.586 · 0.562</td><td class="n">-</td></tr>
+            <tr><td class="id">19:15:45</td><td>1초 동안 미등록으로 표시된 뒤 다시 인식</td><td class="n bad">0.387</td><td class="n">-</td></tr>
+            <tr><td class="id">19:15:46</td><td>다시 인식</td><td class="n good">0.702</td><td class="n good">0.567</td></tr>
+            <tr><td class="id">21:19</td><td>다른 시간대 재인식 (조명·자세 다름), 자동 보정 4개 추가</td><td class="n">0.449 · 0.456</td><td class="n">0.332 · 0.358</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <ul class="plain">
+        <li>등록, 인식, 출력 버튼 시점 출석, 서버 출석부 반영이 실제 얼굴로 동작했습니다. 등록 전 이 얼굴과 가장 비슷했던 다른 사람(모의 데이터 79명 중)도 점수 0.10~0.11로, 기준과 거리가 멀었습니다.</li>
+        <li>같은 사람의 점수가 0.45~0.84로 흔들립니다. 0.387로 기준(0.40) 아래로 내려가 1초간 미등록으로 보인 순간이 한 번 있었습니다. 고개를 돌리거나 조명이 바뀌면 생기는 현상으로 보이며, 자동 보정 샘플이 쌓이면 줄어들 것으로 예상하지만 이번 시험으로는 확인하지 못했습니다.</li>
+        <li>이 검증 중에 화면 자동 회전이 안 되던 문제(#13)와 출석 전송이 늦던 문제(#14)를 찾아 고쳤습니다.</li>
+      </ul>
+    </section>
+
+    <section id="issues" aria-labelledby="h-issues">
+      <h2 id="h-issues"><span class="num">8</span>시험 중 발견한 문제</h2>
+      <div class="table-wrap">
+        <table class="wide">
+          <thead><tr><th>이슈</th><th>내용</th><th>어떻게 찾았나</th><th>상태</th></tr></thead>
+          <tbody>
+            <tr><td class="id">#13</td><td>키오스크가 세로로 고정되어 가로 거치 시 얼굴을 찾지 못함</td><td>실제 얼굴 검증</td><td><span class="pill ok">수정</span></td></tr>
+            <tr><td class="id">#14</td><td>카메라 앞에 사람이 있는 동안 출석 전송이 최대 30초 늦어짐</td><td>실제 얼굴 검증 로그</td><td><span class="pill ok">수정</span></td></tr>
+            <tr><td class="id">#15</td><td>서버 쓰기마다 150~180 ms, 부하 시 등록 전파 p95 8초</td><td>성능 측정</td><td><span class="pill ok">수정</span></td></tr>
+            <tr><td class="id">#16</td><td><code>face_db.csv</code>를 두 곳에서 동시에 쓰면 파일이 잠시 사라짐</td><td>수정 후 통합 시험</td><td><span class="pill ok">수정</span></td></tr>
+            <tr><td class="id">#17</td><td>서버 중지 후에도 DB 파일을 열어 두어 백업 교체가 반영되지 않음</td><td>측정 도구 작성 중</td><td><span class="pill ok">수정</span></td></tr>
+            <tr><td class="id">#18</td><td>서버가 꺼지는 수 초 동안 키오스크가 동기화를 빠르게 반복함</td><td>태블릿 측정 로그</td><td><span class="pill ok">수정</span></td></tr>
+            <tr><td class="id">#19</td><td>서버와 키오스크를 한 태블릿에서 쓰면, 키오스크 화면이 뒤로 가 종료된 동안 동기화가 멈춤</td><td>태블릿 측정</td><td><span class="pill ok">수정</span></td></tr>
+            <tr><td class="id">#20</td><td>서버에서 DB 다시 읽기(백업 복원) 후 키오스크가 30초 주기 조회 때에야 반영</td><td>한 태블릿 운영 시험</td><td><span class="pill ok">수정</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="limits" aria-labelledby="h-limits">
+      <h2 id="h-limits"><span class="num">9</span>한계와 다음 일</h2>
+      <ul class="plain">
+        <li><b>실제 얼굴은 1명.</b> 닮은 사람, 안경·마스크, 어린이, 역광에서의 오인식과 미인식 비율은 아직 모릅니다. 실제 교인 데이터로 판정 기준(0.40 / 0.10)을 다시 정해야 합니다.</li>
+        <li><b>키오스크는 PC에서 모의.</b> 동시 키오스크 8대는 PC 프로세스였고 실제 태블릿 키오스크는 1대였습니다. 서버 쪽 동작과 Wi-Fi 경로는 실제와 같지만, 키오스크 기기의 저장 속도는 실제 키오스크 앱 측정(반영 181 ms, 전체 수신 약 4.2초)으로만 확인했습니다.</li>
+        <li><b>규모.</b> 1,000명, 초당 6.7건 변경까지 확인했습니다. 실제 주일 출석 몰림은 이보다 훨씬 적을 것으로 보지만, 실제 현장 수치로 확인한 것은 아닙니다.</li>
+        <li><b>인쇄.</b> 프린터 연결은 이번 시험 범위가 아닙니다. 출석은 인쇄 결과와 무관하게 기록되는 것을 확인했습니다.</li>
+        <li><b>다음 일.</b> 실제 교인 여러 명의 얼굴로 판정 기준 조정, <code>main</code> 병합. 키오스크 설정에서 서버 주소 등을 바꿀 때 서비스가 새 설정으로 다시 여는 경로는 기기에서 따로 시험하지 않았습니다.</li>
+      </ul>
+    </section>
+
+    <footer>
+      <p>재현: <code>./gradlew test :integration-tests:test</code> (단위·통합·PC 성능 측정), <code>tools/perf_android_server.sh &lt;serial&gt; &lt;server-url&gt;</code> (태블릿 서버 측정, 실제 데이터는 건드리지 않음), <code>tools/e2e_kiosk_flow.sh &lt;serial&gt;</code> (기기 E2E). 측정 결과 원본은 <code>android/integration-tests/build/perf/*.json</code>에 남습니다. 이 보고서에는 실제 교인 이름과 얼굴 이미지를 싣지 않았습니다.</p>
+    </footer>
+  </main>
+</div>

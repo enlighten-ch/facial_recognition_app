@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:minHeight="52dp"
+    android:orientation="horizontal"
+    android:paddingHorizontal="12dp">
+
+    <TextView
+        android:id="@+id/personNumber"
+        style="@style/Text.Cell"
+        android:layout_width="56dp"
+        android:layout_height="wrap_content"
+        android:text="@string/col_number" />
+
+    <TextView
+        android:id="@+id/personName"
+        style="@style/Text.Cell"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="2"
+        android:text="@string/col_name" />
+
+    <TextView
+        android:id="@+id/personDepartment"
+        style="@style/Text.Cell"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="2"
+        android:text="@string/col_department" />
+
+    <TextView
+        android:id="@+id/personGrade"
+        style="@style/Text.Cell"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1.4"
+        android:text="@string/col_grade" />
+
+    <TextView
+        android:id="@+id/personSamples"
+        style="@style/Text.Cell"
+        android:layout_width="72dp"
+        android:layout_height="wrap_content"
+        android:text="@string/col_samples" />
+
+    <TextView
+        android:id="@+id/personUpdated"
+        style="@style/Text.Cell"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1.6"
+        android:text="@string/col_updated" />
+
+    <Button
+        android:id="@+id/personEditButton"
+        style="@style/Widget.Material3.Button.TextButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/edit" />
+
+    <Button
+        android:id="@+id/personDeleteButton"
+        style="@style/Widget.Material3.Button.TextButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/delete"
+        android:textColor="@color/critical" />
+</LinearLayout>
