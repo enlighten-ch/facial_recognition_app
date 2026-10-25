@@ -237,7 +237,7 @@ footer { font-size: var(--step--1); color: var(--muted); border-top: 1px solid v
       <p class="lede">개선한 키오스크(Faith ID)와 DB 서버(Faith DB Server)를 단위·통합·기기 단계로 시험했습니다. 키오스크 여러 대가 순서 없이 내려받고 변경을 보내는 상황에서, 변경이 서버와 다른 키오스크에 닿는 시간과 서버 응답 시간을 측정했고, 측정에서 찾은 서버 지연을 고친 뒤 다시 측정했습니다.</p>
       <dl class="meta">
         <dt>시험일</dt><dd>2026-10-25</dd>
-        <dt>코드</dt><dd>브랜치 <code>improve/stability-attendance</code>, 커밋 <code>5f52a44</code></dd>
+        <dt>코드</dt><dd>브랜치 <code>improve/stability-attendance</code>, 커밋 <code>a1274b5</code></dd>
         <dt>관련 문서</dt><dd>개발 현황 보고서(같은 날짜), GitHub 이슈 #1~#19</dd>
       </dl>
     </header>
@@ -247,8 +247,8 @@ footer { font-size: var(--step--1); color: var(--muted); border-top: 1px solid v
       <div class="verdicts">
         <div class="verdict">
           <div class="verdict-head"><span class="what">자동 테스트</span><span class="pill ok">통과</span></div>
-          <div class="figure">118 / 119</div>
-          <div class="detail">단위 113, 통합 6. 1건은 서버 주소를 줄 때만 도는 원격 시나리오라 건너뜀</div>
+          <div class="figure">119 / 120</div>
+          <div class="detail">단위 114, 통합 6. 1건은 서버 주소를 줄 때만 도는 원격 시나리오라 건너뜀</div>
         </div>
         <div class="verdict">
           <div class="verdict-head"><span class="what">등록 → 다른 키오스크 7대</span><span class="pill ok">1초 이내</span></div>
@@ -271,9 +271,9 @@ footer { font-size: var(--step--1); color: var(--muted); border-top: 1px solid v
           <div class="detail">등록, 인식, 출석, 본인 확인, 삭제 전파. 실제 얼굴은 1명만 시험</div>
         </div>
         <div class="verdict">
-          <div class="verdict-head"><span class="what">시험 중 발견한 문제</span><span class="pill part">7건</span></div>
-          <div class="figure">수정 5 · 남김 2</div>
-          <div class="detail">화면 회전, 출석 전송 지연, 서버 쓰기 지연, CSV 경합, 서버 중지 시 DB 열림 / #18, #19는 다음 단계</div>
+          <div class="verdict-head"><span class="what">시험 중 발견한 문제</span><span class="pill part">8건</span></div>
+          <div class="figure">수정 7 · 남김 1</div>
+          <div class="detail">화면 회전, 출석 전송 지연, 서버 쓰기 지연, CSV 경합, 서버 중지 시 DB 열림, 한 태블릿 운영 시 동기화 멈춤, 재로드 알림 무시 / #18은 다음 단계</div>
         </div>
       </div>
       <div class="callout">
@@ -487,7 +487,7 @@ footer { font-size: var(--step--1); color: var(--muted); border-top: 1px solid v
           <tbody>
             <tr><td><code>core</code></td><td class="n">56</td><td>메타데이터·샘플 집합 병합, 바이너리·CSV 코덱, 인식 판정 기준, 후보 안정화, 등록 세션, 얼굴 정렬, 출석부 생성, 저장소와 이전 DB 이전</td><td><span class="pill ok">통과</span></td></tr>
             <tr><td><code>server-core</code></td><td class="n">27</td><td>리비전 저장소(동시 병합, 삭제 유지, 재시작), 키오스크 승인, 출석 원장, HTTP API, 관리자 비밀번호, CSV 동시 내보내기</td><td><span class="pill ok">통과</span></td></tr>
-            <tr><td><code>client-core</code></td><td class="n">12</td><td>미전송함, 서버 변경 적용, 동기화 엔진(승인 대기, 오프라인, 승인 해제, 알림, 카메라 사용 중 출석 전송)</td><td><span class="pill ok">통과</span></td></tr>
+            <tr><td><code>client-core</code></td><td class="n">13</td><td>미전송함, 서버 변경 적용, 동기화 엔진(승인 대기, 오프라인, 승인 해제, 알림, 카메라 사용 중 출석 전송)</td><td><span class="pill ok">통과</span></td></tr>
             <tr><td><code>kiosk-app</code></td><td class="n">18</td><td>키오스크 흐름(인식, 후보 선택, 등록, 본인 확인, 출석 시점), 이름표 배치, 설정 저장·이전</td><td><span class="pill ok">통과</span></td></tr>
             <tr><td><code>android-support</code></td><td class="n">2</td><td>기기 SQLite(WAL)에서 저장소와 이전 DB 이전. 태블릿(Android 13)과 에뮬레이터(Android 15)</td><td><span class="pill ok">통과</span></td></tr>
           </tbody>
@@ -512,6 +512,21 @@ footer { font-size: var(--step--1); color: var(--muted); border-top: 1px solid v
           </tbody>
         </table>
       </div>
+
+      <h3 id="one-tablet">서버와 키오스크를 한 태블릿에서 (#19)</h3>
+      <p>교회 한 곳의 태블릿은 서버 앱과 키오스크 앱을 함께 써야 합니다. 서버 앱을 앞에 띄운 동안 Android가 키오스크를 종료하면 동기화가 멈추던 문제를, 키오스크의 DB와 서버 연결을 포그라운드 서비스로 옮겨 해결했습니다. 카메라와 인식은 화면에 남습니다. <code>tools/e2e_background_sync.sh</code>로 같은 절차를 수정 전후 빌드에 돌렸습니다(Galaxy Tab S7+).</p>
+      <div class="table-wrap">
+        <table class="mid">
+          <thead><tr><th>확인</th><th>수정 전</th><th>수정 후</th></tr></thead>
+          <tbody>
+            <tr><td>키오스크 화면을 닫고 서버 앱을 앞으로 → 키오스크 프로세스 유지</td><td><span class="pill ok">유지</span></td><td><span class="pill ok">유지</span></td></tr>
+            <tr><td>백그라운드 정리(<code>am kill</code>)에도 살아남음</td><td><span class="pill crit">종료됨</span></td><td><span class="pill ok">유지</span></td></tr>
+            <tr><td>뒤에 있는 동안 서버 변경(DB 다시 읽기) 수신·적용</td><td><span class="pill crit">40초 안에 못 받음</span></td><td><span class="pill ok">0.61초</span></td></tr>
+            <tr><td>키오스크로 돌아오면 같은 프로세스로 바로 인식 대기</td><td><span class="pill crit">처음부터 다시 시작</span></td><td><span class="pill ok">바로 대기</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>이 시험 중 서버의 'DB 다시 읽기'를 키오스크가 30초 늦게 반영하는 문제(#20)를 찾아 함께 고쳤습니다. 수정 후 키오스크 E2E 11/11, JVM 테스트 120건(원격 1건 건너뜀)을 다시 통과했습니다.</p>
     </section>
 
     <section id="face" aria-labelledby="h-face">
@@ -551,7 +566,8 @@ footer { font-size: var(--step--1); color: var(--muted); border-top: 1px solid v
             <tr><td class="id">#16</td><td><code>face_db.csv</code>를 두 곳에서 동시에 쓰면 파일이 잠시 사라짐</td><td>수정 후 통합 시험</td><td><span class="pill ok">수정</span></td></tr>
             <tr><td class="id">#17</td><td>서버 중지 후에도 DB 파일을 열어 두어 백업 교체가 반영되지 않음</td><td>측정 도구 작성 중</td><td><span class="pill ok">수정</span></td></tr>
             <tr><td class="id">#18</td><td>서버가 꺼지는 수 초 동안 키오스크가 동기화를 빠르게 반복함</td><td>태블릿 측정 로그</td><td><span class="pill none">다음 단계</span></td></tr>
-            <tr><td class="id">#19</td><td>서버와 키오스크를 한 태블릿에서 쓰면, 키오스크 화면이 뒤로 가 종료된 동안 동기화가 멈춤</td><td>태블릿 측정</td><td><span class="pill none">다음 단계</span></td></tr>
+            <tr><td class="id">#19</td><td>서버와 키오스크를 한 태블릿에서 쓰면, 키오스크 화면이 뒤로 가 종료된 동안 동기화가 멈춤</td><td>태블릿 측정</td><td><span class="pill ok">수정</span></td></tr>
+            <tr><td class="id">#20</td><td>서버에서 DB 다시 읽기(백업 복원) 후 키오스크가 30초 주기 조회 때에야 반영</td><td>한 태블릿 운영 시험</td><td><span class="pill ok">수정</span></td></tr>
           </tbody>
         </table>
       </div>
@@ -564,7 +580,7 @@ footer { font-size: var(--step--1); color: var(--muted); border-top: 1px solid v
         <li><b>키오스크는 PC에서 모의.</b> 동시 키오스크 8대는 PC 프로세스였고 실제 태블릿 키오스크는 1대였습니다. 서버 쪽 동작과 Wi-Fi 경로는 실제와 같지만, 키오스크 기기의 저장 속도는 실제 키오스크 앱 측정(반영 181 ms, 전체 수신 약 4.2초)으로만 확인했습니다.</li>
         <li><b>규모.</b> 1,000명, 초당 6.7건 변경까지 확인했습니다. 실제 주일 출석 몰림은 이보다 훨씬 적을 것으로 보지만, 실제 현장 수치로 확인한 것은 아닙니다.</li>
         <li><b>인쇄.</b> 프린터 연결은 이번 시험 범위가 아닙니다. 출석은 인쇄 결과와 무관하게 기록되는 것을 확인했습니다.</li>
-        <li><b>다음 일.</b> #18, #19 처리. 키오스크 동기화를 포그라운드 서비스로 옮기는 것이 #19의 근본 해결입니다.</li>
+        <li><b>다음 일.</b> #18 처리. 키오스크 설정에서 서버 주소 등을 바꿀 때 서비스가 새 설정으로 다시 여는 경로는 기기에서 따로 시험하지 않았습니다.</li>
       </ul>
     </section>
 
