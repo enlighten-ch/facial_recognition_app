@@ -1,7 +1,26 @@
+# Python prototype
+__pycache__/
 /known_faces
 /acrface_db.json
 /face_app_data
-/__pycache__
-/android_testbed/app/build
-/android_testbed/dbserver/build
-/android_testbed/app/src/main/assets/models
+
+# Local data that must never be committed (real people's faces and names)
+/local-data/
+/tmp_*/
+
+# Android / Gradle
+android/.gradle/
+android/.kotlin/
+android/.idea/
+android/local.properties
+android/**/build/
+android/build/
+*.apk
+*.aab
+
+# Face recognition model (174 MB, copied in locally; see android/README.md)
+android/kiosk-app/src/main/assets/models/
+
+# Editors
+.vscode/
+*.iml
