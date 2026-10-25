@@ -52,15 +52,21 @@ class SyncEngineTest {
         server.close()
     }
 
-    private inner class Kiosk(id: String, url: String = "http://127.0.0.1:$port") {
+    private inner class Kiosk(
+        id: String,
+        url: String = "http://127.0.0.1:$port",
+        applyIdleWaitMillis: Long = 0,
+        canApplyNow: () -> Boolean = { true },
+    ) {
         val statuses = CopyOnWriteArrayList<SyncStatus>()
         val repo = LocalFaceRepository(PeopleStore.open(temp.newFolder(id), JdbcSqlDatabase.FACTORY))
         val engine = SyncEngine(
-            SyncConfig(url, KioskIdentity(id, "secret-for-$id-0123456789", "Tab $id"), connectTimeoutMillis = 1_000, applyIdleWaitMillis = 0),
+            SyncConfig(url, KioskIdentity(id, "secret-for-$id-0123456789", "Tab $id"), connectTimeoutMillis = 1_000, applyIdleWaitMillis = applyIdleWaitMillis),
             repo,
             object : SyncListener {
                 override fun onStatus(status: SyncStatus) { statuses += status }
             },
+            canApplyNow,
         ).also { engines += it }
 
         fun sync() = engine.syncOnce()
@@ -165,6 +171,29 @@ class SyncEngineTest {
         )
         assertEquals(1, person.results.size)
         waitUntil { a.repo.get("p_admin") != null }
+    }
+
+    @Test
+    fun `check-ins are sent while applying server changes waits for the camera to be free`() {
+        val faceInFront = java.util.concurrent.atomic.AtomicBoolean(false)
+        val kiosk = Kiosk("kiosk-a", applyIdleWaitMillis = 20_000, canApplyNow = { !faceInFront.get() })
+        kiosk.sync()
+        server.clients.approve("kiosk-a")
+        kiosk.engine.start()
+        waitUntil { kiosk.engine.status is SyncStatus.Online }
+
+        faceInFront.set(true)
+        server.people.applyOps(
+            listOf(com.allstar.faithid.core.sync.PersonOp.Register("op", "p_admin", PersonMetadata.of("관리자등록", "", ""), faces.samples("adm", 2), 1)),
+            "test",
+        )
+        Thread.sleep(1_000) // the notified cycle is now waiting to apply the download
+        kiosk.repo.recordAttendance(AttendanceEvent("e1", "p_admin", "관리자등록", "", "", "kiosk-a", System.currentTimeMillis(), CheckInSource.RECOGNIZED, 0.8f))
+        waitUntil(5_000) { server.attendance.eventsBetween(server.attendance.today(), server.attendance.today()).size == 1 }
+        assertNull("not applied while a face is in front", kiosk.repo.get("p_admin"))
+
+        faceInFront.set(false)
+        waitUntil(5_000) { kiosk.repo.get("p_admin") != null }
     }
 
     private fun waitUntil(timeoutMs: Long = 10_000, condition: () -> Boolean) {

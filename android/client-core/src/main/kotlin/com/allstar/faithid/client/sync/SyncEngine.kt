@@ -204,9 +204,16 @@ class SyncEngine(
         return changes.serverRevision
     }
 
+    /**
+     * Waits (bounded) until no one is in front of the camera. Check-ins recorded meanwhile are
+     * still sent, so the server's attendance view does not lag behind while someone stands there.
+     */
     private fun waitUntilApplyAllowed() {
         val deadline = now() + config.applyIdleWaitMillis
-        while (running && !canApplyNow() && now() < deadline) Thread.sleep(200)
+        while (running && !canApplyNow() && now() < deadline) {
+            Thread.sleep(200)
+            pushCheckIns()
+        }
     }
 
     private fun ensureSocket() {
