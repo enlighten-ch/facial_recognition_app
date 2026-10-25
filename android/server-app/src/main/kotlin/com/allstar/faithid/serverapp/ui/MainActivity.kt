@@ -288,7 +288,7 @@ class MainActivity : AppCompatActivity(), ServerService.Listener {
             Dialogs.confirm(
                 this@MainActivity,
                 "DB 다시 읽기",
-                "데이터 폴더의 face_meta.db를 다시 읽습니다. 백업 파일로 바꿔 넣었을 때 사용하세요. 모든 키오스크가 전체 DB를 새로 받습니다.",
+                "데이터 폴더의 face_meta.db를 다시 읽습니다. 백업 파일로 바꿀 때는 먼저 서버를 중지하고 파일을 바꾼 뒤(같은 이름의 -wal, -shm 파일은 지우기), 서버를 시작하고 이 버튼을 누르세요. 모든 키오스크가 전체 DB를 새로 받습니다.",
                 "다시 읽기",
             ) { service?.run({ it.people.reload() }) }
         }

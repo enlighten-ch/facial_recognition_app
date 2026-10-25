@@ -119,9 +119,11 @@ class ServerService : Service() {
         }
     }
 
+    /** Stops listening and closes the databases, so their files can be replaced while stopped. */
     fun stop(onDone: () -> Unit = {}) {
         worker.execute {
-            server?.stop()
+            server?.close()
+            server = null
             ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
             wakeLock?.release()
             wakeLock = null
