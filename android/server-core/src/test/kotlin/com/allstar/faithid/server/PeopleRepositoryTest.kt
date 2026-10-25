@@ -178,4 +178,17 @@ class PeopleRepositoryTest {
         assertEquals(rev, repo.revision)
         assertFalse(repo.updateMetadata("missing", "x", "", ""))
     }
+
+    @Test
+    fun `concurrent csv exports always leave a complete file`() {
+        val (_, repo) = open()
+        repo.applyOps((1..50).map { register("p$it", "사람$it", faces.samples("p$it", 1)) }, "k1")
+        val threads = (1..4).map {
+            Thread { repeat(50) { assertEquals(51, Csv.parse(repo.exportCsv().readText()).size) } }
+        }
+        val errors = java.util.concurrent.CopyOnWriteArrayList<Throwable>()
+        threads.forEach { t -> t.setUncaughtExceptionHandler { _, e -> errors += e }; t.start() }
+        threads.forEach { it.join() }
+        assertTrue(errors.toString(), errors.isEmpty())
+    }
 }

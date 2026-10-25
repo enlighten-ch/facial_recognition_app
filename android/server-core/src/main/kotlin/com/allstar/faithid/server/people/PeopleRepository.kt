@@ -38,6 +38,7 @@ class PeopleRepository(
 
     /** Writers queue fairly, so an administrator's edit is not starved by a busy kiosk fleet. */
     private val lock = ReentrantLock(true)
+    private val csvLock = Any()
 
     /** Immutable view published after every commit; readers never wait for writers. */
     private class Snapshot(
@@ -158,8 +159,11 @@ class PeopleRepository(
         return result
     }
 
-    /** Writes `face_db.csv` next to the database (metadata only, for viewing and editing in Excel). */
-    fun exportCsv(): File {
+    /**
+     * Writes `face_db.csv` next to the database (metadata only, for viewing and editing in Excel).
+     * Serialized: the background export and the administrator's export share one temporary file.
+     */
+    fun exportCsv(): File = synchronized(csvLock) {
         val view = snapshot
         val file = File(store.directory, PeopleStore.CSV_FILE)
         val tmp = File(store.directory, PeopleStore.CSV_FILE + ".tmp")
@@ -168,7 +172,7 @@ class PeopleRepository(
             file.delete()
             tmp.renameTo(file)
         }
-        return file
+        file
     }
 
     /**
