@@ -13,6 +13,8 @@ import com.allstar.faithid.server.Clock
 import com.allstar.faithid.server.ServerLog
 import java.io.File
 import java.util.UUID
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 /**
  * The server's authoritative people list.
@@ -34,60 +36,70 @@ class PeopleRepository(
     private val people = LinkedHashMap<String, Person>()
     private val tombstones = LinkedHashMap<String, Tombstone>()
 
-    @Volatile
-    var epoch: String = ""
-        private set
+    /** Writers queue fairly, so an administrator's edit is not starved by a busy kiosk fleet. */
+    private val lock = ReentrantLock(true)
+
+    /** Immutable view published after every commit; readers never wait for writers. */
+    private class Snapshot(
+        val people: Map<String, Person>,
+        val tombstones: Map<String, Tombstone>,
+        val epoch: String,
+        val revision: Long,
+        val displayNumbers: Map<String, Long>,
+    )
 
     @Volatile
-    var revision: Long = 0
-        private set
+    private var snapshot = Snapshot(emptyMap(), emptyMap(), "", 0, emptyMap())
+
+    private var currentEpoch: String = ""
+    private var currentRevision: Long = 0
+
+    val epoch: String get() = snapshot.epoch
+    val revision: Long get() = snapshot.revision
 
     /** Called after every committed change with the new revision. */
     @Volatile
     var onChanged: (Long) -> Unit = {}
 
     init {
-        loadFromStore(newEpoch = false)
+        lock.withLock { loadFromStore(newEpoch = false) }
     }
 
-    @Synchronized
-    fun list(): List<Person> = people.values.toList()
+    fun list(): List<Person> = snapshot.people.values.toList()
 
-    @Synchronized
-    fun get(key: String): Person? = people[key]
+    fun get(key: String): Person? = snapshot.people[key]
 
-    @Synchronized
-    fun isDeleted(key: String): Boolean = key in tombstones
+    fun isDeleted(key: String): Boolean = key in snapshot.tombstones
 
-    @Synchronized
-    fun displayNumbers(): Map<String, Long> = store.displayNumbers()
+    fun displayNumbers(): Map<String, Long> = snapshot.displayNumbers
 
-    @Synchronized
     fun changesSince(since: Long, clientEpoch: String?): ChangeSet {
-        val full = clientEpoch != epoch || since <= 0 || since > revision
+        val view = snapshot
+        val full = clientEpoch != view.epoch || since <= 0 || since > view.revision
         return if (full) {
-            ChangeSet(epoch, revision, fullSnapshot = true, persons = people.values.toList(), tombstones = tombstones.values.toList())
+            ChangeSet(view.epoch, view.revision, fullSnapshot = true, persons = view.people.values.toList(), tombstones = view.tombstones.values.toList())
         } else {
             ChangeSet(
-                epoch,
-                revision,
+                view.epoch,
+                view.revision,
                 fullSnapshot = false,
-                persons = people.values.filter { it.revision > since },
-                tombstones = tombstones.values.filter { it.revision > since },
+                persons = view.people.values.filter { it.revision > since },
+                tombstones = view.tombstones.values.filter { it.revision > since },
             )
         }
     }
 
     /** Applies kiosk operations in order. Returns one verdict per operation id. */
     fun applyOps(ops: List<PersonOp>, clientId: String): OpsResponse {
-        val (response, changed) = synchronized(this) {
+        val (response, changed) = lock.withLock {
             val results = LinkedHashMap<String, OpResult>()
-            val before = revision
+            val before = currentRevision
             atomically {
                 ops.forEach { op -> results[op.opId] = applyOne(op) }
-                store.setMeta(META_REVISION, revision.toString())
+                store.setMeta(META_REVISION, currentRevision.toString())
             }
-            OpsResponse(revision, results) to (revision != before)
+            publish()
+            OpsResponse(currentRevision, results) to (currentRevision != before)
         }
         if (changed) {
             log.log("kiosk changes applied: client=$clientId, ops=${ops.size}, revision=${response.serverRevision}")
@@ -97,12 +109,13 @@ class PeopleRepository(
     }
 
     fun updateMetadata(key: String, name: String, department: String, grade: String): Boolean {
-        val revisionAfter = synchronized(this) {
+        val revisionAfter = lock.withLock {
             val person = people[key] ?: return false
             val metadata = person.metadata.with(name.trim(), department.trim(), grade.trim())
             if (metadata == person.metadata) return true
             atomically { commit(person.copy(metadata = metadata, revision = nextRevision(), updatedAt = clock.now())) }
-            revision
+            publish()
+            currentRevision
         }
         log.log("person edited: key=$key, name=$name, revision=$revisionAfter")
         onChanged(revisionAfter)
@@ -110,17 +123,18 @@ class PeopleRepository(
     }
 
     fun delete(key: String): Boolean {
-        val revisionAfter = synchronized(this) {
+        val revisionAfter = lock.withLock {
             val person = people[key] ?: return false
             atomically {
                 val tombstone = Tombstone(key, nextRevision())
                 store.putTombstone(tombstone, clock.now())
-                store.setMeta(META_REVISION, revision.toString())
+                store.setMeta(META_REVISION, currentRevision.toString())
                 people.remove(key)
                 tombstones[key] = tombstone
             }
-            log.log("person deleted: key=$key, name=${person.name}, revision=$revision")
-            revision
+            publish()
+            log.log("person deleted: key=$key, name=${person.name}, revision=$currentRevision")
+            currentRevision
         }
         onChanged(revisionAfter)
         return true
@@ -128,15 +142,16 @@ class PeopleRepository(
 
     /** Applies name/department/grade edits made to `face_db.csv` in a spreadsheet. */
     fun importCsvEdits(csvText: String): PeopleCsv.ApplyResult {
-        val (result, revisionAfter) = synchronized(this) {
-            val result = PeopleCsv.applyEdits(people.values.toList(), store.displayNumbers(), PeopleCsv.parseEdits(csvText), clock.now())
+        val (result, revisionAfter) = lock.withLock {
+            val result = PeopleCsv.applyEdits(people.values.toList(), snapshot.displayNumbers, PeopleCsv.parseEdits(csvText), clock.now())
             if (result.changed.isNotEmpty()) {
                 atomically {
                     val rev = nextRevision()
                     result.changed.forEach { commit(it.copy(revision = rev)) }
                 }
+                publish()
             }
-            result to revision
+            result to currentRevision
         }
         log.log("CSV edits applied: changed=${result.changed.size}, unmatched=${result.unmatched.size}")
         if (result.changed.isNotEmpty()) onChanged(revisionAfter)
@@ -144,11 +159,11 @@ class PeopleRepository(
     }
 
     /** Writes `face_db.csv` next to the database (metadata only, for viewing and editing in Excel). */
-    @Synchronized
     fun exportCsv(): File {
+        val view = snapshot
         val file = File(store.directory, PeopleStore.CSV_FILE)
         val tmp = File(store.directory, PeopleStore.CSV_FILE + ".tmp")
-        tmp.writeText(PeopleCsv.export(people.values.toList(), store.displayNumbers()))
+        tmp.writeText(PeopleCsv.export(view.people.values.toList(), view.displayNumbers))
         if (!tmp.renameTo(file)) {
             file.delete()
             tmp.renameTo(file)
@@ -161,9 +176,9 @@ class PeopleRepository(
      * every kiosk replaces its cache instead of trusting revision numbers from the old file.
      */
     fun reload() {
-        val revisionAfter = synchronized(this) {
+        val revisionAfter = lock.withLock {
             loadFromStore(newEpoch = true)
-            revision
+            currentRevision
         }
         onChanged(revisionAfter)
     }
@@ -200,7 +215,11 @@ class PeopleRepository(
         return existingDim == dim
     }
 
-    private fun nextRevision(): Long = ++revision
+    private fun publish() {
+        snapshot = Snapshot(LinkedHashMap(people), LinkedHashMap(tombstones), currentEpoch, currentRevision, store.displayNumbers())
+    }
+
+    private fun nextRevision(): Long = ++currentRevision
 
     /** Runs a change in one transaction; on failure memory is reloaded so it matches the database again. */
     private fun <T> atomically(block: () -> T): T =
@@ -214,7 +233,7 @@ class PeopleRepository(
 
     private fun commit(person: Person) {
         store.upsert(person)
-        store.setMeta(META_REVISION, revision.toString())
+        store.setMeta(META_REVISION, currentRevision.toString())
         people[person.key] = person
         tombstones.remove(person.key)
     }
@@ -227,13 +246,14 @@ class PeopleRepository(
         tombstones.clear()
         loadedTombstones.forEach { tombstones[it.key] = it }
         val highest = maxOf(loadedPeople.maxOfOrNull { it.revision } ?: 0L, loadedTombstones.maxOfOrNull { it.revision } ?: 0L)
-        revision = maxOf(store.meta(META_REVISION)?.toLongOrNull() ?: 0L, highest)
-        epoch = store.meta(META_EPOCH)?.takeIf { it.isNotBlank() && !newEpoch } ?: UUID.randomUUID().toString()
+        currentRevision = maxOf(store.meta(META_REVISION)?.toLongOrNull() ?: 0L, highest)
+        currentEpoch = store.meta(META_EPOCH)?.takeIf { it.isNotBlank() && !newEpoch } ?: UUID.randomUUID().toString()
         store.transaction {
-            store.setMeta(META_EPOCH, epoch)
-            store.setMeta(META_REVISION, revision.toString())
+            store.setMeta(META_EPOCH, currentEpoch)
+            store.setMeta(META_REVISION, currentRevision.toString())
         }
-        log.log("people loaded: ${people.size} people, ${tombstones.size} deleted, revision=$revision")
+        publish()
+        log.log("people loaded: ${people.size} people, ${tombstones.size} deleted, revision=$currentRevision")
     }
 
     companion object {
