@@ -228,6 +228,7 @@ footer { font-size: var(--step--1); color: var(--muted); border-top: 1px solid v
       <li><a href="#face">7. 실제 얼굴 검증</a></li>
       <li><a href="#issues">8. 발견한 문제</a></li>
       <li><a href="#limits">9. 한계와 다음 일</a></li>
+      <li><a href="operations.md">첨부: 운영 정보</a></li>
     </ol>
   </nav>
   <main>
@@ -594,12 +595,13 @@ footer { font-size: var(--step--1); color: var(--muted); border-top: 1px solid v
         <li><b>키오스크는 PC에서 모의.</b> 동시 키오스크 8대는 PC 프로세스였고 실제 태블릿 키오스크는 1대였습니다. 서버 쪽 동작과 Wi-Fi 경로는 실제와 같지만, 키오스크 기기의 저장 속도는 실제 키오스크 앱 측정(반영 181 ms, 전체 수신 약 4.2초)으로만 확인했습니다.</li>
         <li><b>규모.</b> 1,000명, 초당 6.7건 변경까지 확인했습니다. 실제 주일 출석 몰림은 이보다 훨씬 적을 것으로 보지만, 실제 현장 수치로 확인한 것은 아닙니다.</li>
         <li><b>인쇄.</b> 프린터 연결은 이번 시험 범위가 아닙니다. 출석은 인쇄 결과와 무관하게 기록되는 것을 확인했습니다.</li>
-        <li><b>다음 일.</b> 실제 교인 여러 명의 얼굴로 판정 기준 조정, <code>main</code> 병합. 키오스크 설정에서 서버 주소 등을 바꿀 때 서비스가 새 설정으로 다시 여는 경로는 기기에서 따로 시험하지 않았습니다.</li>
+        <li><b>다음 일.</b> 실제 교인 여러 명의 얼굴로 판정 기준 조정. (<code>main</code> 병합은 PR #21, 커밋 <code>8396222</code>로 끝났습니다.) 키오스크 설정에서 서버 주소 등을 바꿀 때 서비스가 새 설정으로 다시 여는 경로는 기기에서 따로 시험하지 않았습니다.</li>
       </ul>
+      <p>설치 파일 위치, 서버 주소·관리자 계정, 데이터 폴더와 복원 절차는 첨부 <a href="operations.md">운영 정보 (operations.md)</a>에 정리했습니다.</p>
     </section>
 
     <footer>
-      <p>재현: <code>./gradlew test :integration-tests:test</code> (단위·통합·PC 성능 측정), <code>tools/perf_android_server.sh &lt;serial&gt; &lt;server-url&gt;</code> (태블릿 서버 측정, 실제 데이터는 건드리지 않음), <code>tools/e2e_kiosk_flow.sh &lt;serial&gt;</code> (기기 E2E). 측정 결과 원본은 <code>android/integration-tests/build/perf/*.json</code>에 남습니다. 이 보고서에는 실제 교인 이름과 얼굴 이미지를 싣지 않았습니다.</p>
+      <p>재현: <code>./gradlew test :integration-tests:test</code> (단위·통합·PC 성능 측정), <code>tools/perf_android_server.sh &lt;serial&gt; &lt;server-url&gt; &lt;label&gt; &lt;admin-password&gt;</code> (태블릿 서버 측정, 실제 데이터는 건드리지 않음), <code>tools/e2e_kiosk_flow.sh &lt;serial&gt; &lt;admin-password&gt;</code> (기기 E2E). 측정 결과 원본은 <code>android/integration-tests/build/perf/*.json</code>에 남습니다. 이 보고서에는 실제 교인 이름과 얼굴 이미지를 싣지 않았습니다.</p>
     </footer>
   </main>
 </div>

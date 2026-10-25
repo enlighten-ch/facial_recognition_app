@@ -7,13 +7,13 @@
 #
 # Preconditions: the server app is running. Optionally the Faith ID debug kiosk runs on the same
 # device, connected to that server; its timings are measured too.
-# Usage: tools/perf_android_server.sh <adb-serial> <server-url> [label] [admin-password]
+# Usage: tools/perf_android_server.sh <adb-serial> <server-url> <label> <admin-password>
 #   e.g. tools/perf_android_server.sh 192.168.45.107:40451 http://192.168.45.107:18080 android-before
 set -uo pipefail
 SERIAL="$1"
 SERVER_URL="$2"
 LABEL="${3:-android}"
-ADMIN_PASSWORD="${4:-church2026}"
+ADMIN_PASSWORD="${4:?server admin password required}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 source "$HERE/ui_automation.sh" "$SERIAL"

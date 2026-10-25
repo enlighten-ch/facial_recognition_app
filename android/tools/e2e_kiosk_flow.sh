@@ -6,10 +6,10 @@
 #   - Faith ID (debug build) is running in operation mode, server URL http://127.0.0.1:18080
 #   - printer type "Android 기본 인쇄" (the print dialog is cancelled with BACK, which also
 #     checks that a cancelled print still records the check-in)
-# Usage: tools/e2e_kiosk_flow.sh <adb-serial> [server-admin-password]
+# Usage: tools/e2e_kiosk_flow.sh <adb-serial> <server-admin-password>
 set -uo pipefail
 SERIAL="$1"
-ADMIN_PASSWORD="${2:-church2026}"
+ADMIN_PASSWORD="${2:?server admin password required}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 source "$HERE/ui_automation.sh" "$SERIAL"
 

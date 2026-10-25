@@ -8,10 +8,10 @@
 # database again.
 #
 # Preconditions: the server app is running, the kiosk (debug build) is approved and connected.
-# Usage: tools/e2e_background_sync.sh <adb-serial> [server-admin-password]
+# Usage: tools/e2e_background_sync.sh <adb-serial> <server-admin-password>
 set -uo pipefail
 SERIAL="$1"
-ADMIN_PASSWORD="${2:-church2026}"
+ADMIN_PASSWORD="${2:?server admin password required}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 source "$HERE/ui_automation.sh" "$SERIAL"
 
