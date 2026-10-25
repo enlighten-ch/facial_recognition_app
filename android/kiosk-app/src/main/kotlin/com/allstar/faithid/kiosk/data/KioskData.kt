@@ -24,16 +24,33 @@ import java.util.concurrent.Executors
 /**
  * The kiosk's data: the local face database (app-private storage), the connection to the DB
  * server and the check-in queue. One instance per settings version; [close] before replacing it.
+ *
+ * Owned by [KioskSyncService], so it keeps syncing while the kiosk screen is gone. The screen
+ * attaches itself as [host] while it exists.
  */
 class KioskData(
     context: Context,
     val settings: KioskSettings,
     val identity: KioskIdentity,
     private val log: FileLog,
-    private val canApplyRemoteChanges: () -> Boolean,
-    private val statusListener: (SyncStatus) -> Unit,
-    private val onIndexChanged: (FaceIndex) -> Unit,
 ) : AutoCloseable {
+
+    /** The kiosk screen. Without one, server changes are applied at once. */
+    interface Host {
+        /** False while someone is in front of the camera, so the database does not change mid-recognition. */
+        fun canApplyRemoteChanges(): Boolean
+        fun onStatus(status: SyncStatus)
+        fun onIndexChanged(index: FaceIndex)
+    }
+
+    /** Set by the screen while it exists; it is told the current index and status right away. */
+    @Volatile
+    var host: Host? = null
+        set(value) {
+            field = value
+            value?.onIndexChanged(repository.index)
+            value?.onStatus(status)
+        }
 
     private val background = Executors.newSingleThreadExecutor { Thread(it, "faith-data") }
     val repository: LocalFaceRepository
@@ -48,7 +65,7 @@ class KioskData(
         val store = PeopleStore.open(dir, AndroidSqlDatabase.FACTORY) { log.log("DB: $it") }
         if (!settings.dbSyncEnabled) importLegacyDatabaseIfEmpty(store, context)
         repository = LocalFaceRepository(store, settings.maxEmbeddingsPerPerson)
-        repository.addIndexListener(onIndexChanged)
+        repository.addIndexListener { index -> host?.onIndexChanged(index) }
         log.log("로컬 DB: ${repository.people().size}명, 미전송 변경 ${repository.pendingCounts().first}건, 미전송 출석 ${repository.pendingCounts().second}건")
         sync = if (settings.dbSyncEnabled) {
             SyncEngine(
@@ -64,24 +81,22 @@ class KioskData(
                     override fun onStatus(status: SyncStatus) {
                         if (status::class != this@KioskData.status::class) log.log("서버 연결 상태: ${describe(status)}")
                         this@KioskData.status = status
-                        statusListener(status)
+                        host?.onStatus(status)
                     }
 
                     override fun onRemoteChangesApplied(changedPeople: Int, fullSnapshot: Boolean) = Unit
 
                     override fun onLog(message: String) = log.log("동기화: $message")
                 },
-                canApplyNow = canApplyRemoteChanges,
+                canApplyNow = { host?.canApplyRemoteChanges() ?: true },
             )
         } else {
             null
         }
-        onIndexChanged(repository.index)
     }
 
     fun start() {
         sync?.start()
-        if (sync == null) statusListener(SyncStatus.Disabled)
     }
 
     fun syncNow() = sync?.requestSync()

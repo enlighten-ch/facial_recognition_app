@@ -16,11 +16,16 @@ import kotlin.random.Random
  *     -a com.allstar.faithid.kiosk.DEBUG_FACE --es identity alice --es direction LEFT --ei count 3
  *   ... -a com.allstar.faithid.kiosk.DEBUG_NO_FACE
  *   ... -a com.allstar.faithid.kiosk.DEBUG_CAMERA --ez paused true
+ *   ... -a com.allstar.faithid.kiosk.DEBUG_FINISH   (closes the kiosk screen; syncing goes on)
  *
  * The same identity always yields samples of the same synthetic face (512-d, ~0.74 apart).
  */
 class DebugObservationReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action == ACTION_FINISH) {
+            DebugBridge.finishScreen?.invoke()
+            return
+        }
         val observe = DebugBridge.observe ?: return
         when (intent.action) {
             ACTION_CAMERA -> DebugBridge.cameraPaused = intent.getBooleanExtra("paused", true)
@@ -52,6 +57,7 @@ class DebugObservationReceiver : BroadcastReceiver() {
         const val ACTION_FACE = "com.allstar.faithid.kiosk.DEBUG_FACE"
         const val ACTION_NO_FACE = "com.allstar.faithid.kiosk.DEBUG_NO_FACE"
         const val ACTION_CAMERA = "com.allstar.faithid.kiosk.DEBUG_CAMERA"
+        const val ACTION_FINISH = "com.allstar.faithid.kiosk.DEBUG_FINISH"
         private const val DIM = 512
         private val noise = Random(System.nanoTime())
     }

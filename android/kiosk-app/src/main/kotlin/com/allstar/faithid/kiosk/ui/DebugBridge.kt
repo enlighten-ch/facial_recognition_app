@@ -12,6 +12,10 @@ object DebugBridge {
     @Volatile
     var observe: ((Observation) -> Unit)? = null
 
+    /** Closes the kiosk screen, as Android may do while another app is in front. */
+    @Volatile
+    var finishScreen: (() -> Unit)? = null
+
     /** While true, real camera frames are dropped so injected observations are not overwritten. */
     @Volatile
     var cameraPaused: Boolean = false

@@ -45,6 +45,7 @@ import csv, sys
 rows = list(csv.reader(sys.stdin.read().lstrip("﻿").splitlines()))
 print(sum(int(r[6] or 0) for r in rows[2:] if len(r) > 6 and r[0] == sys.argv[1]))' "$1"
 }
+clear_field() { adbs shell input keyevent KEYCODE_MOVE_END; for _ in $(seq 40); do adbs shell input keyevent KEYCODE_DEL; done; }
 kiosk_front() { adbs shell am start -n "$KIOSK/com.allstar.faithid.kiosk.ui.MainActivity" >/dev/null; sleep 2; }
 cancel_print_dialog() { # the Android print dialog belongs to the print spooler
   sleep 3
@@ -102,9 +103,9 @@ check "명단 외 출석 기록" 'wait_for 20 sheet "[ \"\$(sheet_count GUEST-$R
 
 step "5. 서버에서 삭제 → 키오스크에서도 사라짐"
 adbs shell am start -n "$SERVER/com.allstar.faithid.serverapp.ui.MainActivity" >/dev/null; sleep 3
-if ui_has "로그인"; then ui_tap loginIdInput; ui_type admin; ui_tap loginPasswordInput; ui_type "$ADMIN_PASSWORD"; ui_tap loginButton; sleep 2; fi
+if ui_has "로그인"; then ui_tap loginIdInput; clear_field; ui_type admin; ui_tap loginPasswordInput; clear_field; ui_type "$ADMIN_PASSWORD"; ui_tap loginButton; sleep 2; fi
 ui_tap "명단"; sleep 1
-ui_tap peopleSearchInput; ui_type "$NAME"; adbs shell input keyevent KEYCODE_BACK; sleep 1
+ui_tap peopleSearchInput; clear_field; ui_type "$NAME"; adbs shell input keyevent KEYCODE_BACK; sleep 1
 ui_tap personDeleteButton; sleep 1; ui_tap "삭제"; sleep 2
 check "서버 명단에서 삭제" 'wait_for 10 csv "! adbs shell grep -q \"$NAME\" /sdcard/faceDB/face_db.csv"'
 ui_tap "현황"

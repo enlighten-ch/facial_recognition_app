@@ -1,10 +1,14 @@
 package com.allstar.faithid.kiosk.ui
 
 import android.Manifest
+import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
+import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Handler
+import android.os.IBinder
 import android.os.Looper
 import android.view.WindowManager
 import android.widget.ScrollView
@@ -16,13 +20,15 @@ import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import com.allstar.faithid.androidsupport.FileLog
 import com.allstar.faithid.androidsupport.SystemBars
-import com.allstar.faithid.client.sync.KioskIdentity
 import com.allstar.faithid.client.sync.SyncStatus
 import com.allstar.faithid.core.model.PersonMetadata
+import com.allstar.faithid.core.recognition.FaceIndex
 import com.allstar.faithid.kiosk.R
 import com.allstar.faithid.kiosk.camera.CameraController
 import com.allstar.faithid.kiosk.camera.GuideOverlayView
 import com.allstar.faithid.kiosk.data.KioskData
+import com.allstar.faithid.kiosk.data.KioskLog
+import com.allstar.faithid.kiosk.data.KioskSyncService
 import com.allstar.faithid.kiosk.flow.CheckIn
 import com.allstar.faithid.kiosk.flow.FlowEffects
 import com.allstar.faithid.kiosk.flow.KioskFlow
@@ -38,7 +44,6 @@ import com.allstar.faithid.kiosk.settings.KioskSettings
 import com.allstar.faithid.kiosk.settings.KioskSettingsStore
 import com.allstar.faithid.kiosk.settings.PrinterTools
 import com.allstar.faithid.kiosk.settings.SettingsDialog
-import java.io.File
 import java.util.concurrent.Executors
 
 /**
@@ -55,7 +60,43 @@ class MainActivity : AppCompatActivity() {
     private lateinit var renderer: LabelRenderer
     private lateinit var printer: PrintCoordinator
     private lateinit var camera: CameraController
-    private var data: KioskData? = null
+    private var syncService: KioskSyncService? = null
+
+    /** Lives in [KioskSyncService], so it keeps syncing while this screen is gone. */
+    private val data: KioskData? get() = syncService?.data
+
+    private val dataHost = object : KioskData.Host {
+        override fun canApplyRemoteChanges(): Boolean =
+            currentScreen == Screen.MONITOR && (analyzer?.idleFor(settings.adaptiveUpdateIdleSeconds) ?: true)
+
+        override fun onStatus(status: SyncStatus) {
+            main.post { refreshReadiness() }
+        }
+
+        override fun onIndexChanged(index: FaceIndex) {
+            main.post {
+                flow.updateIndex(index)
+                refreshReadiness()
+            }
+        }
+    }
+
+    /** Data actions that arrived before the service was connected (main thread only). */
+    private val waitingForData = mutableListOf<(KioskData) -> Unit>()
+
+    private val serviceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
+            val service = (binder as KioskSyncService.LocalBinder).service
+            syncService = service
+            service.host = dataHost
+            service.data?.let { d -> waitingForData.forEach { it(d) } }
+            waitingForData.clear()
+        }
+
+        override fun onServiceDisconnected(name: ComponentName?) {
+            syncService = null
+        }
+    }
 
     @Volatile
     private var analyzer: FrameAnalyzer? = null
@@ -103,7 +144,7 @@ class MainActivity : AppCompatActivity() {
         SystemBars.padForSystemBars(findViewById(R.id.operationCorner))
         SystemBars.padForSystemBars(findViewById(R.id.operationMessagePanel))
 
-        log = FileLog(File(filesDir, "logs/kiosk.log"), "FaithKiosk")
+        log = KioskLog.get(this)
         store = KioskSettingsStore(this)
         settings = KioskData.ensureIdentity(store.load()).also { store.save(it) }
         log.log("앱 시작 (키오스크 ID ${settings.dbClientId})")
@@ -130,10 +171,11 @@ class MainActivity : AppCompatActivity() {
         applyScreenMode()
         screen.render(flow.state, settings.uiSavingMessage)
         DebugBridge.observe = { observation -> main.post { flow.onObservation(observation) } }
+        DebugBridge.finishScreen = { main.post { finish() } }
 
         camera = CameraController(this, findViewById<PreviewView>(R.id.previewView), ::onFrame, ::showError)
         applyGuide()
-        openData()
+        startSyncService()
         loadModel()
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
             camera.start(settings.cameraIndex == 1)
@@ -155,8 +197,10 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         DebugBridge.observe = null
+        DebugBridge.finishScreen = null
         camera.shutdown()
-        data?.close()
+        if (syncService?.host === dataHost) syncService?.host = null
+        unbindService(serviceConnection)
         printer.shutdown()
         engineLoader.execute { engine?.close() }
         engineLoader.shutdown()
@@ -187,19 +231,16 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun openData() {
-        data?.close()
-        val identity = KioskIdentity(settings.dbClientId, settings.dbClientSecret, settings.dbDeviceName)
-        data = KioskData(
-            context = this,
-            settings = settings,
-            identity = identity,
-            log = log,
-            canApplyRemoteChanges = { currentScreen == Screen.MONITOR && (analyzer?.idleFor(settings.adaptiveUpdateIdleSeconds) ?: true) },
-            statusListener = { main.post { refreshReadiness() } },
-            onIndexChanged = { index -> main.post { flow.updateIndex(index); refreshReadiness() } },
-        ).also { it.start() }
-        refreshReadiness()
+    /** Runs [action] now, or once the sync service is connected, so no registration or check-in is lost. */
+    private fun withData(action: (KioskData) -> Unit) {
+        data?.let(action) ?: waitingForData.add(action)
+    }
+
+    /** Starts (or finds the already running) sync service; it outlives this screen. */
+    private fun startSyncService() {
+        val intent = Intent(this, KioskSyncService::class.java)
+        ContextCompat.startForegroundService(this, intent)
+        bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
     }
 
     private fun refreshReadiness() {
@@ -222,13 +263,13 @@ class MainActivity : AppCompatActivity() {
 
     private val effects = object : FlowEffects {
         override fun addSamples(personKey: String, samples: List<FloatArray>) {
-            data?.addSamples(personKey, samples)
+            withData { it.addSamples(personKey, samples) }
         }
 
         override fun register(metadata: PersonMetadata, samples: List<FloatArray>): String? = data?.register(metadata, samples)
 
         override fun checkIn(checkIn: CheckIn) {
-            data?.checkIn(checkIn)
+            withData { it.checkIn(checkIn) }
         }
 
         override fun print(metadata: PersonMetadata) = printer.print(metadata, settings)
@@ -281,7 +322,7 @@ class MainActivity : AppCompatActivity() {
             previous.dbConnectTimeoutSeconds != settings.dbConnectTimeoutSeconds ||
             previous.dbConnectRetryDelaySeconds != settings.dbConnectRetryDelaySeconds
         flow.reconfigure(settings.flowConfig())
-        if (dataChanged) openData()
+        if (dataChanged) syncService?.open(settings)
         if (previous.cameraIndex != settings.cameraIndex) camera.restart(settings.cameraIndex == 1)
         applyGuide()
         applyScreenMode()
