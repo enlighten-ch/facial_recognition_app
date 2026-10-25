@@ -1,6 +1,9 @@
 package com.allstar.faithid.kiosk.camera
 
+import android.content.Context
 import android.graphics.Bitmap
+import android.hardware.display.DisplayManager
+import android.view.Surface
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
@@ -14,6 +17,10 @@ import java.util.concurrent.Executors
 /**
  * Binds the preview and frame analysis to the activity lifecycle. Frames arrive on a background
  * thread; while one frame is being analyzed newer frames are dropped (keep only latest).
+ *
+ * The kiosk follows the system auto-rotate setting without being recreated, so the target
+ * rotation of both use cases is updated whenever the display turns. Frames are then rotated
+ * upright for the current screen orientation (see [FrameConverter]).
  */
 class CameraController(
     private val owner: LifecycleOwner,
@@ -23,6 +30,28 @@ class CameraController(
 ) {
     private val analysisExecutor: ExecutorService = Executors.newSingleThreadExecutor { Thread(it, "faith-camera") }
     private var provider: ProcessCameraProvider? = null
+    private var preview: Preview? = null
+    private var analysis: ImageAnalysis? = null
+    private val displayManager = previewView.context.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+    private val displayListener = object : DisplayManager.DisplayListener {
+        override fun onDisplayAdded(displayId: Int) = Unit
+        override fun onDisplayRemoved(displayId: Int) = Unit
+        override fun onDisplayChanged(displayId: Int) {
+            if (displayId == previewView.display?.displayId) applyRotation()
+        }
+    }
+
+    init {
+        displayManager.registerDisplayListener(displayListener, null)
+    }
+
+    private fun displayRotation(): Int = previewView.display?.rotation ?: Surface.ROTATION_0
+
+    private fun applyRotation() {
+        val rotation = displayRotation()
+        preview?.targetRotation = rotation
+        analysis?.targetRotation = rotation
+    }
 
     /** True when the front camera is in use; its preview is shown mirrored. */
     @Volatile
@@ -46,11 +75,18 @@ class CameraController(
                 onError("카메라를 찾을 수 없습니다. 설정 › 인식에서 카메라 번호를 바꿔 보세요.")
                 return@addListener
             }
-            val preview = Preview.Builder().build().also { it.surfaceProvider = previewView.surfaceProvider }
+            val rotation = displayRotation()
+            val preview = Preview.Builder()
+                .setTargetRotation(rotation)
+                .build()
+                .also { it.surfaceProvider = previewView.surfaceProvider }
             val analysis = ImageAnalysis.Builder()
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
+                .setTargetRotation(rotation)
                 .build()
+            this.preview = preview
+            this.analysis = analysis
             analysis.setAnalyzer(analysisExecutor) { image ->
                 val bitmap = try {
                     FrameConverter.toUprightBitmap(image)
@@ -74,6 +110,7 @@ class CameraController(
     }
 
     fun shutdown() {
+        displayManager.unregisterDisplayListener(displayListener)
         provider?.unbindAll()
         analysisExecutor.shutdown()
     }

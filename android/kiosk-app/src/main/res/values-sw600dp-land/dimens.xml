@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Landscape tablets: keep the side panel and print button clear of the face guide oval
+         (the oval spans the middle 44% of the width by default). -->
+    <dimen name="operation_panel_width">320dp</dimen>
+    <dimen name="floating_button_width">320dp</dimen>
+</resources>

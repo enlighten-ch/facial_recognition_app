@@ -108,6 +108,7 @@ class KioskFlow(
                 }
                 if (stabilizer.shouldHold(kind)) return
                 stabilizer.onShown(kind)
+                logDecision(decision)
                 when (decision) {
                     is Decision.Unregistered -> showUnregistered()
                     is Decision.Confirmed -> showConfirmed(decision.match)
@@ -176,6 +177,24 @@ class KioskFlow(
         } else {
             showRegisterInfo(labelOnly = false)
         }
+    }
+
+    private var lastDecisionLog = ""
+
+    /** One log line whenever the shown result changes, with scores, for checking recognition in the field. */
+    private fun logDecision(decision: Decision) {
+        val line = when (decision) {
+            is Decision.Unregistered -> "인식: 미등록" + (decision.best?.let { " (가장 비슷한 ${it.label} ${score(it.score)})" } ?: "")
+            is Decision.Confirmed -> "인식: ${decision.match.label} 점수 ${score(decision.match.score)}, 2위와 차이 ${score(decision.margin)}"
+            is Decision.Ambiguous -> "인식: 후보 " + decision.candidates.joinToString(", ") { "${it.label} ${score(it.score)}" }
+        }
+        val key = when (decision) {
+            is Decision.Unregistered -> "unregistered"
+            is Decision.Confirmed -> decision.match.personKey
+            is Decision.Ambiguous -> decision.candidates.joinToString { it.personKey }
+        }
+        if (key != lastDecisionLog) effects.log(line)
+        lastDecisionLog = key
     }
 
     // ----- user actions ----------------------------------------------------------------------
