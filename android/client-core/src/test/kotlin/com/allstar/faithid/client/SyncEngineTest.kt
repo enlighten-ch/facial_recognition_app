@@ -1,0 +1,177 @@
+package com.allstar.faithid.client
+
+import com.allstar.faithid.client.store.LocalFaceRepository
+import com.allstar.faithid.client.sync.KioskIdentity
+import com.allstar.faithid.client.sync.SyncConfig
+import com.allstar.faithid.client.sync.SyncEngine
+import com.allstar.faithid.client.sync.SyncListener
+import com.allstar.faithid.client.sync.SyncStatus
+import com.allstar.faithid.core.attendance.AttendanceEvent
+import com.allstar.faithid.core.attendance.CheckInSource
+import com.allstar.faithid.core.model.PersonMetadata
+import com.allstar.faithid.core.storage.PeopleStore
+import com.allstar.faithid.core.testing.FakeFaces
+import com.allstar.faithid.core.testing.JdbcSqlDatabase
+import com.allstar.faithid.server.ServerConfig
+import com.allstar.faithid.server.http.FaithServer
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Rule
+import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import java.net.ServerSocket
+import java.time.ZoneId
+import java.util.concurrent.CopyOnWriteArrayList
+
+class SyncEngineTest {
+    @get:Rule
+    val temp = TemporaryFolder()
+
+    private val faces = FakeFaces(seed = 41, dim = 32)
+    private var port = 0
+    private lateinit var server: FaithServer
+    private val engines = mutableListOf<SyncEngine>()
+
+    @Before
+    fun setUp() {
+        port = ServerSocket(0).use { it.localPort }
+        server = FaithServer.create(
+            ServerConfig(port = port, dataDir = temp.newFolder("server-data"), stateDir = temp.newFolder("server-state"), zone = ZoneId.of("Asia/Seoul")),
+            JdbcSqlDatabase.FACTORY,
+        )
+        assertTrue(server.start())
+    }
+
+    @After
+    fun tearDown() {
+        engines.forEach { it.stop() }
+        server.close()
+    }
+
+    private inner class Kiosk(id: String, url: String = "http://127.0.0.1:$port") {
+        val statuses = CopyOnWriteArrayList<SyncStatus>()
+        val repo = LocalFaceRepository(PeopleStore.open(temp.newFolder(id), JdbcSqlDatabase.FACTORY))
+        val engine = SyncEngine(
+            SyncConfig(url, KioskIdentity(id, "secret-for-$id-0123456789", "Tab $id"), connectTimeoutMillis = 1_000, applyIdleWaitMillis = 0),
+            repo,
+            object : SyncListener {
+                override fun onStatus(status: SyncStatus) { statuses += status }
+            },
+        ).also { engines += it }
+
+        fun sync() = engine.syncOnce()
+    }
+
+    @Test
+    fun `waits for approval, then downloads, uploads and converges`() {
+        val kiosk = Kiosk("kiosk-a")
+        val pending = kiosk.sync()
+        assertTrue(pending is SyncStatus.AwaitingApproval)
+        assertEquals("kiosk-a", (pending as SyncStatus.AwaitingApproval).clientId)
+
+        server.clients.approve("kiosk-a")
+        val person = kiosk.repo.register(PersonMetadata.of("홍길동", "청년부", "3학년"), faces.samples("hong", 4))
+        kiosk.repo.recordAttendance(AttendanceEvent("e1", person.key, "홍길동", "청년부", "3학년", "kiosk-a", System.currentTimeMillis(), CheckInSource.RECOGNIZED, 0.8f))
+        val online = kiosk.sync()
+        assertTrue(online is SyncStatus.Online)
+        assertEquals(0, (online as SyncStatus.Online).pendingChanges)
+        assertEquals(0, online.pendingCheckIns)
+        assertNotNull(server.people.get(person.key))
+        assertEquals(1, server.attendance.eventsBetween(server.attendance.today(), server.attendance.today()).size)
+        assertEquals(server.people.revision, kiosk.repo.syncPosition().revision)
+        assertTrue(kiosk.repo.get(person.key)!!.revision > 0)
+    }
+
+    @Test
+    fun `changes from one kiosk and the administrator reach the other kiosk`() {
+        val a = Kiosk("kiosk-a")
+        val b = Kiosk("kiosk-b")
+        a.sync(); b.sync()
+        server.clients.approveAllPending()
+        val person = a.repo.register(PersonMetadata.of("김철수", "중등부", "1학년"), faces.samples("kim", 3))
+        a.sync()
+        b.sync()
+        assertEquals("김철수", b.repo.get(person.key)!!.name)
+
+        server.people.updateMetadata(person.key, "김철수", "고등부", "1학년")
+        b.sync()
+        assertEquals("고등부", b.repo.get(person.key)!!.department)
+
+        server.people.delete(person.key)
+        a.repo.addSamples(person.key, faces.samples("kim", 1)) // kiosk a has not heard of the deletion yet
+        a.sync()
+        b.sync()
+        assertNull(a.repo.get(person.key))
+        assertNull(b.repo.get(person.key))
+        assertNull(server.people.get(person.key))
+    }
+
+    @Test
+    fun `offline changes are kept and sent after the server comes back`() {
+        val kiosk = Kiosk("kiosk-a")
+        kiosk.sync()
+        server.clients.approve("kiosk-a")
+        kiosk.sync()
+        server.stop()
+        val person = kiosk.repo.register(PersonMetadata.of("오프라인", "", ""), faces.samples("off", 3))
+        val offline = kiosk.sync()
+        assertTrue(offline is SyncStatus.Offline)
+        assertNotNull("still recognizable while offline", kiosk.repo.index.best(faces.sample("off")))
+        assertTrue(server.start())
+        assertTrue(kiosk.sync() is SyncStatus.Online)
+        assertNotNull(server.people.get(person.key))
+    }
+
+    @Test
+    fun `revoked kiosk goes back to waiting for approval and a stolen id is rejected`() {
+        val kiosk = Kiosk("kiosk-a")
+        kiosk.sync()
+        server.clients.approve("kiosk-a")
+        assertTrue(kiosk.sync() is SyncStatus.Online)
+        server.revokeClient("kiosk-a")
+        assertTrue(kiosk.sync() is SyncStatus.AwaitingApproval)
+
+        val impostor = SyncEngine(
+            SyncConfig("http://127.0.0.1:$port", KioskIdentity("kiosk-a", "another-secret-0123456789", "laptop")),
+            LocalFaceRepository(PeopleStore.open(temp.newFolder("impostor"), JdbcSqlDatabase.FACTORY)),
+            object : SyncListener {},
+        )
+        assertTrue(impostor.syncOnce() is SyncStatus.Rejected)
+    }
+
+    @Test
+    fun `unreachable server reports offline instead of failing`() {
+        val dead = ServerSocket(0).use { it.localPort }
+        val kiosk = Kiosk("kiosk-x", url = "127.0.0.1:$dead")
+        val status = kiosk.sync()
+        assertTrue(status is SyncStatus.Offline)
+        assertTrue(Kiosk("kiosk-y", url = "").sync() is SyncStatus.Offline)
+    }
+
+    @Test
+    fun `background loop reacts to server notifications`() {
+        val a = Kiosk("kiosk-a")
+        a.sync()
+        server.clients.approve("kiosk-a")
+        a.engine.start()
+        waitUntil { a.engine.status is SyncStatus.Online }
+        val person = server.people.applyOps(
+            listOf(com.allstar.faithid.core.sync.PersonOp.Register("op", "p_admin", PersonMetadata.of("관리자등록", "", ""), faces.samples("adm", 2), 1)),
+            "test",
+        )
+        assertEquals(1, person.results.size)
+        waitUntil { a.repo.get("p_admin") != null }
+    }
+
+    private fun waitUntil(timeoutMs: Long = 10_000, condition: () -> Boolean) {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (!condition()) {
+            if (System.currentTimeMillis() > deadline) throw AssertionError("condition not met within $timeoutMs ms")
+            Thread.sleep(50)
+        }
+    }
+}
