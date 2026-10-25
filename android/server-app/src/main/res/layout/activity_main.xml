@@ -1,67 +1,76 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F6F8FF">
+    android:background="@color/paper">
 
+    <!-- Login -->
     <LinearLayout
         android:id="@+id/loginContainer"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:gravity="center"
+        android:layout_width="@dimen/login_width"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:background="@drawable/bg_card"
         android:orientation="vertical"
-        android:padding="24dp">
+        android:padding="28dp">
 
         <TextView
-            android:layout_width="match_parent"
+            style="@style/Text.Title"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:gravity="center"
-            android:text="Faith DB Server 로그인"
-            android:textColor="#111111"
-            android:textSize="28sp"
-            android:textStyle="bold" />
+            android:text="@string/login_title" />
+
+        <TextView
+            style="@style/Text.Muted"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="@string/login_subtitle" />
 
         <EditText
             android:id="@+id/loginIdInput"
             android:layout_width="match_parent"
-            android:layout_height="52dp"
-            android:layout_marginTop="18dp"
-            android:hint="ID"
+            android:layout_height="56dp"
+            android:layout_marginTop="20dp"
+            android:autofillHints="username"
+            android:hint="@string/login_id"
             android:inputType="text"
-            android:maxLines="1" />
+            android:singleLine="true" />
 
         <EditText
             android:id="@+id/loginPasswordInput"
             android:layout_width="match_parent"
-            android:layout_height="52dp"
-            android:layout_marginTop="10dp"
-            android:hint="PW"
+            android:layout_height="56dp"
+            android:layout_marginTop="8dp"
+            android:autofillHints="password"
+            android:hint="@string/login_password"
+            android:imeOptions="actionDone"
             android:inputType="textPassword"
-            android:maxLines="1" />
+            android:singleLine="true" />
+
+        <TextView
+            android:id="@+id/loginMessageText"
+            style="@style/Text.Error"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp" />
 
         <Button
             android:id="@+id/loginButton"
             android:layout_width="match_parent"
-            android:layout_height="50dp"
-            android:layout_marginTop="14dp"
-            android:text="로그인" />
-
-        <TextView
-            android:id="@+id/loginMessageText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:gravity="center"
-            android:textColor="#C62828"
-            android:textSize="14sp" />
+            android:layout_height="56dp"
+            android:layout_marginTop="12dp"
+            android:text="@string/login_button" />
     </LinearLayout>
 
+    <!-- Dashboard -->
     <LinearLayout
-        android:id="@+id/mainContainer"
+        android:id="@+id/dashboardContainer"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
-        android:padding="16dp"
+        android:padding="@dimen/screen_padding"
         android:visibility="gone">
 
         <LinearLayout
@@ -71,244 +80,358 @@
             android:orientation="horizontal">
 
             <TextView
-                android:id="@+id/titleText"
-                android:layout_width="0dp"
+                style="@style/Text.Title"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Face DB 서버"
-                android:textColor="#111111"
-                android:textSize="24sp"
-                android:textStyle="bold" />
+                android:text="@string/app_name" />
+
+            <TextView
+                android:id="@+id/serverStateChip"
+                style="@style/Chip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
+                android:text="@string/state_stopped" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
 
             <Button
                 android:id="@+id/settingsButton"
+                style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="wrap_content"
-                android:layout_height="44dp"
-                android:text="설정" />
+                android:layout_height="wrap_content"
+                android:text="@string/settings" />
+
+            <Button
+                android:id="@+id/logoutButton"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="@string/logout" />
 
             <Button
                 android:id="@+id/quitButton"
+                style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="wrap_content"
-                android:layout_height="44dp"
+                android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
-                android:text="종료" />
+                android:text="@string/quit" />
         </LinearLayout>
 
-        <TextView
-            android:id="@+id/statusText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="서버 중지"
-            android:textColor="#444444"
-            android:textSize="15sp" />
-
-        <EditText
-            android:id="@+id/portInput"
-            android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:layout_marginTop="10dp"
-            android:hint="포트 (기본 18080)"
-            android:inputType="number"
-            android:maxLines="1"
-            android:text="18080" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:orientation="horizontal">
-
-            <Button
-                android:id="@+id/startButton"
-                android:layout_width="0dp"
-                android:layout_height="46dp"
-                android:layout_weight="1"
-                android:text="서버 시작" />
-
-            <Button
-                android:id="@+id/stopButton"
-                android:layout_width="0dp"
-                android:layout_height="46dp"
-                android:layout_marginStart="8dp"
-                android:layout_weight="1"
-                android:text="서버 중지" />
-
-            <Button
-                android:id="@+id/reloadDbButton"
-                android:layout_width="0dp"
-                android:layout_height="46dp"
-                android:layout_marginStart="8dp"
-                android:layout_weight="1"
-                android:text="DB 재로드" />
-
-            <Button
-                android:id="@+id/reloadDbCsvButton"
-                android:layout_width="0dp"
-                android:layout_height="46dp"
-                android:layout_marginStart="8dp"
-                android:layout_weight="1"
-                android:text="DB 재로드(CSV)" />
-        </LinearLayout>
-
-        <TextView
-            android:id="@+id/endpointText"
+        <com.google.android.material.tabs.TabLayout
+            android:id="@+id/tabs"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
-            android:text="엔드포인트: -"
-            android:textColor="#1A3D8F"
-            android:textSize="14sp" />
-
-        <TextView
-            android:id="@+id/pendingText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="승인 대기: -"
-            android:textColor="#9A4D00"
-            android:textSize="13sp" />
-
-        <TextView
-            android:id="@+id/approvedText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="승인 완료: -"
-            android:textColor="#1F6A2B"
-            android:textSize="13sp" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="클라이언트 연결 상태"
-            android:textColor="#111111"
-            android:textSize="14sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/clientStatusText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:background="#EDF1FF"
-            android:padding="8dp"
-            android:text="연결된 클라이언트 없음"
-            android:textColor="#2C2C2C"
-            android:textSize="12sp" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:orientation="horizontal">
-
-            <EditText
-                android:id="@+id/approveClientInput"
-                android:layout_width="0dp"
-                android:layout_height="44dp"
-                android:layout_weight="1"
-                android:hint="승인할 clientId"
-                android:inputType="text" />
-
-            <Button
-                android:id="@+id/approveClientButton"
-                android:layout_width="wrap_content"
-                android:layout_height="44dp"
-                android:layout_marginStart="8dp"
-                android:text="개별 승인" />
-        </LinearLayout>
-
-        <Button
-            android:id="@+id/approveAllButton"
-            android:layout_width="match_parent"
-            android:layout_height="44dp"
-            android:layout_marginTop="6dp"
-            android:text="대기 요청 전체 승인" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:text="DB 테이블"
-            android:textColor="#111111"
-            android:textSize="14sp"
-            android:textStyle="bold" />
+            android:background="@android:color/transparent" />
 
         <FrameLayout
             android:layout_width="match_parent"
-            android:layout_height="170dp"
-            android:layout_marginTop="6dp"
-            android:background="#EAF0FF">
+            android:layout_height="0dp"
+            android:layout_marginTop="10dp"
+            android:layout_weight="1">
 
-            <HorizontalScrollView
-                android:id="@+id/dbTableHorizontalScroll"
+            <!-- Status: server control and kiosks -->
+            <ScrollView
+                android:id="@+id/statusPage"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_card"
+                        android:orientation="vertical"
+                        android:padding="18dp">
+
+                        <TextView
+                            style="@style/Text.Section"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/section_server" />
+
+                        <TextView
+                            android:id="@+id/serverStatusText"
+                            style="@style/Text.Body"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp" />
+
+                        <TextView
+                            android:id="@+id/endpointText"
+                            style="@style/Text.Mono"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:textIsSelectable="true" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            android:orientation="horizontal">
+
+                            <Button
+                                android:id="@+id/startButton"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/start_server" />
+
+                            <Button
+                                android:id="@+id/stopButton"
+                                style="@style/Widget.Material3.Button.OutlinedButton"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="10dp"
+                                android:text="@string/stop_server" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="14dp"
+                        android:background="@drawable/bg_card"
+                        android:orientation="vertical"
+                        android:padding="18dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                style="@style/Text.Section"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="@string/section_kiosks" />
+
+                            <Button
+                                android:id="@+id/approveAllButton"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/approve_all" />
+                        </LinearLayout>
+
+                        <TextView
+                            style="@style/Text.Muted"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:text="@string/kiosks_help" />
+
+                        <androidx.recyclerview.widget.RecyclerView
+                            android:id="@+id/clientList"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:nestedScrollingEnabled="false" />
+
+                        <TextView
+                            android:id="@+id/clientEmptyText"
+                            style="@style/Text.Muted"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:paddingVertical="12dp"
+                            android:text="@string/kiosks_empty" />
+                    </LinearLayout>
+                </LinearLayout>
+            </ScrollView>
+
+            <!-- People -->
+            <LinearLayout
+                android:id="@+id/peoplePage"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:layout_marginEnd="38dp"
-                android:fadeScrollbars="false"
-                android:fillViewport="true"
-                android:padding="6dp"
-                android:scrollbarAlwaysDrawHorizontalTrack="true"
-                android:scrollbarStyle="insideInset"
-                android:scrollbars="horizontal">
-
-                <ScrollView
-                    android:id="@+id/dbTableScroll"
-                    android:layout_width="wrap_content"
-                    android:layout_height="match_parent"
-                    android:fadeScrollbars="false"
-                    android:fillViewport="true"
-                    android:scrollbars="none">
-
-                    <TableLayout
-                        android:id="@+id/dbTable"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" />
-                </ScrollView>
-            </HorizontalScrollView>
-
-            <FrameLayout
-                android:id="@+id/dbTableScrollBar"
-                android:layout_width="28dp"
-                android:layout_height="match_parent"
-                android:layout_gravity="end|center_vertical"
-                android:layout_margin="6dp"
-                android:background="@drawable/db_table_scroll_bar_track"
+                android:orientation="vertical"
                 android:visibility="gone">
 
-                <View
-                    android:id="@+id/dbTableScrollThumb"
+                <LinearLayout
                     android:layout_width="match_parent"
-                    android:layout_height="48dp"
-                    android:background="@drawable/db_table_scroll_bar_thumb" />
-            </FrameLayout>
-        </FrameLayout>
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
 
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:text="서버 로그"
-            android:textColor="#111111"
-            android:textSize="14sp"
-            android:textStyle="bold" />
+                    <EditText
+                        android:id="@+id/peopleSearchInput"
+                        android:layout_width="0dp"
+                        android:layout_height="52dp"
+                        android:layout_weight="1"
+                        android:hint="@string/people_search"
+                        android:importantForAutofill="no"
+                        android:inputType="text"
+                        android:singleLine="true" />
 
-        <ScrollView
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_marginTop="6dp"
-            android:layout_weight="1"
-            android:background="#F3F5FA"
-            android:padding="10dp">
+                    <Button
+                        android:id="@+id/importCsvButton"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="10dp"
+                        android:text="@string/import_csv" />
 
-            <TextView
-                android:id="@+id/logText"
+                    <Button
+                        android:id="@+id/exportCsvButton"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:text="@string/export_csv" />
+
+                    <Button
+                        android:id="@+id/reloadDbButton"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:text="@string/reload_db" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/peopleSummaryText"
+                    style="@style/Text.Muted"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp" />
+
+                <include
+                    layout="@layout/item_person"
+                    android:id="@+id/peopleHeader" />
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/peopleList"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_card"
+                    android:scrollbars="vertical" />
+            </LinearLayout>
+
+            <!-- Attendance -->
+            <LinearLayout
+                android:id="@+id/attendancePage"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:textColor="#333333"
-                android:textSize="13sp" />
-        </ScrollView>
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/previousDayButton"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/previous_day" />
+
+                    <TextView
+                        android:id="@+id/attendanceDateText"
+                        style="@style/Text.Section"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginHorizontal="14dp" />
+
+                    <Button
+                        android:id="@+id/nextDayButton"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/next_day" />
+
+                    <Button
+                        android:id="@+id/todayButton"
+                        style="@style/Widget.Material3.Button.TextButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/today" />
+
+                    <View
+                        android:layout_width="0dp"
+                        android:layout_height="1dp"
+                        android:layout_weight="1" />
+
+                    <Button
+                        android:id="@+id/saveSheetButton"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/save_sheet" />
+
+                    <Button
+                        android:id="@+id/exportRangeButton"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:text="@string/export_range" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/attendanceSummaryText"
+                    style="@style/Text.Body"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp" />
+
+                <include
+                    layout="@layout/item_attendance"
+                    android:id="@+id/attendanceHeader" />
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/attendanceList"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_card"
+                    android:scrollbars="vertical" />
+            </LinearLayout>
+
+            <!-- Log -->
+            <LinearLayout
+                android:id="@+id/logPage"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <ScrollView
+                    android:id="@+id/logScroll"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_card"
+                    android:padding="12dp">
+
+                    <TextView
+                        android:id="@+id/logText"
+                        style="@style/Text.Mono"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textIsSelectable="true" />
+                </ScrollView>
+
+                <TextView
+                    android:id="@+id/logPathText"
+                    style="@style/Text.Muted"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp" />
+            </LinearLayout>
+        </FrameLayout>
     </LinearLayout>
 </FrameLayout>

@@ -89,6 +89,9 @@ class AttendanceLedger(
 
     fun dailyRows(date: LocalDate): List<AttendanceRow> = report.daily(date, roster(), eventsBetween(date, date))
 
+    /** "HH:mm:ss" in the server's time zone. */
+    fun formatTime(epochMillis: Long): String = report.formatTime(epochMillis)
+
     fun writeDailyCsv(date: LocalDate): File {
         val file = File(outputDir, AttendanceReport.fileName(date))
         writeAtomically(file, report.dailyCsv(date, dailyRows(date)))

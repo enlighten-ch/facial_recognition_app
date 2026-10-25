@@ -4,24 +4,23 @@ plugins {
 }
 
 android {
-    namespace = "com.example.facedbserver"
+    namespace = "com.allstar.faithid.serverapp"
     compileSdk = 35
 
     defaultConfig {
+        // Kept from the first release so installed servers upgrade in place.
         applicationId = "com.example.facedbserver"
         minSdk = 28
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "2.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro",
-            )
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
 
@@ -33,6 +32,11 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+
+    packaging {
+        resources.excludes += setOf("META-INF/INDEX.LIST", "META-INF/io.netty.versions.properties", "META-INF/*.kotlin_module")
+    }
+
     applicationVariants.all {
         if (buildType.name == "debug") {
             outputs.all {
@@ -44,13 +48,14 @@ android {
 }
 
 dependencies {
-    implementation(project(":core"))
+    implementation(project(":server-core"))
+    implementation(project(":android-support"))
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("com.google.android.material:material:1.12.0")
+    implementation("androidx.recyclerview:recyclerview:1.3.2")
 
-    implementation("io.ktor:ktor-server-core:2.3.12")
-    implementation("io.ktor:ktor-server-cio:2.3.12")
-    implementation("io.ktor:ktor-server-websockets:2.3.12")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
 }
