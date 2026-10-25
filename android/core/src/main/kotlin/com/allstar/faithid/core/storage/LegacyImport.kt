@@ -43,7 +43,7 @@ internal object LegacyImport {
     }
 
     fun backupLegacyFiles(directory: File, log: (String) -> Unit) {
-        listOf(PeopleStore.DB_FILE, PeopleStore.LEGACY_BIN_FILE, PeopleStore.DB_FILE + "-journal").forEach { name ->
+        listOf(PeopleStore.DB_FILE, PeopleStore.LEGACY_BIN_FILE, PeopleStore.DB_FILE + "-journal", PeopleStore.DB_FILE + "-wal", PeopleStore.DB_FILE + "-shm").forEach { name ->
             val file = File(directory, name)
             if (!file.exists()) return@forEach
             var backup = File(directory, name + PeopleStore.BACKUP_SUFFIX)

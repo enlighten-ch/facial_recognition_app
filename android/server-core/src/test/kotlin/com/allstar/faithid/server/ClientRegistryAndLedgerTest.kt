@@ -110,6 +110,7 @@ class AttendanceLedgerTest {
         assertEquals(0, ledger.record(listOf(event("e1", "hong", at(9))), "kiosk-1"))
         assertEquals(1, ledger.record(listOf(event("e3", "hong", at(11))), "kiosk-2"))
         assertEquals(3, ledger.eventsBetween(day, day).size)
+        ledger.flushSheets()
         val sheet = Csv.parse(File(out, "attendance_2026-10-25.csv").readText())
         val hong = sheet.first { it[0] == "홍길동" }
         assertEquals("출석", hong[3])
@@ -125,6 +126,7 @@ class AttendanceLedgerTest {
         val ledger = AttendanceLedger(JdbcSqlDatabase(temp.newFile("a.db")), out, zone, Clock { 0 }, ServerLog.NONE) { roster }
         ledger.record(listOf(event("e1", "hong", at(9)), event("e2", "hong", at(9, day.plusDays(6)))), "k")
         val file = ledger.exportRange(day, day.plusDays(6))
+        ledger.flushSheets()
         val table = Csv.parse(file.readText())
         assertEquals(4 + 7, table[1].size)
         assertEquals("2", table.first { it[0] == "홍길동" }[3])

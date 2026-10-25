@@ -7,11 +7,24 @@ import com.allstar.faithid.core.storage.SqlDatabaseFactory
 import com.allstar.faithid.core.storage.SqlRow
 import java.io.File
 
-/** [SqlDatabase] on the platform SQLite. */
+/**
+ * [SqlDatabase] on the platform SQLite.
+ *
+ * Write-ahead logging with synchronous=FULL: a commit is on disk when it returns (a check-in the
+ * server acknowledged survives a power loss) but costs one sync instead of the several a rollback
+ * journal needs, which made every registration and check-in several times slower.
+ */
 class AndroidSqlDatabase(file: File) : SqlDatabase {
     private val db: SQLiteDatabase = run {
         file.parentFile?.mkdirs()
-        SQLiteDatabase.openOrCreateDatabase(file, null)
+        SQLiteDatabase.openDatabase(
+            file,
+            SQLiteDatabase.OpenParams.Builder()
+                .addOpenFlags(SQLiteDatabase.CREATE_IF_NECESSARY)
+                .setJournalMode(JOURNAL_MODE)
+                .setSynchronousMode(SYNCHRONOUS_MODE)
+                .build(),
+        )
     }
 
     override fun execute(sql: String, vararg args: Any?) {
@@ -58,5 +71,7 @@ class AndroidSqlDatabase(file: File) : SqlDatabase {
 
     companion object {
         val FACTORY = SqlDatabaseFactory { AndroidSqlDatabase(it) }
+        const val JOURNAL_MODE = "WAL"
+        const val SYNCHRONOUS_MODE = "FULL"
     }
 }

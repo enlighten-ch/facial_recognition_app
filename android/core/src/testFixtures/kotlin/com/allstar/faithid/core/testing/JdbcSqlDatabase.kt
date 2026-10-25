@@ -8,9 +8,15 @@ import java.sql.Connection
 import java.sql.DriverManager
 import java.sql.ResultSet
 
-/** [SqlDatabase] on sqlite-jdbc, used by JVM unit and integration tests in place of Android's SQLite. */
+/**
+ * [SqlDatabase] on sqlite-jdbc, used by JVM unit and integration tests in place of Android's SQLite.
+ * Uses the same journal settings as AndroidSqlDatabase so timings are comparable.
+ */
 class JdbcSqlDatabase(file: File) : SqlDatabase {
-    private val connection: Connection = DriverManager.getConnection("jdbc:sqlite:${file.absolutePath}")
+    private val connection: Connection = DriverManager.getConnection("jdbc:sqlite:${file.absolutePath}").apply {
+        createStatement().use { it.execute("PRAGMA journal_mode=WAL") }
+        createStatement().use { it.execute("PRAGMA synchronous=FULL") }
+    }
     private var depth = 0
     private val lock = Any()
 

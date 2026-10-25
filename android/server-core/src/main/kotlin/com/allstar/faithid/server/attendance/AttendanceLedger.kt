@@ -11,12 +11,17 @@ import com.allstar.faithid.server.ServerLog
 import java.io.File
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.concurrent.ConcurrentSkipListSet
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 /**
  * Stores check-in events (`attendance.db`) and keeps the daily sheet
  * `attendance_YYYY-MM-DD.csv` up to date in the data folder.
  *
- * Events are deduplicated by event id, so a kiosk may resend after a lost response.
+ * Events are deduplicated by event id, so a kiosk may resend after a lost response. The sheet is
+ * rewritten in the background: it covers the whole roster, and writing it inside the request made
+ * every check-in wait for it.
  */
 class AttendanceLedger(
     private val db: SqlDatabase,
@@ -27,6 +32,9 @@ class AttendanceLedger(
     private val roster: () -> List<Person>,
 ) {
     private val report = AttendanceReport(zone)
+    private val sheetWriter = Executors.newSingleThreadExecutor { Thread(it, "faith-attendance-sheet").apply { isDaemon = true } }
+    private val staleSheets = ConcurrentSkipListSet<LocalDate>()
+    private val fileLock = Any()
 
     init {
         db.execute(
@@ -57,7 +65,10 @@ class AttendanceLedger(
             }
             inserted to dates
         }
-        dates.forEach { writeDailyCsv(it) }
+        if (dates.isNotEmpty()) {
+            staleSheets += dates
+            sheetWriter.execute(::writeStaleSheets)
+        }
         if (inserted > 0) log.log("check-ins stored: client=$clientId, new=$inserted, received=${events.size}")
         return inserted
     }
@@ -94,14 +105,34 @@ class AttendanceLedger(
 
     fun writeDailyCsv(date: LocalDate): File {
         val file = File(outputDir, AttendanceReport.fileName(date))
-        writeAtomically(file, report.dailyCsv(date, dailyRows(date)))
+        val text = report.dailyCsv(date, dailyRows(date))
+        synchronized(fileLock) { writeAtomically(file, text) }
         return file
+    }
+
+    /** Waits until the daily sheets include every check-in recorded so far. */
+    fun flushSheets() {
+        sheetWriter.submit {}.get()
+    }
+
+    fun close() {
+        sheetWriter.shutdown()
+        sheetWriter.awaitTermination(10, TimeUnit.SECONDS)
+    }
+
+    /** Several queued requests collapse into one rewrite per date. */
+    private fun writeStaleSheets() {
+        while (true) {
+            val date = staleSheets.pollFirst() ?: return
+            runCatching { writeDailyCsv(date) }.onFailure { log.log("attendance sheet not written: ${it.message}") }
+        }
     }
 
     /** Writes `attendance_<from>_<to>.csv` with one column per day. */
     fun exportRange(from: LocalDate, to: LocalDate): File {
         val file = File(outputDir, "attendance_${from}_$to.csv")
-        writeAtomically(file, report.rangeCsv(from, to, roster(), eventsBetween(from, to)))
+        val text = report.rangeCsv(from, to, roster(), eventsBetween(from, to))
+        synchronized(fileLock) { writeAtomically(file, text) }
         log.log("attendance exported: ${file.name}")
         return file
     }

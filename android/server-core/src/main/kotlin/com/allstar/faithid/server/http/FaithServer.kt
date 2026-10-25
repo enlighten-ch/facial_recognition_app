@@ -92,6 +92,7 @@ class FaithServer private constructor(
     override fun close() {
         stop()
         csvExecutor.shutdown()
+        attendance.close()
         peopleStore.close()
         stateDb.close()
         attendanceDb.close()
