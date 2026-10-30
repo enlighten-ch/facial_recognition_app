@@ -1,0 +1,369 @@
+<title>이름표가 주인공</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@500;700;800&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: proposal C — the printed name tag is the interface. On the kiosk the tag sits large on
+   the right and fills in as the child is recognized or registered; tapping the tag prints it.
+   The server app opens on a live board where today's tags pile up by department. */
+:root {
+  --wall: #efece6;       /* warm greige wall */
+  --paper: #ffffff;
+  --ink: #23262b;
+  --ink-2: #61656d;
+  --line: #ddd8cf;
+  --teal: #17706a;       /* the action */
+  --teal-ink: #ffffff;
+  --teal-soft: #dcefeb;
+  --stamp: #c4572d;
+  --font-name: "Hahmlet", "Nanum Myeongjo", "AppleMyungjo", serif;
+  --font: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --wall: #18191b; --paper: #222427; --ink: #f0eee9; --ink-2: #aeb0b5; --line: #34363a; --teal-soft: #1d3936; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --wall: #18191b; --paper: #222427; --ink: #f0eee9; --ink-2: #aeb0b5; --line: #34363a; --teal-soft: #1d3936; color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { background: var(--wall); color: var(--ink); font-family: var(--font); line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 56px; }
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 22px; }
+.intro { display: grid; gap: 10px; max-width: 820px; }
+.eyebrow { font-size: .78rem; font-weight: 700; letter-spacing: .1em; color: var(--ink-2); }
+.intro h1 { font-family: var(--font-name); font-weight: 800; font-size: 2.5rem; margin: 0; line-height: 1.2; }
+.intro p { margin: 0; color: var(--ink-2); max-width: 65ch; }
+.principles { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.principles div { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; font-size: .92rem; }
+.principles b { display: block; font-size: 1rem; }
+
+.lab { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 8px; font-size: .9rem; }
+.lab-row { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; }
+.lab-label { color: var(--ink-2); font-weight: 700; font-size: .8rem; margin-right: 4px; min-width: 64px; }
+.lab button { font: inherit; border: 1px solid var(--line); background: var(--wall); color: var(--ink); border-radius: 8px; padding: 4px 12px; cursor: pointer; }
+.lab .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; padding: 2px; background: var(--wall); }
+.lab .seg button { border: 0; background: transparent; }
+.lab [aria-selected="true"], .lab [aria-pressed="true"] { background: var(--teal) !important; color: #fff !important; border-color: var(--teal) !important; }
+.lab-check { display: inline-flex; gap: 6px; align-items: center; margin-left: auto; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--stamp); outline-offset: 2px; }
+
+.device { position: relative; overflow: hidden; border-radius: 26px; box-shadow: 0 0 0 10px #1e2023, 0 22px 50px rgba(35,38,43,.22); margin: 10px; width: calc(100% - 20px); }
+.device-screen { position: absolute; top: 0; left: 0; width: 1280px; height: 800px; transform-origin: 0 0; overflow: hidden; background: #efece6; color: #23262b; font-family: var(--font); }
+
+/* ================= KIOSK ================= */
+.k { position: absolute; inset: 0; background: #efece6; }
+.camcard { position: absolute; left: 32px; top: 32px; width: 480px; height: 736px; border-radius: 28px; overflow: hidden;
+  background: radial-gradient(70% 50% at 40% 30%, #ecd6bd, transparent 70%), linear-gradient(170deg, #cdb8a0, #8c7865); }
+.oval { position: absolute; left: 50%; top: 45%; width: 280px; height: 350px; transform: translate(-50%, -50%); border-radius: 50%; border: 5px solid rgba(255,255,255,.95); overflow: hidden; box-shadow: 0 0 0 600px rgba(35,38,43,.25); transition: border-color .3s; }
+.oval.found { border-color: #7fd1c7; }
+.silhouette { position: absolute; left: 50%; bottom: -6px; transform: translateX(-50%); width: 230px; opacity: .55; }
+.camnote { position: absolute; left: 24px; right: 24px; bottom: 22px; color: #fff; font-size: 20px; font-weight: 600; text-align: center; text-shadow: 0 1px 8px rgba(0,0,0,.35); }
+.dirarrow { position: absolute; top: 45%; transform: translateY(-50%); font-size: 120px; font-weight: 700; color: #7fd1c7; text-shadow: 0 4px 16px rgba(0,0,0,.3); line-height: 1; }
+
+.stage { position: absolute; left: 552px; right: 40px; top: 40px; bottom: 40px; display: flex; flex-direction: column; gap: 20px; align-items: center; }
+.cue { font-size: 32px; font-weight: 700; text-align: center; line-height: 1.3; letter-spacing: -.01em; min-height: 84px; display: grid; align-content: end; }
+.cue small { display: block; font-size: 21px; font-weight: 500; color: #61656d; margin-top: 4px; }
+.k[data-aud="kids"] .cue { font-size: 36px; }
+
+.tag { position: relative; width: 600px; height: 380px; border-radius: 22px; background: #fff; box-shadow: 0 2px 0 #d9d3c8, 0 24px 50px rgba(35,38,43,.16); display: grid; grid-template-rows: 30px 1fr; overflow: hidden; border: 0; padding: 0; text-align: left; font: inherit; color: #23262b; }
+.tag .strip { background: var(--tagc, #ddd8cf); display: flex; align-items: center; padding: 0 22px; font-size: 16px; font-weight: 700; color: rgba(0,0,0,.55); letter-spacing: .06em; }
+.tag .body { padding: 26px 40px; display: grid; align-content: center; gap: 8px; }
+.tag .tname { font-family: "Hahmlet", serif; font-weight: 800; font-size: 104px; line-height: 1; letter-spacing: -.02em; }
+.tag .tsub { font-size: 30px; font-weight: 600; color: #61656d; }
+.tag.blank .body { border: 4px dashed #ddd8cf; margin: 22px; border-radius: 16px; padding: 20px; justify-items: center; text-align: center; color: #9a9ea6; }
+.tag.blank .tname { font-size: 44px; font-family: var(--font); font-weight: 600; }
+button.tag { cursor: pointer; transition: transform .15s; }
+button.tag:active { transform: scale(.98); }
+.tag .stamp { position: absolute; right: 26px; bottom: 26px; border: 4px solid #c4572d; color: #c4572d; border-radius: 10px; padding: 4px 14px; font-weight: 700; font-size: 22px; transform: rotate(-8deg); }
+.tag.small { width: 330px; height: 230px; grid-template-rows: 22px 1fr; }
+.tag.small .tname { font-size: 62px; }
+.tag.small .tsub { font-size: 21px; }
+.tag.small .body { padding: 18px 26px; }
+.tag.mid { width: 520px; height: 300px; }
+.tag.mid .tname { font-size: 80px; }
+.tag.mid .tsub { font-size: 26px; }
+.corners i { position: absolute; width: 54px; height: 54px; border: 0 solid #ddd8cf; transition: border-color .25s; }
+.corners i.on { border-color: #17706a; }
+.corners i.now { border-color: #7fd1c7; }
+.corners i:nth-child(1) { left: 14px; top: 44px; border-left-width: 8px; border-top-width: 8px; border-top-left-radius: 14px; }
+.corners i:nth-child(2) { right: 14px; top: 44px; border-right-width: 8px; border-top-width: 8px; border-top-right-radius: 14px; }
+.corners i:nth-child(3) { left: 14px; bottom: 14px; border-left-width: 8px; border-bottom-width: 8px; border-bottom-left-radius: 14px; }
+.corners i:nth-child(4) { right: 14px; bottom: 14px; border-right-width: 8px; border-bottom-width: 8px; border-bottom-right-radius: 14px; }
+
+.actions { display: flex; gap: 16px; width: 600px; margin-top: auto; }
+.btn { flex: 1; border: 0; border-radius: 20px; height: 112px; font-family: var(--font); font-weight: 700; font-size: 32px; display: inline-flex; align-items: center; justify-content: center; gap: 14px; cursor: pointer; }
+.btn svg { width: 42px; height: 42px; }
+.btn.go { background: #17706a; color: #fff; box-shadow: 0 5px 0 #0e4c48; }
+.btn.go:active { transform: translateY(3px); box-shadow: 0 2px 0 #0e4c48; }
+.btn.alt { background: #fff; color: #23262b; box-shadow: 0 3px 0 #d9d3c8; }
+.btn.text { background: transparent; color: #61656d; font-size: 22px; height: 56px; flex: none; }
+.k[data-aud="adults"] .btn { font-size: 28px; height: 100px; }
+
+.homebtn { position: absolute; left: 52px; top: 52px; width: 60px; height: 60px; border-radius: 50%; border: 0; background: rgba(255,255,255,.92); color: #23262b; display: grid; place-items: center; cursor: pointer; z-index: 2; }
+.homebtn svg { width: 28px; height: 28px; }
+.offline { position: absolute; left: 124px; top: 60px; background: rgba(255,255,255,.92); border-radius: 999px; padding: 6px 14px; font-size: 18px; font-weight: 600; display: inline-flex; gap: 8px; align-items: center; z-index: 2; }
+.offline i { width: 10px; height: 10px; border-radius: 50%; background: #c4572d; }
+
+.form { width: 600px; display: grid; gap: 12px; }
+.field input { font-family: var(--font); font-size: 32px; font-weight: 700; padding: 12px 20px; border-radius: 16px; border: 3px solid #ddd8cf; background: #fff; color: #23262b; width: 100%; }
+.field input:focus { border-color: #17706a; outline: none; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { font-family: var(--font); font-size: 21px; font-weight: 600; border: 2px solid #ddd8cf; background: #fff; color: #23262b; border-radius: 12px; padding: 7px 16px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+.chip[aria-pressed="true"] { border-color: #23262b; background: #23262b; color: #fff; }
+.chipdot { width: 14px; height: 14px; border-radius: 4px; display: inline-block; flex: none; }
+
+.printing .tag { animation: down 1.5s ease-in forwards; }
+@keyframes down { 0% { transform: none; } 30% { transform: translateY(-14px); } 100% { transform: translateY(520px) scale(.9); opacity: .2; } }
+.slot { width: 640px; height: 26px; border-radius: 13px; background: #23262b; margin-top: auto; }
+.done { display: grid; justify-items: center; gap: 18px; margin-top: 30px; }
+.done .ck { width: 120px; height: 120px; border-radius: 50%; background: #17706a; display: grid; place-items: center; color: #fff; }
+.done .ck svg { width: 66px; height: 66px; }
+.done b { font-size: 40px; text-align: center; line-height: 1.3; }
+.done span { color: #61656d; font-size: 22px; }
+.pendingbox { position: absolute; inset: 0; background: rgba(35,38,43,.86); display: grid; place-items: center; color: #fff; text-align: center; z-index: 5; }
+.pendingbox div { display: grid; gap: 14px; max-width: 760px; }
+.pendingbox b { font-size: 42px; line-height: 1.3; }
+.pendingbox code { font-size: 28px; background: rgba(255,255,255,.15); padding: 6px 16px; border-radius: 12px; justify-self: center; }
+.ktoast { position: absolute; right: 60px; bottom: 40px; background: #23262b; color: #fff; font-size: 22px; padding: 10px 20px; border-radius: 999px; z-index: 4; }
+@media (prefers-reduced-motion: reduce) { .printing .tag { animation: none; } }
+
+/* ================= SERVER ================= */
+.s { position: absolute; inset: 0; display: grid; grid-template-columns: 1fr 330px; grid-template-rows: auto 1fr; background: #efece6; font-size: 19px; color: #23262b; }
+.shead { grid-column: 1 / -1; display: flex; align-items: center; gap: 22px; padding: 18px 30px; border-bottom: 1px solid #ddd8cf; background: #f7f5f1; }
+.shead .brand { font-family: "Hahmlet", serif; font-weight: 800; font-size: 26px; }
+.shead nav { display: flex; gap: 4px; }
+.shead nav button { border: 0; background: transparent; font-family: var(--font); font-size: 19px; font-weight: 600; color: #61656d; padding: 8px 16px; border-radius: 10px; cursor: pointer; }
+.shead nav button[aria-current="true"] { background: #23262b; color: #fff; }
+.shead .live { margin-left: auto; font-size: 16px; color: #61656d; display: inline-flex; gap: 8px; align-items: center; }
+.shead .live i { width: 10px; height: 10px; border-radius: 50%; background: #2f9e6e; box-shadow: 0 0 0 4px rgba(47,158,110,.18); }
+.sbody { overflow: auto; padding: 22px 30px; display: flex; flex-direction: column; gap: 18px; }
+.sbody h1 { font-family: "Hahmlet", serif; font-weight: 800; font-size: 34px; margin: 0; }
+.sbody h1 small { display: block; font-family: var(--font); font-size: 18px; font-weight: 500; color: #61656d; }
+.side { border-left: 1px solid #ddd8cf; padding: 22px; display: flex; flex-direction: column; gap: 16px; overflow: auto; background: #f7f5f1; }
+.side h2 { font-size: 18px; margin: 0; color: #61656d; font-weight: 700; }
+.panel { background: #fff; border-radius: 16px; padding: 16px 18px; display: grid; gap: 8px; border: 1px solid #e6e1d8; }
+.panel.alert { border: 2px solid #c4572d; }
+.panel .num { font-family: "Hahmlet", serif; font-weight: 800; font-size: 56px; line-height: 1; }
+.panel .num small { font-family: var(--font); font-size: 20px; color: #61656d; font-weight: 600; }
+.sbtn { font-family: var(--font); font-size: 18px; font-weight: 700; border-radius: 12px; border: 0; padding: 11px 18px; cursor: pointer; background: #fff; color: #23262b; border: 2px solid #ddd8cf; white-space: nowrap; }
+.sbtn.primary { background: #17706a; color: #fff; border-color: #17706a; }
+.sbtn.danger { color: #c4572d; border-color: #c4572d; background: transparent; }
+.board { columns: 3 240px; column-gap: 16px; }
+.mtag { break-inside: avoid; background: #fff; border-radius: 12px; margin-bottom: 14px; overflow: hidden; box-shadow: 0 1px 0 #d9d3c8, 0 6px 16px rgba(35,38,43,.07); display: grid; grid-template-rows: 10px auto; }
+.mtag .strip { background: var(--tagc); }
+.mtag .b { padding: 12px 16px 14px; display: grid; gap: 2px; }
+.mtag b { font-family: "Hahmlet", serif; font-weight: 800; font-size: 30px; line-height: 1.1; }
+.mtag span { font-size: 15px; color: #61656d; }
+.mtag .new { color: #c4572d; font-weight: 700; }
+.mtag.head { background: transparent; box-shadow: none; grid-template-rows: auto; }
+.mtag.head .b { padding: 4px 2px; }
+.mtag.head b { font-family: var(--font); font-size: 20px; display: flex; gap: 8px; align-items: center; }
+.mtag.head span { font-size: 16px; }
+.mtag.missing { background: transparent; box-shadow: none; border: 2px dashed #d6d0c6; grid-template-rows: auto; }
+.bgroup { break-inside: avoid; margin-bottom: 18px; display: grid; }
+.mtag.missing b { color: #a3a6ad; font-size: 22px; }
+.search { font: inherit; font-size: 20px; padding: 12px 18px; border-radius: 12px; border: 2px solid #ddd8cf; background: #fff; color: #23262b; width: 100%; }
+.tgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.tgrid .mtag { cursor: pointer; margin: 0; border: 2px solid transparent; }
+.tgrid .mtag:hover, .tgrid .mtag.sel { border-color: #17706a; }
+.drawer .grid { display: grid; gap: 10px; }
+.drawer input, .drawer select { font: inherit; font-size: 20px; padding: 10px 12px; border-radius: 10px; border: 2px solid #ddd8cf; background: #faf9f6; color: #23262b; width: 100%; }
+.drawer label { font-size: 15px; color: #61656d; font-weight: 600; }
+.ktable { width: 100%; border-collapse: collapse; background: #fff; border-radius: 14px; overflow: hidden; }
+.ktable td, .ktable th { padding: 14px 18px; border-top: 1px solid #ece7df; text-align: left; font-size: 18px; }
+.ktable th { font-size: 15px; color: #61656d; font-weight: 700; background: #f7f5f1; border-top: 0; }
+.st { display: inline-flex; gap: 8px; align-items: center; font-weight: 600; }
+.st i { width: 10px; height: 10px; border-radius: 50%; background: #2f9e6e; }
+.st.pending i { background: #c4572d; }
+.stoast { position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%); background: #23262b; color: #fff; font-weight: 600; padding: 12px 22px; border-radius: 999px; font-size: 18px; }
+</style>
+
+<div class="wrap">
+  <header class="intro">
+    <span class="eyebrow">제안 C · UI 연구 · Faith ID</span>
+    <h1>이름표가 주인공</h1>
+    <p>아이가 받아 갈 이름표를 화면에 크게 보여 줍니다. 인식되면 빈 이름표에 이름이 채워지고, 그 이름표를 누르면 출력됩니다. 닮은 형제는 이름표 두 장 중 자기 것을 고르고, 등록할 때는 이름표의 네 모서리가 채워집니다. 서버 앱 첫 화면은 오늘 출력된 이름표가 부서별로 쌓이는 출석 보드입니다.</p>
+    <div class="principles">
+      <div><b>보이는 그대로 출력</b>화면의 이름표가 곧 출력물. 잘못된 이름을 뽑기 전에 알아챔</div>
+      <div><b>고르기는 이름표로</b>후보, 본인 확인, 이름표만 받기 모두 이름표를 보고 결정</div>
+      <div><b>부서 색</b>부서마다 색을 정해 이름표, 명단, 보드에서 같은 색으로 구분</div>
+    </div>
+  </header>
+  <div id="app"></div>
+</div>
+
+<script src="proto.js"></script>
+<script>
+const P = window.Proto;
+const I = {
+  print: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 14h10v7H7z"/></svg>',
+  face: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="10" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>',
+  tag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 11h6M7 14h4"/></svg>',
+  home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg>',
+};
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const silhouette = '<svg class="silhouette" viewBox="0 0 200 240" aria-hidden="true"><circle cx="100" cy="88" r="58" fill="#fff"/><path d="M14 240c8-56 44-86 86-86s78 30 86 86z" fill="#fff"/></svg>';
+const kids = s => s.audience === 'kids';
+
+function cam(s, opts = {}) {
+  const face = s.face && s.face.kind !== 'leave';
+  return `<div class="camcard"><div class="oval ${opts.found ? 'found' : ''}">${face ? silhouette : ''}</div>${opts.extra || ''}<div class="camnote">${opts.note || '사진은 저장하지 않아요'}</div></div>`;
+}
+function frame(s, left, stage) {
+  return `<div class="k" data-aud="${s.audience}">${left}
+    <button class="homebtn" data-act="home" aria-label="처음으로">${I.home}</button>
+    ${s.connection === 'offline' ? '<span class="offline"><i></i>오프라인 · 출석 보관 중</span>' : ''}
+    <div class="stage">${stage}</div>
+    ${s.connection === 'pending' ? `<div class="pendingbox"><div><b>${P.t('pending')}</b><span style="font-size:24px">서버 앱 › 보드 › 오른쪽 “허락하기”</span><code>client-3f90</code></div></div>` : ''}
+    ${s.toast ? `<div class="ktoast">${esc(s.toast)}</div>` : ''}</div>`;
+}
+// A name tag as it will print. `as`: 'div' | 'button'; act/id make it tappable.
+function tag({ name, dept, grade, size = '', as = 'div', act = '', id = '', stamp = '', extra = '' }) {
+  const d = dept ? P.dept(dept) : null;
+  const attrs = as === 'button' ? `data-act="${act}" ${id ? `data-id="${id}"` : ''} aria-label="${esc(name)} 이름표${act === 'print' ? ' 출력' : ' 선택'}"` : '';
+  return `<${as} class="tag ${size}" style="--tagc:${d ? d.color : '#ddd8cf'}" ${attrs}><span class="strip">${d ? d.name : ''}</span>
+    <span class="body"><span class="tname">${esc(name)}</span><span class="tsub">${esc([d ? d.name : '', grade].filter(Boolean).join(' · '))}</span></span>${stamp ? `<span class="stamp">${stamp}</span>` : ''}${extra}</${as}>`;
+}
+const blank = (text, extra = '') => `<div class="tag blank"><span class="strip"></span><span class="body"><span class="tname">${text}</span></span>${extra}</div>`;
+function deptChips(s) {
+  const grades = s.form.dept ? P.GRADES[s.form.dept] : [];
+  return `<div class="chips">${P.DEPTS.map(d => `<button class="chip" data-act="dept" data-id="${d.id}" aria-pressed="${s.form.dept === d.id}"><i class="chipdot" style="background:${d.color}"></i>${d.name}</button>`).join('')}</div>
+    ${grades.length ? `<div class="chips">${grades.map(g => `<button class="chip" data-act="grade" data-id="${g}" aria-pressed="${s.form.grade === g}">${g}</button>`).join('')}</div>` : ''}`;
+}
+// The tag preview updates while the teacher types, without redrawing the field.
+document.addEventListener('input', e => {
+  if (e.target.dataset.field !== 'name') return;
+  const t = document.querySelector('#screen .tag.live .tname');
+  if (t) t.textContent = e.target.value || '이름';
+});
+
+function kiosk(s) {
+  const p = s.person;
+  switch (s.screen) {
+    case 'idle':
+      return frame(s, cam(s), `<div class="cue">${kids(s) ? '카메라를 보면<br>내 이름표가 나와요' : '화면을 바라보시면 이름표가 준비됩니다'}</div>${blank('여기에 내 이름이 나와요')}`);
+    case 'detecting':
+      return frame(s, cam(s, { found: true }), `<div class="cue">${kids(s) ? '이름표 찾는 중…' : '확인하고 있습니다'}</div>${blank('…')}`);
+    case 'recognized':
+      return frame(s, cam(s, { found: true }), `<div class="cue">${esc(P.t('hello', p))}<small>${kids(s) ? '이름표를 누르면 나와요' : '이름표를 눌러 출력하세요'}</small></div>
+        ${tag({ name: p.name, dept: p.dept, grade: p.grade, as: 'button', act: 'print' })}
+        <div class="actions"><button class="btn go" data-act="print">${I.print}${P.t('printCta')}</button></div>
+        <button class="btn text" data-act="home">${kids(s) ? '내 이름이 아니에요' : '본인이 아닙니다'}</button>`);
+    case 'candidates':
+      return frame(s, cam(s, { found: true }), `<div class="cue">${kids(s) ? '내 이름표를 눌러요' : '본인의 이름표를 선택해 주세요'}<small>닮은 친구가 있어요</small></div>
+        <div style="display:flex;gap:20px">${s.candidates.map(c => tag({ name: c.name, dept: c.dept, grade: c.grade, size: 'small', as: 'button', act: 'pick', id: c.id })).join('')}</div>
+        <button class="btn text" data-act="home" style="margin-top:auto">둘 다 아니에요</button>`);
+    case 'unknown':
+      return frame(s, cam(s, { found: true }), `<div class="cue">${esc(P.t('unknown'))}<small>${kids(s) ? '얼굴을 등록하면 다음엔 바로 이름표가 나와요' : '등록하면 다음부터 바로 출석됩니다'}</small></div>
+        ${blank('?')}
+        <div class="actions"><button class="btn go" data-act="register">${I.face}${kids(s) ? '등록하고 만들기' : '얼굴 등록'}</button><button class="btn alt" data-act="labelonly">${I.tag}${kids(s) ? '이름표만' : '이름표만 출력'}</button></div>`);
+    case 'register': {
+      const r = s.reg, dir = P.DIRECTIONS[Math.min(r.dir, 3)];
+      const pos = { left: 'left:36px', right: 'right:36px', up: 'left:50%;top:18%;transform:translateX(-50%)', down: 'left:50%;top:70%;transform:translateX(-50%)' }[dir.id];
+      const corners = `<span class="corners">${P.DIRECTIONS.map((d, i) => `<i class="${i < r.dir ? 'on' : i === r.dir ? 'now' : ''}"></i>`).join('')}</span>`;
+      return frame(s, cam(s, { found: true, extra: r.dir < 4 ? `<span class="dirarrow" style="${pos}">${dir.arrow}</span>` : '', note: `${dir.label}으로 천천히` }),
+        `<div class="cue">${esc(P.t('regTurn', dir))}<small>모서리 네 개가 채워지면 이름표가 생겨요 · ${r.dir}/4</small></div>${blank(kids(s) ? '내 이름표 만드는 중' : '등록 중', corners)}`);
+    }
+    case 'regName':
+      return frame(s, cam(s, { found: true, note: '얼굴 등록 완료' }), `<div class="cue" style="min-height:0">${esc(P.t('regName'))}</div>
+        ${tag({ name: s.form.name || '이름', dept: s.form.dept, grade: s.form.grade, size: 'mid live' })}
+        <div class="form"><div class="field"><input data-field="name" value="${esc(s.form.name)}" placeholder="이름 (예: 김하은)" aria-label="이름" autocomplete="off"></div>${deptChips(s)}</div>
+        <div class="actions"><button class="btn go" data-act="save">${I.check}이 이름표로 저장</button></div>`);
+    case 'saved':
+      return frame(s, cam(s, { found: true }), `<div class="cue">${esc(P.t('saved'))}</div>${tag({ name: p.name, dept: p.dept, grade: p.grade, stamp: 'NEW' })}`);
+    case 'confirmSelf':
+      return frame(s, cam(s, { found: true }), `<div class="cue">${kids(s) ? '이 이름표가 내 거 맞아요?' : '이 이름표가 본인의 것인가요?'}<small>이미 등록된 얼굴과 같아요</small></div>
+        ${tag({ name: p.name, dept: p.dept, grade: p.grade })}
+        <div class="actions"><button class="btn go" data-act="confirm-yes">${I.check}${P.t('confirmYes')}</button><button class="btn alt" data-act="confirm-no">${P.t('confirmNo')}</button></div>`);
+    case 'labelOnly':
+      return frame(s, cam(s), `<div class="cue" style="min-height:0">${kids(s) ? '이름표에 쓸 이름을 알려 줘요' : '이름표에 넣을 내용을 입력하세요'}</div>
+        ${tag({ name: s.form.name || '이름', dept: s.form.dept, grade: s.form.grade, size: 'mid live', stamp: '명단 외' })}
+        <div class="form"><div class="field"><input data-field="name" value="${esc(s.form.name)}" placeholder="이름 (예: 이준호)" aria-label="이름" autocomplete="off"></div>${deptChips(s)}</div>
+        <div class="actions"><button class="btn go" data-act="printlabel">${I.print}${P.t('printCta')}</button></div>`);
+    case 'printing': {
+      const g = s.guest;
+      return frame(s, cam(s), `<div class="cue">${P.t('printing')}</div><div class="printing">${p ? tag({ name: p.name, dept: p.dept, grade: p.grade }) : tag({ name: g.name, grade: [g.dept, g.grade].filter(Boolean).join(' · ') })}</div><span class="slot"></span>`);
+    }
+    case 'done':
+      return frame(s, cam(s), `<div class="done"><span class="ck">${I.check}</span><b>${esc(P.t('done', p))}</b><span>${s.countdown}초 뒤에 처음 화면으로</span></div><span class="slot"></span>`);
+  }
+  return '';
+}
+
+/* ---------------- server ---------------- */
+function server(s) {
+  const pending = P.kiosks.filter(k => k.status === 'pending');
+  const tabs = [['home', '출석 보드'], ['people', '명단'], ['attendance', '기록'], ['kiosks', '키오스크']];
+  let body = '';
+  if (s.tab === 'home') body = board(s);
+  if (s.tab === 'people') body = people(s);
+  if (s.tab === 'attendance') body = records(s);
+  if (s.tab === 'kiosks') body = kioskTable(s);
+  const editing = s.tab === 'people' && s.editing && P.people.find(p => p.id === s.editing);
+  return `<div class="s"><header class="shead"><span class="brand">Faith DB</span>
+    <nav aria-label="서버 앱 메뉴">${tabs.map(([id, l]) => `<button data-act="tab" data-id="${id}" aria-current="${s.tab === id}">${l}${id === 'kiosks' && pending.length ? ' •' : ''}</button>`).join('')}</nav>
+    <span class="live"><i></i>서버 켜짐 · 192.168.45.107</span></header>
+    <main class="sbody">${body}</main>
+    <aside class="side">${editing ? drawer(editing) : summary(pending)}</aside>
+    ${s.toast ? `<div class="stoast">${esc(s.toast)}</div>` : ''}</div>`;
+}
+function summary(pending) {
+  const present = P.attendance.filter(a => a.person).length;
+  return `<h2>오늘 요약</h2>
+    ${pending.map(k => `<div class="panel alert"><b>${esc(k.name)}</b><span style="color:#61656d;font-size:16px">새 키오스크가 연결을 기다려요. 교회 태블릿이 맞으면 허락하세요.</span><button class="sbtn primary" data-act="approve" data-id="${k.id}">허락하기</button></div>`).join('')}
+    <div class="panel"><span style="color:#61656d;font-size:16px">출석</span><span class="num">${present}<small> / ${P.people.length}명</small></span><span style="color:#61656d;font-size:16px">명단 외 ${P.guests().length}명</span></div>
+    <div class="panel"><span style="color:#61656d;font-size:16px">키오스크</span><b>${P.kiosks.filter(k => k.status === 'online').length}대 연결됨</b>${P.kiosks.filter(k => k.status === 'online').map(k => `<span style="font-size:16px">● ${esc(k.name)}</span>`).join('')}</div>
+    <button class="sbtn" style="margin-top:auto">오늘 출석부 저장</button>`;
+}
+function drawer(p) {
+  return `<h2>이름표 고치기</h2>${''}
+    <div class="drawer panel" data-editform><div class="grid">
+      <label for="e-name">이름</label><input id="e-name" data-edit="name" value="${esc(p.name)}">
+      <label for="e-dept">부서</label><select id="e-dept" data-edit="dept">${P.DEPTS.map(d => `<option value="${d.id}" ${d.id === p.dept ? 'selected' : ''}>${d.name}</option>`).join('')}</select>
+      <label for="e-grade">학년 · 나이</label><input id="e-grade" data-edit="grade" value="${esc(p.grade)}"></div>
+      <span style="font-size:15px;color:#61656d">얼굴 ${p.samples}장 · 고치면 모든 키오스크에 바로 반영</span>
+      <button class="sbtn primary" data-act="saveperson" data-id="${p.id}">저장</button>
+      <button class="sbtn" data-act="cancel-edit">닫기</button>
+      <button class="sbtn danger" data-act="deleteperson" data-id="${p.id}">명단에서 지우기</button></div>`;
+}
+function mtag(p, sub, extra = '') {
+  const d = P.dept(p.dept);
+  return `<div class="mtag ${extra}" style="--tagc:${d.color}" ${extra.includes('click') ? `data-act="edit" data-id="${p.id}"` : ''}><span class="strip"></span><span class="b"><b>${esc(p.name)}</b><span>${sub}</span></span></div>`;
+}
+function board(s) {
+  const recent = P.state.lastCheckin;
+  const groups = P.attendanceByDept();
+  return `<h1>오늘의 출석 보드<small>10월 31일 · 이름표가 나오면 여기에 바로 붙어요</small></h1>
+    <div class="board">${groups.map(g => {
+      const ids = new Set(g.rows.map(r => r.person.id));
+      const missing = P.people.filter(p => p.dept === g.dept.id && !ids.has(p.id));
+      return `<div class="bgroup"><div class="mtag head"><span class="b"><b><i class="chipdot" style="background:${g.dept.color}"></i>${g.dept.name}</b><span>${g.present} / ${g.roster}명</span></span></div>
+        ${[...g.rows].sort((a, b) => b.last - a.last).map(r => mtag(r.person, `${esc(r.person.grade)} · ${P.hhmm(r.first)}${recent && recent.key === r.key ? ' · <span class="new">방금</span>' : ''}${r.count > 1 ? ` · ${r.count}회` : ''}`)).join('')}
+        ${missing.length ? `<div class="mtag missing"><span class="b"><b>아직 ${missing.length}명</b><span>${missing.map(p => esc(p.name)).join(', ')}</span></span></div>` : ''}</div>`;
+    }).join('')}
+    ${P.guests().length ? `<div class="bgroup"><div class="mtag head"><span class="b"><b>명단 외</b><span>${P.guests().length}명</span></span></div>` : ''}${P.guests().map(g => `<div class="mtag" style="--tagc:#ddd8cf"><span class="strip"></span><span class="b"><b>${esc(g.guest.name)}</b><span>명단 외 · ${P.hhmm(g.first)}</span></span></div>`).join('')}${P.guests().length ? '</div>' : ''}</div>`;
+}
+function people(s) {
+  return `<h1>명단<small>${P.people.length}명 · 이름표를 누르면 오른쪽에서 고칠 수 있어요</small></h1>
+    <input class="search" data-field="search" value="${esc(s.search)}" placeholder="이름, 부서, 학년으로 찾기" aria-label="명단 찾기">
+    <div class="chips">${P.DEPTS.map(d => `<button class="chip" style="font-size:17px;padding:5px 12px" data-act="filter" data-id="${d.id}" aria-pressed="${s.deptFilter === d.id}"><i class="chipdot" style="background:${d.color}"></i>${d.name}</button>`).join('')}</div>
+    <div class="tgrid">${P.visiblePeople().map(p => mtag(p, `${esc(p.grade)} · 얼굴 ${p.samples}장`, 'click' + (s.editing === p.id ? ' sel' : ''))).join('')}</div>`;
+}
+function records(s) {
+  const weeks = [['10월 31일 (오늘)', P.attendance.length], ['10월 24일', 15], ['10월 17일', 16], ['10월 10일', 14], ['10월 3일', 12]];
+  return `<h1>출석 기록<small>주일마다 몇 명이 왔는지 보고, 파일로 저장합니다</small></h1>
+    <table class="ktable"><thead><tr><th>날짜</th><th>출석</th><th></th></tr></thead><tbody>
+    ${weeks.map(([d, n], i) => `<tr><td>${d}</td><td><b>${n}명</b> <span style="color:#61656d">/ ${P.people.length}</span></td><td style="text-align:right"><button class="sbtn">${i ? '열기' : '보드 보기'}</button></td></tr>`).join('')}</tbody></table>
+    <div style="display:flex;gap:10px"><button class="sbtn primary">이번 달 엑셀로 저장</button><button class="sbtn">기간 고르기</button></div>`;
+}
+function kioskTable(s) {
+  return `<h1>키오스크<small>교회 태블릿만 허락하세요</small></h1>
+    <table class="ktable"><thead><tr><th>이름</th><th>상태</th><th>ID</th><th></th></tr></thead><tbody>
+    ${P.kiosks.map(k => `<tr><td><b>${esc(k.name)}</b></td><td><span class="st ${k.status}"><i></i>${k.status === 'online' ? '연결됨' : '허락 대기'}</span></td><td style="color:#61656d">${k.id}</td>
+      <td style="text-align:right">${k.status === 'pending' ? `<button class="sbtn primary" data-act="approve" data-id="${k.id}">허락하기</button>` : `<button class="sbtn" data-act="remove" data-id="${k.id}">연결 끊기</button>`}</td></tr>`).join('')}</tbody></table>
+    <div class="panel"><b>새 키오스크 연결</b><span>키오스크 설정에 <b>http://192.168.45.107:18080</b> 입력</span></div>`;
+}
+
+P.mount({ root: document.getElementById('app'), kiosk, server });
+</script>
