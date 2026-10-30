@@ -42,7 +42,8 @@ import kotlin.random.Random
  *    the Android server allows administration only from its screen)
  * 4. a check-in until the server has stored it
  * 5. server response time per API, idle and under load
- * 6. with -Pfaith.it.adbSerial: a registration until the real kiosk app on that device applied it
+ * 6. with -Pfaith.it.adbSerial (comma-separated for several devices): a registration until the real
+ *    kiosk app on each device applied it
  *
  * Runs against an in-process server by default, or the Android server app with
  * -Pfaith.it.perfUrl=http://host:18080 (approve the kiosks in the app; tools/perf_android_server.sh
@@ -53,7 +54,7 @@ class SyncPerformanceTest {
     val temp = TemporaryFolder()
 
     private val remoteUrl = System.getProperty("faith.it.perfUrl")?.takeIf { it.isNotBlank() }
-    private val adbSerial = System.getProperty("faith.it.adbSerial")?.takeIf { it.isNotBlank() }
+    private val adbSerials = System.getProperty("faith.it.adbSerial").orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() }
     private val peopleCount = System.getProperty("faith.it.perfPeople")?.toInt() ?: 1000
     private val samplesPerPerson = 12 // one registration
     private val kioskCount = 8
@@ -179,7 +180,7 @@ class SyncPerformanceTest {
 
         // --- the real kiosk app on the device ---------------------------------------------------
         phase = "device"
-        adbSerial?.let { measureDeviceKiosk(DeviceKiosk(it), probe, runId) }
+        if (adbSerials.isNotEmpty()) measureDeviceKiosks(adbSerials.map { DeviceKiosk(it) }, probe, runId)
 
         // --- everyone converged ------------------------------------------------------------------
         phase = "settle"
@@ -291,23 +292,27 @@ class SyncPerformanceTest {
         metrics.add(name, millisSince(began))
     }
 
-    private fun measureDeviceKiosk(device: DeviceKiosk, origin: SimKiosk, runId: String) {
-        notes["deviceClockOffsetMs"] = device.clockOffsetMillis
-        device.bringToFront()
-        device.pauseCamera(true)
+    private fun measureDeviceKiosks(devices: List<DeviceKiosk>, origin: SimKiosk, runId: String) {
+        devices.forEach {
+            notes["${it.name}: clockOffsetMs"] = it.clockOffsetMillis
+            it.bringToFront()
+            it.pauseCamera(true)
+        }
         try {
             Thread.sleep(2_000)
             repeat(10) {
                 val began = System.currentTimeMillis()
                 origin.repo.register(PersonMetadata.of("기기측정$it", "측정", runId), faces.samples("device-$runId-$it", samplesPerPerson))
                 origin.engine.requestSync()
-                val applied = device.waitForLog("서버 변경", began)
-                if (applied != null) metrics.add("device: registration → real kiosk app applied", (applied - began).toDouble())
-                else metrics.add("device: not applied within 30 s", 30_000.0)
+                devices.forEach { device ->
+                    val applied = device.waitForLog("서버 변경", began)
+                    if (applied != null) metrics.add("device ${device.name}: registration → real kiosk app applied", (applied - began).toDouble())
+                    else metrics.add("device ${device.name}: not applied within 30 s", 30_000.0)
+                }
                 Thread.sleep(1_500)
             }
         } finally {
-            device.pauseCamera(false)
+            devices.forEach { it.pauseCamera(false) }
         }
     }
 

@@ -9,6 +9,9 @@ import java.util.concurrent.TimeUnit
 class DeviceKiosk(private val serial: String) {
     private val receiver = "com.example.facetestbed/com.allstar.faithid.kiosk.debug.DebugObservationReceiver"
 
+    /** The device model, to tell several devices apart in the results. */
+    val name: String = adb("shell", "getprop", "ro.product.model").trim().ifEmpty { serial }
+
     /** Device clock minus host clock, in ms (median of a few round trips). */
     val clockOffsetMillis: Long = List(5) {
         val before = System.currentTimeMillis()

@@ -5,20 +5,23 @@
 # folder, and afterwards back to the original one (the server restarts on the change, and
 # "DB 다시 읽기" makes every kiosk download the original data again).
 #
-# Preconditions: the server app is running. Optionally the Faith ID debug kiosk runs on the same
-# device, connected to that server; its timings are measured too.
-# Usage: tools/perf_android_server.sh <adb-serial> <server-url> <label> <admin-password>
+# Preconditions: the server app is running. Optionally Faith ID debug kiosks run, connected to that
+# server, on the same device and/or others (kiosk-serials, comma-separated); their timings are
+# measured too.
+# Usage: tools/perf_android_server.sh <adb-serial> <server-url> <label> <admin-password> [kiosk-serials]
 #   e.g. tools/perf_android_server.sh 192.168.45.107:40451 http://192.168.45.107:18080 android-before
 set -uo pipefail
 SERIAL="$1"
 SERVER_URL="$2"
 LABEL="${3:-android}"
 ADMIN_PASSWORD="${4:?server admin password required}"
+IFS=, read -ra KIOSK_SERIALS <<< "${5:-$1}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 source "$HERE/ui_automation.sh" "$SERIAL"
 
 SERVER=com.example.facedbserver
+adbk() { local serial="$1"; shift; "$ADB" -s "$serial" "$@"; }
 KIOSK_RECEIVER=com.example.facetestbed/com.allstar.faithid.kiosk.debug.DebugObservationReceiver
 PERF_DIR="/sdcard/faceDB-perf-$LABEL"
 OUT="$ROOT/integration-tests/build/perf"
@@ -49,18 +52,21 @@ set_data_dir() {
   ui_tap "저장"; sleep 4
   wait_text 30 "데이터 폴더: $1" || { echo "[perf] server did not switch to $1"; return 1; }
 }
-# Reloads the server database (new epoch), then shows the kiosk so it syncs right away.
+# Reloads the server database (new epoch) and sets RELOADED_MS to the moment of the confirming tap,
+# then brings the kiosks to the front, as in operation.
 reload_db() {
-  ui_tap "명단"; sleep 1; ui_tap "DB 다시 읽기"; sleep 1; ui_tap "다시 읽기"; sleep 1; ui_tap "현황"
-  adbs shell am start -n com.example.facetestbed/com.allstar.faithid.kiosk.ui.MainActivity >/dev/null 2>&1
+  ui_tap "명단"; sleep 1; ui_tap "DB 다시 읽기"; sleep 1; ui_tap "다시 읽기"; RELOADED_MS=$(now_ms); sleep 1; ui_tap "현황"
+  local k; for k in "${KIOSK_SERIALS[@]}"; do
+    adbk "$k" shell am start -n com.example.facetestbed/com.allstar.faithid.kiosk.ui.MainActivity >/dev/null 2>&1
+  done
 }
 now_ms() { date +%s%3N; }
-offset_ms() { local a d b; a=$(now_ms); d=$(adbs shell date +%s%3N | tr -d '\r'); b=$(now_ms); echo $(( d - (a + b) / 2 )); }
-# Host ms of the first kiosk log line containing $1 after host ms $2 (waits up to 120 s).
+offset_ms() { local a d b; a=$(now_ms); d=$(adbk "$1" shell date +%s%3N | tr -d '\r'); b=$(now_ms); echo $(( d - (a + b) / 2 )); }
+# Host ms of the first log line of kiosk $1 containing $2 after host ms $3 (waits up to 120 s).
 kiosk_log_after() {
-  local text="$1" after="$2" off; off=$(offset_ms)
+  local serial="$1" text="$2" after="$3" off; off=$(offset_ms "$serial")
   for _ in $(seq 120); do
-    local hit; hit=$(adbs logcat -d -v epoch -s FaithKiosk:I | python3 -c '
+    local hit; hit=$(adbk "$serial" logcat -d -v epoch -s FaithKiosk:I | python3 -c '
 import sys
 text, after, off = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
 for line in sys.stdin:
@@ -73,8 +79,21 @@ for line in sys.stdin:
   return 1
 }
 kiosk_camera() { # paused true|false; paused also means "no face", so changes apply immediately
-  adbs shell am broadcast -n "$KIOSK_RECEIVER" -a com.allstar.faithid.kiosk.DEBUG_CAMERA --ez paused "$1" >/dev/null 2>&1
-  [ "$1" = true ] && adbs shell am broadcast -n "$KIOSK_RECEIVER" -a com.allstar.faithid.kiosk.DEBUG_NO_FACE >/dev/null 2>&1
+  local k; for k in "${KIOSK_SERIALS[@]}"; do
+    adbk "$k" shell am broadcast -n "$KIOSK_RECEIVER" -a com.allstar.faithid.kiosk.DEBUG_CAMERA --ez paused "$1" >/dev/null 2>&1
+    [ "$1" = true ] && adbk "$k" shell am broadcast -n "$KIOSK_RECEIVER" -a com.allstar.faithid.kiosk.DEBUG_NO_FACE >/dev/null 2>&1
+  done
+}
+# Prints how long after RELOADED_MS each kiosk had received the whole database (prefix $1).
+report_full_download() {
+  local k t; for k in "${KIOSK_SERIALS[@]}"; do
+    local model; model=$(adbk "$k" shell getprop ro.product.model | tr -d '\r')
+    if t=$(kiosk_log_after "$k" "서버 DB 전체 수신" "$RELOADED_MS"); then
+      echo "$1 $model: $(( t - RELOADED_MS )) ms"
+    else
+      echo "$1 $model: not received within 120 s"
+    fi
+  done
 }
 
 server_front
@@ -88,9 +107,8 @@ finish() {
   trap - EXIT INT TERM
   [ -n "$GRADLE_PID" ] && kill "$GRADLE_PID" 2>/dev/null
   if set_data_dir "$ORIGINAL_DIR"; then
-    local t0 t1; t0=$(now_ms)
     reload_db
-    if t1=$(kiosk_log_after "서버 DB 전체 수신" "$t0"); then echo "[perf] back on $ORIGINAL_DIR; kiosk re-downloaded it in $(( t1 - t0 )) ms"; else echo "[perf] back on $ORIGINAL_DIR"; fi
+    report_full_download "[perf] back on $ORIGINAL_DIR; full download after reload,"
     adbs shell rm -rf "$PERF_DIR"
   else
     echo "[perf] could not switch back: set the data folder to $ORIGINAL_DIR in the server settings"
@@ -107,7 +125,7 @@ kiosk_camera true
 
 # 1. The measurement, approving its kiosks in the server app.
 (cd "$ROOT" && ./gradlew --no-daemon :integration-tests:test --tests '*SyncPerformanceTest*' --rerun \
-  -Pfaith.it.perfUrl="$SERVER_URL" -Pfaith.it.adbSerial="$SERIAL" --console=plain > "$LOG" 2>&1; echo "GRADLE_EXIT=$?" >> "$LOG") &
+  -Pfaith.it.perfUrl="$SERVER_URL" -Pfaith.it.adbSerial="$(IFS=,; echo "${KIOSK_SERIALS[*]}")" --console=plain > "$LOG" 2>&1; echo "GRADLE_EXIT=$?" >> "$LOG") &
 GRADLE_PID=$!
 ui_tap "현황"
 while kill -0 "$GRADLE_PID" 2>/dev/null; do
@@ -118,13 +136,10 @@ GRADLE_PID=""
 grep -E "PERF|PASSED|FAILED|GRADLE_EXIT" "$LOG"
 [ -f "$OUT/perf-android.json" ] && mv "$OUT/perf-android.json" "$OUT/$LABEL.json"
 
-# 2. The real kiosk downloads the whole measurement database (reload starts a new epoch).
+# 2. The real kiosks download the whole measurement database (reload starts a new epoch), timed
+#    from the confirming tap, so the time includes the server reading its database again.
 kiosk_camera true
 server_front
-T0=$(now_ms)
 reload_db
-if T1=$(kiosk_log_after "서버 DB 전체 수신" "$T0"); then
-  echo "PERF  device: real kiosk full download after reload  $(( T1 - T0 )) ms (includes the reload itself)" | tee -a "$LOG"
-  echo "{\"deviceFullDownloadMs\": $(( T1 - T0 ))}" > "$OUT/$LABEL-device-full.json"
-fi
+report_full_download "PERF  device: full download after reload," | tee -a "$LOG"
 grep -q "GRADLE_EXIT=0" "$LOG"
