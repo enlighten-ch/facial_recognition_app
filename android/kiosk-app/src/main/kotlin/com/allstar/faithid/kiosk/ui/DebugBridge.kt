@@ -16,6 +16,10 @@ object DebugBridge {
     @Volatile
     var finishScreen: (() -> Unit)? = null
 
+    /** Types text into the focused field; adb's `input text` cannot type Korean. */
+    @Volatile
+    var typeText: ((String) -> Unit)? = null
+
     /** While true, real camera frames are dropped so injected observations are not overwritten. */
     @Volatile
     var cameraPaused: Boolean = false

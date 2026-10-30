@@ -12,6 +12,7 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.view.WindowManager
+import android.widget.EditText
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
@@ -179,6 +180,7 @@ class MainActivity : AppCompatActivity() {
         screen.render(flow.state, settings.uiSavingMessage)
         DebugBridge.observe = { observation -> main.post { flow.onObservation(observation) } }
         DebugBridge.finishScreen = { main.post { finish() } }
+        DebugBridge.typeText = { text -> main.post { (currentFocus as? EditText)?.let { it.setText(text); it.setSelection(text.length) } } }
 
         camera = CameraController(this, findViewById<PreviewView>(R.id.previewView), ::onFrame, ::showError)
         applyGuide()

@@ -17,6 +17,7 @@ import kotlin.random.Random
  *   ... -a com.allstar.faithid.kiosk.DEBUG_NO_FACE
  *   ... -a com.allstar.faithid.kiosk.DEBUG_CAMERA --ez paused true
  *   ... -a com.allstar.faithid.kiosk.DEBUG_FINISH   (closes the kiosk screen; syncing goes on)
+ *   ... -a com.allstar.faithid.kiosk.DEBUG_TYPE --es text 김하은   (into the focused field)
  *
  * The same identity always yields samples of the same synthetic face (512-d, ~0.74 apart).
  */
@@ -24,6 +25,10 @@ class DebugObservationReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == ACTION_FINISH) {
             DebugBridge.finishScreen?.invoke()
+            return
+        }
+        if (intent.action == ACTION_TYPE) {
+            DebugBridge.typeText?.invoke(intent.getStringExtra("text").orEmpty())
             return
         }
         val observe = DebugBridge.observe ?: return
@@ -58,6 +63,7 @@ class DebugObservationReceiver : BroadcastReceiver() {
         const val ACTION_NO_FACE = "com.allstar.faithid.kiosk.DEBUG_NO_FACE"
         const val ACTION_CAMERA = "com.allstar.faithid.kiosk.DEBUG_CAMERA"
         const val ACTION_FINISH = "com.allstar.faithid.kiosk.DEBUG_FINISH"
+        const val ACTION_TYPE = "com.allstar.faithid.kiosk.DEBUG_TYPE"
         private const val DIM = 512
         private val noise = Random(System.nanoTime())
     }
