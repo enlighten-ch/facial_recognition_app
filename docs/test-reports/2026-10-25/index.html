@@ -225,9 +225,10 @@ footer { font-size: var(--step--1); color: var(--muted); border-top: 1px solid v
       <li><a href="#multi">4. 다중 키오스크 통합</a></li>
       <li><a href="#unit">5. 단위 테스트</a></li>
       <li><a href="#device">6. 기기 E2E</a></li>
-      <li><a href="#face">7. 실제 얼굴 검증</a></li>
-      <li><a href="#issues">8. 발견한 문제</a></li>
-      <li><a href="#limits">9. 한계와 다음 일</a></li>
+      <li><a href="#two-tablets">7. 태블릿 두 대</a></li>
+      <li><a href="#face">8. 실제 얼굴 검증</a></li>
+      <li><a href="#issues">9. 발견한 문제</a></li>
+      <li><a href="#limits">10. 한계와 다음 일</a></li>
       <li><a href="operations.md">첨부: 운영 정보</a></li>
     </ol>
   </nav>
@@ -237,9 +238,9 @@ footer { font-size: var(--step--1); color: var(--muted); border-top: 1px solid v
       <h1>여러 키오스크가 동시에 써도 1초 안에 맞춰지는가</h1>
       <p class="lede">개선한 키오스크(Faith ID)와 DB 서버(Faith DB Server)를 단위·통합·기기 단계로 시험했습니다. 키오스크 여러 대가 순서 없이 내려받고 변경을 보내는 상황에서, 변경이 서버와 다른 키오스크에 닿는 시간과 서버 응답 시간을 측정했고, 측정에서 찾은 서버 지연을 고친 뒤 다시 측정했습니다.</p>
       <dl class="meta">
-        <dt>시험일</dt><dd>2026-10-25</dd>
-        <dt>코드</dt><dd>브랜치 <code>improve/stability-attendance</code>, 커밋 <code>9f2b781</code></dd>
-        <dt>관련 문서</dt><dd>개발 현황 보고서(같은 날짜), GitHub 이슈 #1~#19</dd>
+        <dt>시험일</dt><dd>2026-10-25, 태블릿 두 대 시험 2026-10-30</dd>
+        <dt>코드</dt><dd>브랜치 <code>improve/stability-attendance</code>, 커밋 <code>9f2b781</code>, 두 대 시험 <code>767517f</code></dd>
+        <dt>관련 문서</dt><dd>개발 현황 보고서(같은 날짜), GitHub 이슈 #1~#22</dd>
       </dl>
     </header>
 
@@ -272,9 +273,9 @@ footer { font-size: var(--step--1); color: var(--muted); border-top: 1px solid v
           <div class="detail">등록, 인식, 출석, 본인 확인, 삭제 전파. 실제 얼굴은 1명만 시험</div>
         </div>
         <div class="verdict">
-          <div class="verdict-head"><span class="what">시험 중 발견한 문제</span><span class="pill ok">8건</span></div>
+          <div class="verdict-head"><span class="what">시험 중 발견한 문제</span><span class="pill ok">9건</span></div>
           <div class="figure">모두 수정</div>
-          <div class="detail">화면 회전, 출석 전송 지연, 서버 쓰기 지연, CSV 경합, 서버 중지 시 DB 열림, 한 태블릿 운영 시 동기화 멈춤, 재로드 알림 무시, 서버 종료 중 반복 동기화</div>
+          <div class="detail">화면 회전, 출석 전송 지연, 서버 쓰기 지연, CSV 경합, 서버 중지 시 DB 열림, 한 태블릿 운영 시 동기화 멈춤, 재로드 알림 무시, 서버 종료 중 반복 동기화, Android 13 동기화 알림 미표시</div>
         </div>
       </div>
       <div class="callout">
@@ -288,7 +289,7 @@ footer { font-size: var(--step--1); color: var(--muted); border-top: 1px solid v
         <table class="mid">
           <thead><tr><th>구분</th><th>내용</th></tr></thead>
           <tbody>
-            <tr><td>태블릿</td><td>Galaxy Tab S7+ (SM-T970), Android 13. Faith DB Server와 Faith ID(디버그 빌드)를 함께 실행. 가로 거치</td></tr>
+            <tr><td>태블릿</td><td>Galaxy Tab S7+ (SM-T970), Android 13. Faith DB Server와 Faith ID(디버그 빌드)를 함께 실행. 가로 거치. 7장에서는 Galaxy Tab S7+ (SM-T975N, Android 13)를 키오스크로 추가</td></tr>
             <tr><td>에뮬레이터</td><td>Android 15 (API 35), 1752×2800. 키오스크 E2E와 저장소 계측 테스트</td></tr>
             <tr><td>PC</td><td>Linux x86-64, JDK 21. 단위·통합 테스트와 모의 키오스크 실행. 태블릿과 같은 Wi-Fi (192.168.45.x)</td></tr>
             <tr><td>측정 DB</td><td>1,000명 × 얼굴 샘플 12개(512차원) = 전체 24.7 MB. 측정용 빈 데이터 폴더에서 진행하고 끝나면 원래 폴더로 되돌림(실제 데이터 80명은 건드리지 않음)</td></tr>
@@ -544,8 +545,66 @@ footer { font-size: var(--step--1); color: var(--muted); border-top: 1px solid v
       <p>정상 동작에는 영향이 없습니다. 수정 후 PC 성능 측정에서 부하 시 등록 전파 p95는 496 ms로 이전 범위(453~543 ms) 안이고, 한 태블릿 운영 시나리오도 6/6을 다시 통과했습니다.</p>
     </section>
 
+    <section id="two-tablets" aria-labelledby="h-two-tablets">
+      <h2 id="h-two-tablets"><span class="num">7</span>태블릿 두 대 (2026-10-30)</h2>
+      <p>같은 Wi-Fi의 Galaxy Tab S7+ 두 대로 서버와 키오스크를 나눠 3장의 측정을 다시 했습니다. 실제 운영처럼 <b>태블릿 1은 서버와 키오스크를 함께</b> 실행하고, <b>태블릿 2는 키오스크만</b> 실행했습니다. 비교를 위해 태블릿 1이 서버만 실행한 경우도 측정했습니다. 두 경우 모두 PC의 모의 키오스크 8대가 같은 서버에 붙어 부하를 만들었고, 측정 DB는 3장과 같은 1,000명입니다.</p>
+      <div class="table-wrap">
+        <table class="mid">
+          <thead><tr><th>기기</th><th>역할</th><th>준비</th></tr></thead>
+          <tbody>
+            <tr><td>태블릿 1 · SM-T970 (Wi-Fi)</td><td>서버 + 키오스크</td><td>서버 앱 최신 빌드로 갱신</td></tr>
+            <tr><td>태블릿 2 · SM-T975N (LTE 모델, Wi-Fi 사용)</td><td>키오스크</td><td>앱 1.0 → 최신 빌드로 갱신. 기존 데이터는 먼저 PC에 백업. 키오스크 설정에서 서버 주소를 바꾸자 서비스가 새 설정으로 다시 열려 승인 후 80명을 받음</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>변경이 실제 키오스크 앱에 닿는 시간</h3>
+      <div class="table-wrap">
+        <table class="wide">
+          <thead><tr><th>항목</th><th class="n">태블릿 1<br>서버만</th><th class="n">태블릿 1<br>서버 + 키오스크</th></tr></thead>
+          <tbody>
+            <tr><td>등록 → 태블릿 1 키오스크 반영 (같은 기기, n=10)</td><td class="n">-</td><td class="n good">p50 142 · p95 181 ms</td></tr>
+            <tr><td>등록 → 태블릿 2 키오스크 반영 (다른 기기, n=10)</td><td class="n good">p50 166 · p95 227 ms</td><td class="n good">p50 234 · p95 277 ms</td></tr>
+            <tr><td>DB 다시 읽기 → 전체 수신 1,153명 · 24.7 MB, 태블릿 1</td><td class="n">-</td><td class="n good">4.8 s</td></tr>
+            <tr><td>DB 다시 읽기 → 전체 수신 1,153명 · 24.7 MB, 태블릿 2</td><td class="n">약 5 s</td><td class="n good">6.3 s</td></tr>
+            <tr><td>DB 다시 읽기 → 전체 수신 80명 (실제 운영 규모), 태블릿 1 · 2</td><td class="n">-</td><td class="n good">0.44 · 0.68 s</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>전체 수신 시간은 서버의 '다시 읽기' 확인을 누른 순간부터라서 서버가 DB를 다시 읽는 시간도 들어 있습니다. 서버만 실행한 경우의 값은 서버 로그가 초 단위라 대략값입니다. 태블릿 2가 태블릿 1보다 느린 이유는 데이터가 공유기를 두 번 지나기 때문입니다. 같은 태블릿의 키오스크는 공유기를 거치지 않습니다.</p>
+
+      <h3>서버 응답과 모의 키오스크 8대 (서버 + 키오스크 태블릿)</h3>
+      <div class="table-wrap">
+        <table class="mid">
+          <thead><tr><th>항목</th><th class="n">유휴 p95</th><th class="n">부하 p95</th></tr></thead>
+          <tbody>
+            <tr><td>등록 → 모의 키오스크 7대 모두</td><td class="n good">200 ms</td><td class="n good">194 ms</td></tr>
+            <tr><td>출석 → 서버 저장</td><td class="n good">103 ms</td><td class="n good">102 ms</td></tr>
+            <tr><td>변경 조회 API</td><td class="n good">31 ms</td><td class="n good">28 ms</td></tr>
+            <tr><td>변경 전송 API</td><td class="n good">88 ms</td><td class="n good">75 ms</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>부하는 초당 7.1건 변경입니다. 키오스크를 함께 실행해도 서버 응답은 서버만 실행할 때(부하 시 변경 조회 p95 35 ms, 등록 전파 p95 215 ms)와 차이가 없었습니다.</p>
+
+      <h3>운영 시나리오</h3>
+      <div class="table-wrap">
+        <table class="mid">
+          <thead><tr><th>확인</th><th>결과</th></tr></thead>
+          <tbody>
+            <tr><td>태블릿 1에서 한 태블릿 운영 시나리오(6장과 같은 절차), 태블릿 2 키오스크도 연결된 상태</td><td><span class="pill ok">6/6</span></td></tr>
+            <tr><td>서버 중지 21초 후 다시 시작: 두 키오스크 모두 오프라인 1줄, 연결됨 1줄</td><td><span class="pill ok">반복 없음</span></td></tr>
+            <tr><td>서버 시작 후 다시 연결되기까지 (재시도 간격이 3초에서 두 배씩 늘어남)</td><td><span class="pill part">9.7 s</span></td></tr>
+            <tr><td>Android 13에서 동기화 알림 표시 (#22)</td><td><span class="pill ok">수정 후 표시</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>서버를 다시 시작한 뒤 약 10초 동안은 키오스크가 오프라인으로 동작합니다. 인식과 출석은 계속되고 출석은 연결 후 전송됩니다. 더 빨리 붙어야 한다면 재시도 최대 간격을 줄이면 되지만, 지금 값으로 운영에 문제는 없다고 판단해 바꾸지 않았습니다.</p>
+      <p>시험 중 Android 13에서 키오스크의 동기화 알림이 보이지 않는 문제(#22)를 찾았습니다. 키오스크가 알림 권한을 요청하지 않았기 때문이고, 동기화 자체는 계속되고 있었습니다. 권한을 요청하고, 허용하면 알림을 다시 띄우도록 고쳐 두 태블릿에서 확인했습니다. 수정 후 JVM 테스트 122건(원격 1건 건너뜀)을 다시 통과했습니다.</p>
+    </section>
+
     <section id="face" aria-labelledby="h-face">
-      <h2 id="h-face"><span class="num">7</span>실제 얼굴 검증 (Galaxy Tab S7+)</h2>
+      <h2 id="h-face"><span class="num">8</span>실제 얼굴 검증 (Galaxy Tab S7+)</h2>
       <p>태블릿을 가로로 세운 상태에서 1명이 직접 등록하고 출석했습니다. 아래는 키오스크 로그의 값입니다. 판정 기준은 점수 0.40 이상, 2위와 차이 0.10 이상입니다.</p>
       <div class="table-wrap">
         <table class="wide">
@@ -570,7 +629,7 @@ footer { font-size: var(--step--1); color: var(--muted); border-top: 1px solid v
     </section>
 
     <section id="issues" aria-labelledby="h-issues">
-      <h2 id="h-issues"><span class="num">8</span>시험 중 발견한 문제</h2>
+      <h2 id="h-issues"><span class="num">9</span>시험 중 발견한 문제</h2>
       <div class="table-wrap">
         <table class="wide">
           <thead><tr><th>이슈</th><th>내용</th><th>어떻게 찾았나</th><th>상태</th></tr></thead>
@@ -583,25 +642,26 @@ footer { font-size: var(--step--1); color: var(--muted); border-top: 1px solid v
             <tr><td class="id">#18</td><td>서버가 꺼지는 수 초 동안 키오스크가 동기화를 빠르게 반복함</td><td>태블릿 측정 로그</td><td><span class="pill ok">수정</span></td></tr>
             <tr><td class="id">#19</td><td>서버와 키오스크를 한 태블릿에서 쓰면, 키오스크 화면이 뒤로 가 종료된 동안 동기화가 멈춤</td><td>태블릿 측정</td><td><span class="pill ok">수정</span></td></tr>
             <tr><td class="id">#20</td><td>서버에서 DB 다시 읽기(백업 복원) 후 키오스크가 30초 주기 조회 때에야 반영</td><td>한 태블릿 운영 시험</td><td><span class="pill ok">수정</span></td></tr>
+            <tr><td class="id">#22</td><td>Android 13 이상에서 키오스크 동기화 알림이 보이지 않음 (동기화는 정상)</td><td>태블릿 두 대 시험 준비</td><td><span class="pill ok">수정</span></td></tr>
           </tbody>
         </table>
       </div>
     </section>
 
     <section id="limits" aria-labelledby="h-limits">
-      <h2 id="h-limits"><span class="num">9</span>한계와 다음 일</h2>
+      <h2 id="h-limits"><span class="num">10</span>한계와 다음 일</h2>
       <ul class="plain">
         <li><b>실제 얼굴은 1명.</b> 닮은 사람, 안경·마스크, 어린이, 역광에서의 오인식과 미인식 비율은 아직 모릅니다. 실제 교인 데이터로 판정 기준(0.40 / 0.10)을 다시 정해야 합니다.</li>
-        <li><b>키오스크는 PC에서 모의.</b> 동시 키오스크 8대는 PC 프로세스였고 실제 태블릿 키오스크는 1대였습니다. 서버 쪽 동작과 Wi-Fi 경로는 실제와 같지만, 키오스크 기기의 저장 속도는 실제 키오스크 앱 측정(반영 181 ms, 전체 수신 약 4.2초)으로만 확인했습니다.</li>
+        <li><b>실제 키오스크는 2대까지.</b> 동시 키오스크 8대는 PC 프로세스였고, 실제 태블릿 키오스크는 2대(서버와 같은 태블릿 1대, 다른 태블릿 1대)까지 확인했습니다.</li>
         <li><b>규모.</b> 1,000명, 초당 6.7건 변경까지 확인했습니다. 실제 주일 출석 몰림은 이보다 훨씬 적을 것으로 보지만, 실제 현장 수치로 확인한 것은 아닙니다.</li>
         <li><b>인쇄.</b> 프린터 연결은 이번 시험 범위가 아닙니다. 출석은 인쇄 결과와 무관하게 기록되는 것을 확인했습니다.</li>
-        <li><b>다음 일.</b> 실제 교인 여러 명의 얼굴로 판정 기준 조정. (<code>main</code> 병합은 PR #21, 커밋 <code>8396222</code>로 끝났습니다.) 키오스크 설정에서 서버 주소 등을 바꿀 때 서비스가 새 설정으로 다시 여는 경로는 기기에서 따로 시험하지 않았습니다.</li>
+        <li><b>다음 일.</b> 실제 교인 여러 명의 얼굴로 판정 기준 조정. (<code>main</code> 병합은 PR #21, 커밋 <code>8396222</code>로 끝났습니다.) 키오스크 설정에서 서버 주소를 바꿀 때 서비스가 새 설정으로 다시 여는 경로는 태블릿 2 준비 때 확인했습니다.</li>
       </ul>
       <p>설치 파일 위치, 서버 주소·관리자 계정, 데이터 폴더와 복원 절차는 첨부 <a href="operations.md">운영 정보 (operations.md)</a>에 정리했습니다.</p>
     </section>
 
     <footer>
-      <p>재현: <code>./gradlew test :integration-tests:test</code> (단위·통합·PC 성능 측정), <code>tools/perf_android_server.sh &lt;serial&gt; &lt;server-url&gt; &lt;label&gt; &lt;admin-password&gt;</code> (태블릿 서버 측정, 실제 데이터는 건드리지 않음), <code>tools/e2e_kiosk_flow.sh &lt;serial&gt; &lt;admin-password&gt;</code> (기기 E2E). 측정 결과 원본은 <code>android/integration-tests/build/perf/*.json</code>에 남습니다. 이 보고서에는 실제 교인 이름과 얼굴 이미지를 싣지 않았습니다.</p>
+      <p>재현: <code>./gradlew test :integration-tests:test</code> (단위·통합·PC 성능 측정), <code>tools/perf_android_server.sh &lt;serial&gt; &lt;server-url&gt; &lt;label&gt; &lt;admin-password&gt; [키오스크 serial,...]</code> (태블릿 서버 측정, 실제 데이터는 건드리지 않음), <code>tools/e2e_kiosk_flow.sh &lt;serial&gt; &lt;admin-password&gt;</code> (기기 E2E). 측정 결과 원본은 <code>android/integration-tests/build/perf/*.json</code>에 남습니다. 이 보고서에는 실제 교인 이름과 얼굴 이미지를 싣지 않았습니다.</p>
     </footer>
   </main>
 </div>
