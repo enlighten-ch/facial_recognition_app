@@ -122,8 +122,8 @@ article.feature h3:hover .anchor, article.feature h3 .anchor:focus-visible { opa
 .where .path { color: var(--ink); background: var(--surface); border: 1px solid var(--line); padding: 1px 8px; border-radius: 6px; }
 .text p { margin: 0; max-width: 65ch; }
 ol.steps { margin: 0; padding: 0; list-style: none; counter-reset: s; display: grid; gap: 8px; max-width: 65ch; }
-ol.steps li { counter-increment: s; display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; align-items: start; }
-ol.steps li::before { content: counter(s); font-family: var(--font-mono); font-size: 0.8rem; font-weight: 500; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--surface); margin-top: 3px; }
+ol.steps li { counter-increment: s; position: relative; padding-left: 38px; min-height: 28px; }
+ol.steps li::before { content: counter(s); position: absolute; left: 0; top: 2px; font-family: var(--font-mono); font-size: 0.8rem; font-weight: 500; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--surface); }
 ul.facts { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; max-width: 65ch; }
 .note { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--admin); border-radius: 8px; padding: 10px 14px; font-size: 0.93rem; max-width: 65ch; }
 .note.tip { border-left-color: var(--member); }
