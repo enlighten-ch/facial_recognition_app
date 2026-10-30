@@ -48,9 +48,7 @@ class KioskSyncService : Service() {
         super.onCreate()
         getSystemService(NotificationManager::class.java)
             .createNotificationChannel(NotificationChannel(CHANNEL_ID, "서버 동기화", NotificationManager.IMPORTANCE_LOW))
-        val type = if (Build.VERSION.SDK_INT >= 34) ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE else 0
-        runCatching { ServiceCompat.startForeground(this, NOTIFICATION_ID, notification(), type) }
-            .onFailure { KioskLog.get(this).log("동기화 서비스를 포그라운드로 올리지 못했습니다: ${it.message}") }
+        showNotification()
         // The screen saves its settings before starting the service; after a restart by the system there is no screen.
         val store = KioskSettingsStore(this)
         open(KioskData.ensureIdentity(store.load()).also { store.save(it) })
@@ -64,6 +62,13 @@ class KioskSyncService : Service() {
         data?.close()
         data = null
         super.onDestroy()
+    }
+
+    /** Also called once notifications are allowed: Android 13+ drops one posted before that. */
+    fun showNotification() {
+        val type = if (Build.VERSION.SDK_INT >= 34) ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE else 0
+        runCatching { ServiceCompat.startForeground(this, NOTIFICATION_ID, notification(), type) }
+            .onFailure { KioskLog.get(this).log("동기화 서비스를 포그라운드로 올리지 못했습니다: ${it.message}") }
     }
 
     /** Opens (or reopens after a settings change) the local database and the server connection. */

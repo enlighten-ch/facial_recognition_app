@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
@@ -113,6 +114,12 @@ class MainActivity : AppCompatActivity() {
 
     private val cameraPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) camera.start(settings.cameraIndex == 1) else showError("카메라 권한이 필요합니다. 기기 설정에서 허용해 주세요.")
+        requestNotificationPermission()
+    }
+
+    /** Without it Android 13+ hides the sync service's notification; syncing itself does not need it. */
+    private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) syncService?.showNotification()
     }
 
     private val bluetoothPermission = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
@@ -179,8 +186,17 @@ class MainActivity : AppCompatActivity() {
         loadModel()
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
             camera.start(settings.cameraIndex == 1)
+            requestNotificationPermission()
         } else {
             cameraPermission.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    private fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
     }
 
