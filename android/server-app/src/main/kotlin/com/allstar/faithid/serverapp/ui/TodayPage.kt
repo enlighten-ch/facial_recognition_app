@@ -163,8 +163,9 @@ internal class TodayPage(
             textSize = 15f
             gravity = Gravity.END
             fontFeatureSettings = "tnum"
+            maxLines = 1
             setTextColor(0xFFFFFFFF.toInt())
-        }, LinearLayout.LayoutParams(context.dp(56), LinearLayout.LayoutParams.WRAP_CONTENT))
+        }, LinearLayout.LayoutParams(context.dp(76), LinearLayout.LayoutParams.WRAP_CONTENT))
         return row
     }
 }

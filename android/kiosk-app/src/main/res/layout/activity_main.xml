@@ -628,6 +628,7 @@
                             android:orientation="horizontal">
 
                             <com.allstar.faithid.kiosk.ui.guide.GuideAvatarView
+                                android:id="@+id/opFormAvatar"
                                 android:layout_width="68dp"
                                 android:layout_height="68dp" />
 
@@ -860,6 +861,7 @@
                         android:orientation="horizontal">
 
                         <com.allstar.faithid.kiosk.ui.guide.GuideAvatarView
+                            android:id="@+id/opOutputAvatar"
                             android:layout_width="80dp"
                             android:layout_height="80dp" />
 

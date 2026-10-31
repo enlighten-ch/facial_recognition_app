@@ -38,6 +38,9 @@ import com.allstar.faithid.kiosk.flow.UiState
 import com.allstar.faithid.kiosk.settings.GuideAudience
 import com.allstar.faithid.kiosk.settings.KioskSettings
 import com.allstar.faithid.kiosk.ui.guide.CelebrationView
+import com.allstar.faithid.kiosk.ui.guide.GuideAvatarView
+import com.allstar.faithid.kiosk.ui.guide.GuideGestures
+import com.allstar.faithid.kiosk.ui.guide.GuideMoment
 import com.allstar.faithid.kiosk.ui.guide.HeadView
 import com.allstar.faithid.kiosk.ui.guide.StarFieldView
 import com.google.android.material.chip.Chip
@@ -79,6 +82,9 @@ class OperationScreen(
     private val count: TextView = v(R.id.opCount)
     private val home: ImageButton = v(R.id.opHomeButton)
     private val gear: ImageButton = v(R.id.opSettingsButton)
+    private val avatar: GuideAvatarView = v(R.id.opAvatar)
+    private val formAvatar: GuideAvatarView = v(R.id.opFormAvatar)
+    private val outputAvatar: GuideAvatarView = v(R.id.opOutputAvatar)
 
     private val form: View = v(R.id.opForm)
     private val formTitle: TextView = v(R.id.opFormTitle)
@@ -117,6 +123,20 @@ class OperationScreen(
     var guideScale: Float = 1f
         private set
 
+    /** The last moment 빛이 reacted to, so each one plays once. */
+    private var moment: GuideMoment? = null
+
+    /** Now and then, while nobody is in front of the kiosk, 빛이 does something small. */
+    private val idleGesture = object : Runnable {
+        override fun run() {
+            val s = shown
+            if (s != null && s.screen == Screen.MONITOR && s.ready && s.candidates.isEmpty() && !s.showRegisterChoice && !celebration.isPlaying) {
+                react(GuideMoment.IDLE, force = true)
+            }
+            main.postDelayed(this, kotlin.random.Random.nextLong(GuideGestures.IDLE_GESTURE_MIN_MS, GuideGestures.IDLE_GESTURE_MAX_MS))
+        }
+    }
+
     private val openSettings = Runnable {
         gearIdle()
         actions.openSettings()
@@ -141,6 +161,11 @@ class OperationScreen(
         gradeInput.setOnEditorActionListener { _, action, _ ->
             (action == EditorInfo.IME_ACTION_DONE).also { if (it) submit.performClick() }
         }
+        // Let 빛이 hop above its own row.
+        listOf(avatar, formAvatar, outputAvatar).forEach { a ->
+            (a.parent as? ViewGroup)?.let { it.clipChildren = false; (it.parent as? ViewGroup)?.clipChildren = false }
+        }
+        main.postDelayed(idleGesture, GuideGestures.IDLE_GESTURE_MIN_MS)
         guideOverlay.onOvalChanged = { placeAroundOval() }
         root.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> placeAroundOval() }
     }
@@ -202,6 +227,7 @@ class OperationScreen(
         sub.visibility = View.GONE
         count.text = capture.registration?.let { copy.count(it.target, it.target) } ?: ""
         guideOverlay.animateScale(1f)
+        react(GuideMoment.REGISTER_DONE)
         val oval = ovalIn(celebration, 1f)
         celebration.celebrate(oval[0], oval[1], kids, copy.celebration) {
             val waiting = pending ?: next
@@ -216,6 +242,10 @@ class OperationScreen(
         val previous = shown
         shown = state
         val screen = state.screen
+        if (previous?.screen == Screen.REGISTER_INFO && screen != Screen.REGISTER_INFO) {
+            hideKeyboard()
+            listOf(nameInput, departmentInput, gradeInput).forEach { it.clearFocus() }
+        }
         val camera = screen == Screen.MONITOR || screen == Screen.REGISTER_CAPTURE
         val capture = screen == Screen.REGISTER_CAPTURE && state.duplicateOf == null
 
@@ -230,6 +260,8 @@ class OperationScreen(
         banner.visibility = if (camera && state.banner.isNotEmpty()) View.VISIBLE else View.GONE
         banner.text = "● ${state.banner}"
         banner.setTextColor(Color.parseColor("#33263F"))
+
+        momentFor(previous, state)?.let { react(it) }
 
         val found = screen == Screen.REGISTER_CAPTURE || state.showRegisterChoice || state.candidates.isNotEmpty()
         guideOverlay.outlineColor = if (found) APRICOT else Color.WHITE
@@ -328,6 +360,50 @@ class OperationScreen(
         tag.translationY = -260 * density
         tag.animate().translationY(0f).setDuration(1500).setInterpolator(android.view.animation.DecelerateInterpolator()).start()
         if (kids) celebration.confetti()
+    }
+
+    /** What just happened, in 빛이's terms (see [GuideGestures.TABLE]). */
+    private fun momentFor(previous: UiState?, state: UiState): GuideMoment? {
+        val sameScreen = previous?.screen == state.screen
+        return when (state.screen) {
+            Screen.MONITOR -> when {
+                !state.ready -> GuideMoment.OFFLINE
+                state.registered != null -> GuideMoment.SAVED
+                state.showRegisterChoice -> GuideMoment.UNKNOWN_FACE
+                state.candidates.size > 1 && state.candidates.none { it.selected } -> GuideMoment.LOOK_ALIKE
+                state.candidates.isNotEmpty() -> GuideMoment.RECOGNIZED
+                else -> {
+                    moment = null
+                    null
+                }
+            }
+            Screen.REGISTER_CAPTURE -> {
+                val r = state.registration
+                val before = previous?.registration
+                when {
+                    state.duplicateOf != null -> GuideMoment.ALREADY_KNOWN
+                    !sameScreen -> GuideMoment.REGISTER_START
+                    r != null && before != null && r.total > before.total -> GuideMoment.STAR_COLLECTED
+                    r?.stalled == true -> GuideMoment.STALLED
+                    else -> moment
+                }
+            }
+            Screen.REGISTER_INFO -> GuideMoment.NAME_FORM
+            Screen.OUTPUT -> GuideMoment.NAME_TAG
+        }
+    }
+
+    /** Plays the gestures for [next] once (again only after the moment changed, unless [force]). */
+    private fun react(next: GuideMoment, force: Boolean = false) {
+        // A collected star is worth a nod every time; other moments play once.
+        if (!force && next == moment && next != GuideMoment.STAR_COLLECTED) return
+        moment = next
+        val who = when {
+            output.visibility == View.VISIBLE -> outputAvatar
+            form.visibility == View.VISIBLE -> formAvatar
+            else -> avatar
+        }
+        who.play(GuideGestures.gesturesFor(next))
     }
 
     private fun setBubble(line: GuideCopy.Line) {
@@ -430,8 +506,7 @@ class OperationScreen(
 
     /** Choosing a chip means typing is done; the keyboard would otherwise cover the save button. */
     private fun hideKeyboard() {
-        val focused = activity.currentFocus ?: return
-        activity.getSystemService(android.view.inputmethod.InputMethodManager::class.java)?.hideSoftInputFromWindow(focused.windowToken, 0)
+        activity.getSystemService(android.view.inputmethod.InputMethodManager::class.java)?.hideSoftInputFromWindow(root.windowToken, 0)
     }
 
     private fun setFromChip(input: EditText, text: String) {
