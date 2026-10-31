@@ -140,6 +140,13 @@ figure.shot.tablet img { border: 10px solid var(--bezel); border-radius: 18px; b
 figure.shot.dialog img { border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,.12), 0 8px 24px rgba(20,30,60,.14); border: 1px solid var(--line); }
 figure.shot figcaption { font-size: 0.85rem; color: var(--muted); }
 
+/* gesture table */
+.table-wrap { overflow-x: auto; max-width: 65ch; }
+table.guide { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
+table.guide th { text-align: left; font-weight: 600; color: var(--muted); font-size: 0.85rem; border-bottom: 1px solid var(--line); padding: 6px 10px; }
+table.guide td { border-bottom: 1px solid var(--line); padding: 7px 10px; vertical-align: top; }
+table.guide td:first-child { white-space: normal; }
+
 .trouble { display: grid; gap: 0; border-top: 1px solid var(--line); max-width: 860px; }
 .trouble > div { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--line); }
 .trouble b { font-weight: 600; }
@@ -166,9 +173,9 @@ footer { color: var(--muted); font-size: 0.85rem; max-width: 760px; border-top: 
 
   <main>
     <header class="cover">
-      <span class="eyebrow">ALLSTAR FAITH ID · 사용 안내서 · 앱 2.0 (2026-10-30 기준)</span>
+      <span class="eyebrow">ALLSTAR FAITH ID · 사용 안내서 · 앱 2.0 따뜻한 안내자 (2026-10-31 기준)</span>
       <h1>얼굴로 출석하고 이름표를 뽑는 교회 키오스크</h1>
-      <p class="lede">Faith ID는 카메라 앞에 선 교인을 알아보고 이름표를 출력하면서 출석을 남깁니다. 명단과 출석부는 서버 태블릿의 Faith DB Server가 보관하고, 키오스크 여러 대가 같은 명단을 1초 안에 나눠 씁니다.</p>
+      <p class="lede">Faith ID는 카메라 앞에 선 교인을 안내 캐릭터 빛이와 함께 알아보고, 이름표를 출력하면서 출석을 남깁니다. 명단과 출석부는 서버 태블릿의 Faith DB Server가 보관하고, 키오스크 여러 대가 같은 명단을 1초 안에 나눠 씁니다.</p>
       <div class="roles">
         <span>이 안내서의 표시:</span>
         <span><span class="role member">교인</span> 키오스크 앞에서 직접</span>
@@ -218,18 +225,19 @@ footer { color: var(--muted); font-size: 0.85rem; max-width: 760px; border-top: 
           <h3><a href="#setup">처음 설치</a> <span class="role operator">운영자</span></h3>
           <ul>
             <li><a href="#install">앱 설치</a></li>
-            <li><a href="#server-start">서버 시작과 로그인</a></li>
-            <li><a href="#connect">키오스크 연결과 승인</a></li>
+            <li><a href="#server-start">서버 시작과 오늘의 순서</a></li>
+            <li><a href="#connect">키오스크 연결과 허락</a></li>
             <li><a href="#one-tablet">한 태블릿에서 함께 쓰기</a></li>
           </ul>
         </div>
         <div class="cat">
           <h3><a href="#checkin">출석하기</a> <span class="role member">교인</span></h3>
           <ul>
+            <li><a href="#guide">안내하는 빛이</a></li>
             <li><a href="#recognize">얼굴로 출석하고 이름표 받기</a></li>
-            <li><a href="#register">처음 오신 분 등록</a></li>
+            <li><a href="#register">처음 오신 분 등록 (12가지 동작)</a></li>
             <li><a href="#confirm">이미 등록된 분 확인</a></li>
-            <li><a href="#candidates">비슷한 얼굴 중 고르기</a></li>
+            <li><a href="#candidates">닮은 얼굴 중 고르기</a></li>
             <li><a href="#label-only">등록 없이 이름표만</a></li>
             <li><a href="#home">처음 화면으로</a></li>
           </ul>
@@ -244,8 +252,8 @@ footer { color: var(--muted); font-size: 0.85rem; max-width: 760px; border-top: 
         <div class="cat">
           <h3><a href="#people">명단 관리</a> <span class="role admin">관리자</span></h3>
           <ul>
-            <li><a href="#people-find">찾기와 고치기</a></li>
-            <li><a href="#people-delete">명단에서 삭제</a></li>
+            <li><a href="#people-find">찾기, 정렬, 고치기</a></li>
+            <li><a href="#people-delete">명단에서 지우기</a></li>
             <li><a href="#people-csv">엑셀로 한꺼번에 고치기</a></li>
             <li><a href="#restore">백업에서 복원</a></li>
           </ul>
@@ -253,7 +261,7 @@ footer { color: var(--muted); font-size: 0.85rem; max-width: 760px; border-top: 
         <div class="cat">
           <h3><a href="#attendance">출석 기록</a> <span class="role admin">관리자</span></h3>
           <ul>
-            <li><a href="#attendance-day">날짜별 출석 보기</a></li>
+            <li><a href="#attendance-day">날짜별 출석 표</a></li>
             <li><a href="#attendance-export">출석부 파일로 받기</a></li>
           </ul>
         </div>
@@ -261,7 +269,7 @@ footer { color: var(--muted); font-size: 0.85rem; max-width: 760px; border-top: 
           <h3><a href="#kiosks">키오스크 관리</a> <span class="role admin">관리자</span></h3>
           <ul>
             <li><a href="#kiosk-list">키오스크 상태 보기</a></li>
-            <li><a href="#kiosk-remove">승인 해제</a></li>
+            <li><a href="#kiosk-remove">연결 끊기와 요청 거절</a></li>
             <li><a href="#server-stop">서버 중지와 종료</a></li>
           </ul>
         </div>
@@ -270,13 +278,15 @@ footer { color: var(--muted); font-size: 0.85rem; max-width: 760px; border-top: 
           <ul>
             <li><a href="#server-settings">서버 설정</a> <span class="role admin">관리자</span></li>
             <li><a href="#password">관리자 비밀번호 바꾸기</a> <span class="role admin">관리자</span></li>
+            <li><a href="#server-dev">서버 개발자 화면과 로그</a> <span class="role admin">관리자</span></li>
             <li><a href="#kiosk-settings">키오스크 설정</a> <span class="role operator">운영자</span></li>
-            <li><a href="#developer">연결 상태 화면</a> <span class="role operator">운영자</span></li>
+            <li><a href="#guide-lines">빛이의 말 바꾸기</a> <span class="role operator">운영자</span></li>
+            <li><a href="#developer">키오스크 개발자 화면</a> <span class="role operator">운영자</span></li>
           </ul>
         </div>
         <div class="cat">
           <h3><a href="#trouble">문제 해결</a></h3>
-          <p>서버에 연결되지 않을 때, 승인 대기에서 멈출 때, 인식이 잘 안 될 때 등.</p>
+          <p>서버에 연결되지 않을 때, 허락 대기에서 멈출 때, 인식이 잘 안 될 때, 태블릿 키보드 오류 창이 뜰 때 등.</p>
         </div>
       </div>
     </section>
@@ -292,49 +302,49 @@ footer { color: var(--muted); font-size: 0.85rem; max-width: 760px; border-top: 
       <article class="feature" id="install">
         <div class="text">
           <h3>앱 설치 <span class="role operator">운영자</span> <a class="anchor" href="#install" aria-label="이 항목 링크">#</a></h3>
-          <p>두 앱을 설치합니다. 서버 태블릿에는 Faith DB Server를, 키오스크 태블릿에는 Faith ID를 설치하고, 한 태블릿에서 함께 쓸 때는 둘 다 설치합니다.</p>
+          <p>서버 태블릿에는 Faith DB Server를, 키오스크 태블릿에는 Faith ID를 설치하고, 한 태블릿에서 함께 쓸 때는 둘 다 설치합니다.</p>
           <ul class="facts">
-            <li>Faith ID (키오스크): <code>faith_id.apk</code>, 약 253 MB. 얼굴 인식 모델이 들어 있습니다.</li>
-            <li>Faith DB Server (서버): <code>faith_db.apk</code>, 약 20 MB.</li>
+            <li>Faith ID (키오스크): <code>faith_id.apk</code>. 얼굴 인식 모델이 들어 있어 크기가 큽니다.</li>
+            <li>Faith DB Server (서버): <code>faith_db.apk</code>.</li>
             <li>파일 위치와 서버 주소, 관리자 계정은 담당자가 따로 가진 운영 정보 문서를 보세요.</li>
           </ul>
-          <div class="note tip">이전 버전(1.0)을 쓰던 태블릿에 덮어 설치해도 설정과 데이터는 그대로 옮겨집니다. 그래도 설치 전에 <code>/sdcard/FaceDB</code> 폴더를 PC에 복사해 두세요.</div>
+          <div class="note tip">이전 버전 위에 덮어 설치해도 설정과 데이터는 그대로입니다. 그래도 설치 전에 <code>/sdcard/faceDB</code> 폴더를 PC에 복사해 두세요.</div>
         </div>
       </article>
 
       <article class="feature" id="server-start">
         <div class="text">
-          <h3>서버 시작과 로그인 <span class="role admin">관리자</span> <a class="anchor" href="#server-start" aria-label="이 항목 링크">#</a></h3>
-          <div class="where">위치 <span class="path">Faith DB Server › 현황</span></div>
+          <h3>서버 시작과 오늘의 순서 <span class="role admin">관리자</span> <a class="anchor" href="#server-start" aria-label="이 항목 링크">#</a></h3>
+          <div class="where">위치 <span class="path">Faith DB Server › 오늘의 순서</span></div>
           <ol class="steps">
             <li>Faith DB Server를 열고 관리자 ID와 비밀번호로 로그인합니다. 처음 비밀번호 <code>1234</code>로 들어가면 새 비밀번호를 정하라고 안내합니다.</li>
-            <li>얼굴 DB와 출석부를 저장할 폴더 권한(모든 파일 접근)을 묻으면 <span class="btn ghost">권한 화면 열기</span>에서 허용합니다.</li>
-            <li><span class="btn">서버 시작</span>을 누릅니다. 위쪽 표시가 <b>실행 중</b>으로 바뀌고, 등록 인원과 데이터 폴더가 보입니다.</li>
-            <li>화면의 <span class="path">DB 서버 주소: http://…:18080</span>을 적어 둡니다. 키오스크에 이 주소를 입력합니다.</li>
+            <li>저장소 권한(모든 파일 접근)을 물으면 <span class="btn ghost">권한 화면 열기</span>에서 허용합니다.</li>
+            <li>첫 화면 <b>오늘의 순서</b>를 위에서부터 확인합니다. 1번 <b>서버 켜기</b>가 아직이면 <span class="btn">서버 시작</span>을 누릅니다.</li>
+            <li>2번 <b>키오스크 연결</b>에 허락을 기다리는 기기가 있으면 <span class="btn">허락하기</span>를 누릅니다. 3번은 명단 인원과 얼굴 사진 수, 4번은 예배 뒤 <span class="btn ghost">출석부 저장</span>입니다.</li>
+            <li>오른쪽 보라색 칸에 지금까지 출석 인원과 부서별 막대가 보입니다. <span class="btn ghost">누가 왔는지 보기</span>는 출석 탭으로 갑니다.</li>
           </ol>
-          <div class="note">태블릿을 다시 켜면 서버도 다시 시작해야 합니다. 매번 누르기 번거로우면 <a href="#server-settings">서버 설정</a>에서 자동 시작을 켤 수 있습니다.</div>
+          <div class="note">태블릿을 다시 켜면 서버도 다시 시작해야 합니다. 번거로우면 <a href="#server-settings">서버 설정</a>에서 자동 시작을 켭니다. 서버 태블릿은 <b>충전기에 꽂아 두세요</b>. 배터리가 부족해 절전에 들어가면 키오스크가 서버에 닿지 못할 수 있습니다.</div>
         </div>
         <div class="shots">
-          <figure class="shot tablet"><img src="img/server-login.webp" alt="Faith DB Server 로그인 화면: 관리자 ID, 비밀번호 입력란과 로그인 버튼" loading="lazy" width="1400" height="876"><figcaption>로그인 화면</figcaption></figure>
-          <figure class="shot tablet"><img src="img/server-status.webp" alt="현황 탭: 서버 실행 중, 등록 인원, 데이터 폴더, DB 서버 주소와 서버 시작·중지 버튼, 아래에 키오스크 목록" loading="lazy" width="1400" height="876"><figcaption>현황 탭. 서버 상태와 키오스크가 입력할 주소, 연결된 키오스크가 보입니다.</figcaption></figure>
+          <figure class="shot tablet"><img src="img/server-login.webp" alt="Faith DB 서버 로그인 화면: 관리자 ID, 비밀번호 입력란과 로그인 버튼" loading="lazy" width="1400" height="876"><figcaption>로그인</figcaption></figure>
+          <figure class="shot tablet"><img src="img/server-today.webp" alt="오늘의 순서: 서버 켜기, 키오스크 연결, 명단, 예배 후 출석부 저장 네 단계와 오른쪽에 지금까지 출석 인원과 부서별 막대" loading="lazy" width="1400" height="876"><figcaption>오늘의 순서. 위에서부터 차례로 확인합니다.</figcaption></figure>
         </div>
       </article>
 
       <article class="feature" id="connect">
         <div class="text">
-          <h3>키오스크 연결과 승인 <span class="role operator">운영자</span> <span class="role admin">관리자</span> <a class="anchor" href="#connect" aria-label="이 항목 링크">#</a></h3>
-          <div class="where">위치 <span class="path">Faith ID › 설정(톱니) › DB 서버</span> 그리고 <span class="path">Faith DB Server › 현황 › 키오스크</span></div>
+          <h3>키오스크 연결과 허락 <span class="role operator">운영자</span> <span class="role admin">관리자</span> <a class="anchor" href="#connect" aria-label="이 항목 링크">#</a></h3>
+          <div class="where">위치 <span class="path">Faith ID › 설정 › DB 서버</span> 그리고 <span class="path">Faith DB Server › 키오스크</span></div>
           <ol class="steps">
-            <li>키오스크에서 Faith ID를 엽니다. 카메라 권한과 알림 권한을 묻으면 허용합니다.</li>
-            <li>오른쪽 위 톱니 버튼을 눌러 설정을 열고 <b>DB 서버</b> 탭의 <b>DB 서버 주소</b>에 서버 화면에 나온 주소를 입력한 뒤 <span class="btn ghost">저장</span>합니다.</li>
-            <li>키오스크 왼쪽 아래에 <b>서버 승인 대기 중 (client-…)</b>이 표시됩니다.</li>
-            <li>서버 앱 <b>현황</b>의 키오스크 목록에 같은 ID가 <b>승인 대기</b>로 나타나면, 우리 교회 기기인지 확인하고 <span class="btn ghost">승인</span>을 누릅니다. 여러 대는 <span class="btn">대기 중 전체 승인</span>으로 한 번에 승인합니다.</li>
-            <li>승인되면 키오스크가 명단 전체를 받고 바로 인식을 시작합니다. 80명 기준 1초 안쪽입니다.</li>
+            <li>키오스크에서 Faith ID를 엽니다. 카메라 권한과 알림 권한을 물으면 허용합니다.</li>
+            <li>오른쪽 위 구석의 거의 보이지 않는 톱니를 <b>1초 넘게 길게 눌러</b> 설정을 엽니다(<a href="#kiosk-settings">키오스크 설정</a>). <b>DB 서버</b> 탭의 <b>DB 서버 주소</b>에 서버 앱 <b>키오스크</b> 탭 아래 <b>새 키오스크 연결</b>에 나온 주소를 입력하고 저장합니다.</li>
+            <li>키오스크에 서버 허락을 기다린다는 안내가 나옵니다.</li>
+            <li>서버 앱 <b>키오스크</b> 탭(또는 오늘의 순서 2번)에 같은 기기가 <b>허락 대기</b>로 나타나면, 우리 교회 기기인지 확인하고 <span class="btn">허락하기</span>를 누릅니다. 모르는 기기는 <span class="btn ghost">거절</span>합니다. 여러 대가 기다리면 <span class="btn">대기 중 전체 허락</span>이 나타납니다.</li>
+            <li>허락되면 키오스크가 명단 전체를 받고 바로 인식을 시작합니다. 80명 기준 1초 안쪽입니다.</li>
           </ol>
         </div>
-        <div class="shots">
-          <figure class="shot tablet"><img src="img/kiosk-pending.webp" alt="키오스크 대기 화면, 왼쪽 아래에 서버 승인 대기 중 표시" loading="lazy" width="1400" height="876"><figcaption>승인을 기다리는 키오스크. 왼쪽 아래에 키오스크 ID가 보입니다.</figcaption></figure>
-          <figure class="shot tablet"><img src="img/server-pending.webp" alt="서버 현황 탭의 키오스크 목록에 승인 대기 상태의 키오스크와 승인, 거절 버튼" loading="lazy" width="1400" height="876"><figcaption>서버에서 승인. 모르는 기기는 거절합니다.</figcaption></figure>
+        <div class="shots one">
+          <figure class="shot tablet"><img src="img/server-kiosks.webp" alt="서버 앱 키오스크 탭: 연결됨 상태의 키오스크 카드와 연결 끊기 버튼, 아래에 새 키오스크 연결 주소" loading="lazy" width="1400" height="876"><figcaption>키오스크 탭. 아래 칸의 주소를 키오스크 설정에 입력합니다.</figcaption></figure>
         </div>
       </article>
 
@@ -344,7 +354,6 @@ footer { color: var(--muted); font-size: 0.85rem; max-width: 760px; border-top: 
           <p>서버 태블릿에서도 Faith ID를 키오스크로 쓸 수 있습니다. 서버 주소는 처음 값 <code>http://127.0.0.1:18080</code> 그대로 두면 됩니다.</p>
           <ul class="facts">
             <li>Faith ID를 열면 알림 영역에 <b>Faith ID 키오스크 · 서버와 동기화를 유지하고 있습니다</b>가 표시됩니다. 서버 앱을 앞에 띄워 두어도 키오스크는 뒤에서 명단을 받고 출석을 보냅니다.</li>
-            <li>알림 권한을 거절했다면 알림만 보이지 않고 동기화는 계속됩니다. 태블릿 설정 › 애플리케이션 › Allstar Faith ID › 알림에서 다시 켤 수 있습니다.</li>
             <li>서버 앱에서 일을 마치면 Faith ID로 돌아오세요. 모델과 명단을 다시 불러오지 않고 바로 인식 화면이 됩니다.</li>
           </ul>
         </div>
@@ -355,63 +364,101 @@ footer { color: var(--muted); font-size: 0.85rem; max-width: 760px; border-top: 
     <section id="checkin" class="chapter" aria-labelledby="h-checkin">
       <div class="chapter-head">
         <span class="eyebrow">출석하기</span>
-        <h2 id="h-checkin">카메라 앞에 서면 알아봅니다</h2>
-        <p>키오스크 화면 가운데 타원에 얼굴을 맞추면 됩니다. 출석은 <b>이름표 출력 버튼을 누른 순간</b> 기록되고, 프린터가 없거나 인쇄를 취소해도 출석은 남습니다.</p>
+        <h2 id="h-checkin">빛이가 알아보고 안내합니다</h2>
+        <p>카메라가 화면 전체에 보이고, 위쪽 말풍선의 <b>빛이</b>가 할 일을 하나씩 알려 줍니다. 버튼은 아래쪽에 반투명하게 떠 있습니다. 출석은 <b>이름표 버튼을 누른 순간</b> 기록되고, 프린터가 없거나 인쇄를 취소해도 출석은 남습니다.</p>
       </div>
+
+      <article class="feature" id="guide">
+        <div class="text">
+          <h3>안내하는 빛이 <span class="role member">교인</span> <a class="anchor" href="#guide" aria-label="이 항목 링크">#</a></h3>
+          <p>빛이는 키오스크의 안내 캐릭터입니다. 몇 초마다 눈을 깜빡이고, 아무도 없을 때는 가끔 두리번거리거나 살짝 뛰어오릅니다. 상황마다 아래처럼 반응합니다.</p>
+          <div class="table-wrap">
+            <table class="guide">
+              <thead><tr><th>상황</th><th>빛이의 동작</th></tr></thead>
+              <tbody>
+                <tr><td>이름을 찾았을 때</td><td>살짝 점프</td></tr>
+                <tr><td>처음 보는 얼굴</td><td>갸우뚱</td></tr>
+                <tr><td>닮은 얼굴이 여럿일 때</td><td>갸우뚱하고 두리번</td></tr>
+                <tr><td>얼굴 등록 시작, 별 하나를 모을 때마다</td><td>끄덕</td></tr>
+                <tr><td>등록이 잘 안될 때</td><td>갸우뚱</td></tr>
+                <tr><td>별 12개를 다 모았을 때, 등록을 저장했을 때</td><td>콩콩 두 번 점프</td></tr>
+                <tr><td>이미 등록된 얼굴일 때</td><td>갸우뚱</td></tr>
+                <tr><td>이름을 적을 때</td><td>끄덕</td></tr>
+                <tr><td>이름표가 나올 때</td><td>살짝 점프하고 흔들흔들</td></tr>
+                <tr><td>서버를 기다릴 때</td><td>졸린 눈</td></tr>
+                <tr><td>아무도 없을 때 (10초 남짓마다)</td><td>두리번, 살짝 점프, 두 번 깜빡, 흔들흔들 중 하나</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p><b>안내 대상</b>을 <a href="#kiosk-settings">설정 › 일반</a>에서 어린이 또는 어른으로 고릅니다. 어린이는 반말과 별·꽃가루, 어른은 같은 빛이가 정중한 말투로 안내합니다(예: “반가워, 하늘아!” / “이하늘 님, 환영합니다”).</p>
+          <div class="note tip">동작 표는 앱 코드의 한 곳(<code>GuideGestures</code>)에 모여 있어 개발자가 쉽게 바꿀 수 있습니다.</div>
+        </div>
+        <div class="shots">
+          <figure class="shot tablet"><img src="img/kiosk-idle.webp" alt="키오스크 대기 화면: 카메라가 화면 전체, 위에 빛이와 말풍선 '안녕! 나는 빛이야. 동그라미 안에 얼굴을 보여 줄래?', 가운데 얼굴 동그라미" loading="lazy" width="1400" height="876"><figcaption>대기 화면 (어린이)</figcaption></figure>
+          <figure class="shot tablet"><img src="img/kiosk-adults.webp" alt="어른 모드 인식 화면: 이하늘 님, 환영합니다와 이름표 출력, 본인이 아닙니다 버튼" loading="lazy" width="1400" height="876"><figcaption>어른 모드. 같은 빛이가 정중하게 안내합니다 (예시 인물).</figcaption></figure>
+          <figure class="shot tablet"><img src="img/kiosk-adults-register.webp" alt="어른 모드 등록: 고개를 왼쪽으로 돌린 채 커진 원을 얼굴로 채워 주세요, 별 대신 동그란 점, 1 / 12 동작" loading="lazy" width="1400" height="876"><figcaption>어른 모드 등록. 별 대신 차분한 점으로 표시합니다.</figcaption></figure>
+        </div>
+      </article>
 
       <article class="feature" id="recognize">
         <div class="text">
           <h3>얼굴로 출석하고 이름표 받기 <span class="role member">교인</span> <a class="anchor" href="#recognize" aria-label="이 항목 링크">#</a></h3>
           <ol class="steps">
-            <li>화면의 타원 안에 얼굴이 들어오도록 서서 앞을 바라봅니다.</li>
-            <li><b>반가워요 (이름)!</b>이 나오면 오른쪽 아래 <span class="btn">이름표 출력하기</span>를 누릅니다.</li>
-            <li>이름표가 나오고 몇 초 뒤 처음 화면으로 돌아갑니다. 같은 날 여러 번 출석하면 첫 출석과 마지막 시각, 횟수가 함께 남습니다.</li>
+            <li>화면 가운데 동그라미 안에 얼굴이 들어오도록 서서 앞을 바라봅니다.</li>
+            <li>빛이가 <b>반가워, (이름)!</b>이라고 하면 아래쪽 <span class="btn">이름표 받기</span>를 누릅니다. 다른 사람으로 알아봤다면 <span class="btn ghost">나 아닌데?</span>를 누릅니다.</li>
+            <li>이름표 카드가 내려오고, 이름표를 가져가라는 안내 뒤 몇 초 지나 처음 화면으로 돌아갑니다. 같은 날 여러 번 출석하면 첫 시각과 횟수가 함께 남습니다.</li>
           </ol>
           <p>인식될 때마다 키오스크가 그날의 얼굴 모습을 조금씩 더 배워(자동 보정) 시간이 지날수록 잘 알아봅니다.</p>
         </div>
         <div class="shots">
-          <figure class="shot tablet"><img src="img/kiosk-idle.webp" alt="키오스크 대기 화면: 환영해요 문구와 카메라 화면 가운데 얼굴을 맞출 타원" loading="lazy" width="1400" height="876"><figcaption>대기 화면</figcaption></figure>
-          <figure class="shot tablet"><img src="img/kiosk-recognized.webp" alt="인식 성공 화면: 반가워요 김하은 문구와 오른쪽 아래 이름표 출력하기 버튼" loading="lazy" width="1400" height="876"><figcaption>인식되면 이름과 출력 버튼이 나타납니다 (예시 인물).</figcaption></figure>
+          <figure class="shot tablet"><img src="img/kiosk-recognized.webp" alt="인식 성공 화면: 반가워, 하늘아! 말풍선과 아래쪽 반투명 이름표 받기, 나 아닌데? 버튼" loading="lazy" width="1400" height="876"><figcaption>인식되면 빛이가 이름을 부릅니다 (예시 인물).</figcaption></figure>
+          <figure class="shot tablet"><img src="img/kiosk-output.webp" alt="이름표 화면: 왼쪽에 부서 색 띠가 있는 이하늘, 유년부 · 2학년 이름표 카드, 오른쪽에 잘 왔어, 하늘아! 이름표를 가져가요" loading="lazy" width="1400" height="876"><figcaption>이름표가 나올 때. 부서마다 색 띠가 다릅니다.</figcaption></figure>
         </div>
       </article>
 
       <article class="feature" id="register">
         <div class="text">
-          <h3>처음 오신 분 등록 <span class="role member">교인</span> <a class="anchor" href="#register" aria-label="이 항목 링크">#</a></h3>
+          <h3>처음 오신 분 등록 (12가지 동작) <span class="role member">교인</span> <a class="anchor" href="#register" aria-label="이 항목 링크">#</a></h3>
           <ol class="steps">
-            <li>등록되지 않은 얼굴이면 <b>얼굴이 등록되어 있지 않아요</b>가 나옵니다. <span class="btn">등록 시작하기</span>를 누릅니다.</li>
-            <li>화살표가 가리키는 쪽으로 천천히 얼굴을 돌립니다. 왼쪽, 오른쪽, 위, 아래 방향마다 3장씩 모두 12장을 모읍니다.</li>
-            <li><b>얼굴등록이 완료되었어요!</b>가 나오면 이름, 부서, 학년을 입력하고 <span class="btn">저장하기</span>를 누릅니다.</li>
-            <li>저장된 명단은 서버와 다른 키오스크에 1초 안에 전달됩니다. 다음부터는 바로 인식됩니다.</li>
+            <li>등록되지 않은 얼굴이면 빛이가 <b>처음 보는 얼굴이네! 우리 친구 할까?</b>라고 묻습니다. <span class="btn">좋아, 등록할래!</span>를 누릅니다.</li>
+            <li>빛이가 바라볼 방향과 동그라미 크기를 한 문장으로 알려 줍니다. 예: <b>왼쪽을 보면서 동그라미에 얼굴을 쏙 맞춰 줄래?</b></li>
+            <li>방향마다 동그라미가 <b>보통 → 크게 → 작게</b> 바뀝니다. 큰 동그라미는 얼굴로 꽉 채우도록(조금 다가오기), 작은 동그라미는 쏙 들어가도록(조금 물러나기) 맞춥니다. 왼쪽, 오른쪽, 위, 아래 네 방향 × 세 동그라미로 모두 12가지 동작입니다.</li>
+            <li>바라볼 쪽에 별 3개가 있고 한 동작을 마칠 때마다 별이 켜집니다. 오른쪽 그림의 머리가 같은 방향으로 돌고 다가오거나 물러나며 시범을 보입니다. 오른쪽 아래에 모은 별 수가 나옵니다.</li>
+            <li>별 12개를 다 모으면 큰 별과 꽃가루로 축하합니다. 이어서 선생님이 이름을 적고, 부서와 학년은 아래 칩에서 고릅니다(없는 부서는 직접 입력). <span class="btn">다 됐어요</span>를 누르면 저장됩니다.</li>
+            <li>빛이가 <b>등록 완료!</b>를 알려 주고, 명단은 서버와 다른 키오스크에 1초 안에 전달됩니다.</li>
           </ol>
-          <div class="note tip">같은 이름이 있어도 괜찮습니다. 부서와 학년으로 구분하고, 기존 분의 얼굴 데이터는 덮어쓰지 않습니다.</div>
+          <div class="note tip">큰 동그라미에서 가까이 오지 않거나 작은 동그라미에서 물러나지 않으면 그 동작은 다시 기다립니다. 잘 안되면 빛이가 갸우뚱하며 조금 가까이 오거나 멀어져 보라고 알려 줍니다. 같은 이름이 있어도 괜찮습니다. 부서와 학년으로 구분합니다.</div>
         </div>
         <div class="shots">
-          <figure class="shot tablet"><img src="img/kiosk-unknown.webp" alt="미등록 안내: 얼굴이 등록되어 있지 않아요, 오른쪽에 등록 시작하기와 이름표만 출력하기 버튼" loading="lazy" width="1400" height="876"><figcaption>처음 보는 얼굴</figcaption></figure>
-          <figure class="shot tablet"><img src="img/kiosk-register-start.webp" alt="등록 중: 얼굴을 화면 기준 왼쪽으로 돌려주세요 안내와 왼쪽 화살표" loading="lazy" width="1400" height="876"><figcaption>화살표를 따라 얼굴을 돌립니다.</figcaption></figure>
-          <figure class="shot tablet"><img src="img/kiosk-register-progress.webp" alt="등록 중: 턱을 살짝 들고 위를 봐주세요 안내와 위쪽 화살표" loading="lazy" width="1400" height="876"><figcaption>방향마다 3장씩 모읍니다.</figcaption></figure>
-          <figure class="shot tablet"><img src="img/kiosk-register-filled.webp" alt="이름 입력: 이름 김하은, 부서 청년부, 학년 2학년과 저장하기 버튼" loading="lazy" width="1400" height="876"><figcaption>이름, 부서, 학년을 입력하고 저장합니다 (예시 인물).</figcaption></figure>
+          <figure class="shot tablet"><img src="img/kiosk-unknown.webp" alt="처음 보는 얼굴: 빛이 말풍선과 아래쪽 좋아, 등록할래!, 오늘은 이름표만 버튼" loading="lazy" width="1400" height="876"><figcaption>처음 보는 얼굴</figcaption></figure>
+          <figure class="shot tablet"><img src="img/kiosk-register-start.webp" alt="등록 시작: 왼쪽을 보면서 동그라미에 얼굴을 쏙 맞춰 줄래?, 동그라미 둘레의 별, 오른쪽에 왼쪽을 보는 머리 그림" loading="lazy" width="1400" height="876"><figcaption>보통 동그라미. 별이 바라볼 쪽에 있습니다.</figcaption></figure>
+          <figure class="shot tablet"><img src="img/kiosk-register-big.webp" alt="큰 동그라미: 우아, 동그라미가 커졌다! 왼쪽을 보면서 얼굴로 꽉 채워 줄래?, 커진 동그라미와 다가오는 머리 그림" loading="lazy" width="1400" height="876"><figcaption>큰 동그라미. 얼굴로 꽉 채웁니다.</figcaption></figure>
+          <figure class="shot tablet"><img src="img/kiosk-register-small.webp" alt="작은 동그라미: 이번엔 작은 동그라미야! 왼쪽을 보면서 쏙 들어와 볼까?, 작아진 동그라미" loading="lazy" width="1400" height="876"><figcaption>작은 동그라미. 쏙 들어갑니다.</figcaption></figure>
+          <figure class="shot tablet"><img src="img/kiosk-register-progress.webp" alt="등록 진행: 아래를 보면서 동그라미에 얼굴을 쏙 맞춰 줄래?, 왼쪽·오른쪽·위 별이 켜지고 오른쪽 아래 별 9 / 12" loading="lazy" width="1400" height="876"><figcaption>세 방향을 마치면 별 9개</figcaption></figure>
+          <figure class="shot tablet"><img src="img/kiosk-celebration.webp" alt="축하 화면: 가운데 큰 별과 별 12개 다 모았다! 문구, 꽃가루" loading="lazy" width="1400" height="876"><figcaption>12가지 동작을 마치면 축하</figcaption></figure>
+          <figure class="shot tablet"><img src="img/kiosk-register-filled.webp" alt="이름 입력: 오른쪽에 이름 이하늘과 부서 칩, 다 됐어요 버튼, 왼쪽에는 카메라" loading="lazy" width="1400" height="876"><figcaption>이름을 적고 부서·학년 칩을 고릅니다 (예시 인물).</figcaption></figure>
+          <figure class="shot tablet"><img src="img/kiosk-registered.webp" alt="등록 완료: 빛이가 등록 완료! 반가워, 새봄아!라고 말하는 대기 화면" loading="lazy" width="1400" height="876"><figcaption>저장하면 빛이가 등록 완료를 알려 줍니다 (예시 인물).</figcaption></figure>
         </div>
       </article>
 
       <article class="feature" id="confirm">
         <div class="text">
           <h3>이미 등록된 분 확인 <span class="role member">교인</span> <a class="anchor" href="#confirm" aria-label="이 항목 링크">#</a></h3>
-          <p>이미 등록된 분이 다시 등록하려 하면, 얼굴을 모은 뒤 <b>이미 등록된 분과 얼굴이 매우 비슷해요: (이름)</b>을 보여 줍니다.</p>
+          <p>이미 등록된 분이 다시 등록하면, 12가지 동작을 마친 뒤 빛이가 <b>(이름) 맞아요?</b>라고 묻습니다.</p>
           <ul class="facts">
-            <li><span class="btn">본인이 맞아요</span>: 새로 만들지 않고 그분으로 출석합니다. 방금 모은 얼굴 사진은 그분의 데이터에 더해져 다음부터 더 잘 알아봅니다. 이어서 이름표를 출력하면 됩니다.</li>
-            <li><span class="btn">처음 등록이에요</span>: 닮은 다른 사람이면 누릅니다. 새 사람으로 등록합니다.</li>
+            <li><span class="btn">네, 맞아요</span>: 새로 만들지 않고 그분으로 출석합니다. 방금 모은 얼굴 사진은 그분의 데이터에 더해집니다.</li>
+            <li><span class="btn ghost">아니에요, 처음이에요</span>: 닮은 다른 사람이면 누릅니다. 이름 입력으로 이어집니다.</li>
           </ul>
         </div>
         <div class="shots one">
-          <figure class="shot tablet"><img src="img/kiosk-confirm-self.webp" alt="본인 확인 화면: 이미 등록된 분과 얼굴이 매우 비슷해요 김하은, 방향별 수집 완료 목록과 본인이 맞아요, 처음 등록이에요 버튼" loading="lazy" width="1400" height="876"><figcaption>본인 확인 질문</figcaption></figure>
+          <figure class="shot tablet"><img src="img/kiosk-confirm-self.webp" alt="본인 확인: 하늘아 맞아요? 말풍선과 네, 맞아요, 아니에요, 처음이에요 버튼" loading="lazy" width="1400" height="876"><figcaption>본인 확인 질문</figcaption></figure>
         </div>
       </article>
 
       <article class="feature" id="candidates">
         <div class="text">
-          <h3>비슷한 얼굴 중 고르기 <span class="role member">교인</span> <a class="anchor" href="#candidates" aria-label="이 항목 링크">#</a></h3>
-          <p>닮은 두 분(형제자매 등)이 모두 등록되어 있어 누구인지 확실하지 않으면, <b>유사한 얼굴이 있습니다. 이름을 선택해 주세요.</b>와 함께 후보 이름 버튼이 나옵니다. 내 이름을 누르고 <span class="btn">이름표 출력하기</span>를 누릅니다.</p>
+          <h3>닮은 얼굴 중 고르기 <span class="role member">교인</span> <a class="anchor" href="#candidates" aria-label="이 항목 링크">#</a></h3>
+          <p>닮은 형제자매가 모두 등록되어 있어 누구인지 확실하지 않으면, 빛이가 <b>어? 닮은 친구가 있네!</b>라고 하며 후보 이름 버튼을 보여 줍니다. 내 이름을 누르면 인사가 나오고, <span class="btn">이름표 받기</span>를 누릅니다. 아무도 아니면 <span class="btn ghost">둘 다 아니에요</span>를 누릅니다.</p>
           <p>후보가 자주 나오면 운영자가 <a href="#kiosk-settings">키오스크 설정 › 인식</a>의 기준을 조정합니다.</p>
         </div>
       </article>
@@ -421,19 +468,19 @@ footer { color: var(--muted); font-size: 0.85rem; max-width: 760px; border-top: 
           <h3>등록 없이 이름표만 <span class="role member">교인</span> <a class="anchor" href="#label-only" aria-label="이 항목 링크">#</a></h3>
           <p>방문객이나 얼굴 등록을 원하지 않는 분을 위한 기능입니다. 얼굴 데이터는 저장하지 않고, 출석부에는 <b>명단 외</b>로 남습니다.</p>
           <ol class="steps">
-            <li>미등록 안내 화면에서 <span class="btn">이름표만 출력하기</span>를 누릅니다.</li>
-            <li>이름표에 넣을 이름(필요하면 부서, 학년)을 입력하고 출력합니다.</li>
+            <li>처음 보는 얼굴 화면에서 <span class="btn ghost">오늘은 이름표만</span>을 누릅니다.</li>
+            <li>이름표에 넣을 이름을 적고 필요하면 부서와 학년을 고른 뒤 <span class="btn">이름표 받기</span>를 누릅니다.</li>
           </ol>
         </div>
         <div class="shots one">
-          <figure class="shot tablet"><img src="img/kiosk-guest-filled.webp" alt="이름표만 출력 입력 화면: 이름 이준호, 부서 새가족 입력 중, 아래에 화상 키보드" loading="lazy" width="1400" height="876"><figcaption>이름표에 넣을 내용 입력 (예시 인물)</figcaption></figure>
+          <figure class="shot tablet"><img src="img/kiosk-guest-filled.webp" alt="이름표만 화면: 이름표에 뭐라고 쓸까?, 이름 박새봄 입력, 이름표 받기 버튼" loading="lazy" width="1400" height="876"><figcaption>이름표에 넣을 내용 (예시 인물)</figcaption></figure>
         </div>
       </article>
 
       <article class="feature" id="home">
         <div class="text">
           <h3>처음 화면으로 <span class="role member">교인</span> <a class="anchor" href="#home" aria-label="이 항목 링크">#</a></h3>
-          <p>등록이나 입력을 그만두려면 오른쪽 위 둥근 화살표 버튼(처음으로)을 누릅니다. 이름표를 출력한 뒤에는 몇 초 뒤 저절로 처음 화면으로 돌아갑니다. 바로 옆 톱니 버튼은 운영자용 설정입니다.</p>
+          <p>등록이나 입력을 그만두려면 왼쪽 위 둥근 화살표 버튼(처음으로)을 누릅니다. 이름표가 나온 뒤에는 몇 초 지나 저절로 처음 화면으로 돌아갑니다. 오른쪽 위 구석의 흐린 톱니는 운영자용 설정이라 짧게 눌러서는 아무 일도 일어나지 않습니다.</p>
         </div>
       </article>
     </section>
@@ -443,7 +490,7 @@ footer { color: var(--muted); font-size: 0.85rem; max-width: 760px; border-top: 
       <div class="chapter-head">
         <span class="eyebrow">이름표 출력</span>
         <h2 id="h-print">프린터와 이름표 모양</h2>
-        <p>모두 키오스크 설정에서 합니다. 설정은 키오스크마다 따로 저장됩니다.</p>
+        <p>모두 <a href="#kiosk-settings">키오스크 설정</a>에서 합니다. 설정은 키오스크마다 따로 저장됩니다.</p>
       </div>
 
       <article class="feature" id="printer">
@@ -451,16 +498,16 @@ footer { color: var(--muted); font-size: 0.85rem; max-width: 760px; border-top: 
           <h3>프린터 연결 <span class="role operator">운영자</span> <a class="anchor" href="#printer" aria-label="이 항목 링크">#</a></h3>
           <div class="where">위치 <span class="path">Faith ID › 설정 › 인쇄</span></div>
           <ul class="facts">
-            <li><b>이름표 출력</b>: 끄면 출력 버튼을 눌러도 인쇄하지 않고 출석만 기록합니다.</li>
-            <li><b>프린터 종류 · Android 기본 인쇄</b>: 태블릿에 설치된 인쇄 서비스로 인쇄합니다. 누를 때마다 인쇄 화면이 열립니다.</li>
-            <li><b>Brother (Bluetooth)</b>: 먼저 태블릿 설정에서 프린터를 Bluetooth로 페어링한 뒤 <span class="btn ghost">페어링된 Brother 프린터 찾기</span>로 고르고, <span class="btn ghost">Brother 장착 용지 읽기</span>로 넣어 둔 용지 크기를 맞춥니다.</li>
+            <li><b>이름표 출력</b>: 끄면 버튼을 눌러도 인쇄하지 않고 출석만 기록합니다.</li>
+            <li><b>Android 기본 인쇄</b>: 태블릿에 설치된 인쇄 서비스로 인쇄합니다. 누를 때마다 인쇄 화면이 열립니다.</li>
+            <li><b>Brother QL-820NWB (Bluetooth)</b>: 태블릿 설정에서 먼저 페어링한 뒤 <span class="btn ghost">페어링된 Brother 프린터 찾기</span>로 고르고, <span class="btn ghost">Brother 장착 용지 읽기</span>로 용지 크기를 맞춥니다.</li>
             <li><b>Nemonic (Bluetooth)</b>: 프린터의 Bluetooth 주소를 입력합니다. 기본 용지는 Nemonic 72×50 mm입니다.</li>
-            <li>출력 매수, 출력 제한 시간, 출력 뒤 처음 화면으로 돌아가는 시간(기본 3초)도 여기서 정합니다.</li>
+            <li>출력 매수, 출력 제한 시간, 출력 뒤 처음 화면으로 돌아가는 시간도 여기서 정합니다.</li>
           </ul>
         </div>
         <div class="shots">
-          <figure class="shot dialog"><img src="img/kset-print.webp" alt="키오스크 설정 인쇄 탭: 이름표 출력 스위치, 프린터 종류, Brother와 Nemonic Bluetooth 주소, Brother 프린터 찾기 버튼" loading="lazy" width="900" height="979"><figcaption>설정 › 인쇄</figcaption></figure>
-          <figure class="shot tablet"><img src="img/kiosk-print-dialog.webp" alt="Android 기본 인쇄 화면의 미리보기: 김하은, 청년부, 2학년이 위아래로 놓인 이름표" loading="lazy" width="1400" height="876"><figcaption>Android 기본 인쇄의 미리보기. 이름, 부서, 학년이 겹치지 않게 놓입니다.</figcaption></figure>
+          <figure class="shot tablet"><img src="img/kset-print.webp" alt="키오스크 설정 인쇄 탭: 이름표 출력 스위치, 프린터 종류, Brother와 Nemonic Bluetooth 주소, Brother 프린터 찾기, 장착 용지 읽기 버튼" loading="lazy" width="1400" height="876"><figcaption>설정 › 인쇄</figcaption></figure>
+          <figure class="shot tablet"><img src="img/kiosk-print-dialog.webp" alt="Android 기본 인쇄 화면의 미리보기: 이름, 부서, 학년이 위아래로 놓인 이름표" loading="lazy" width="1400" height="876"><figcaption>Android 기본 인쇄의 미리보기</figcaption></figure>
         </div>
       </article>
 
@@ -469,15 +516,15 @@ footer { color: var(--muted); font-size: 0.85rem; max-width: 760px; border-top: 
           <h3>이름표 모양 바꾸기 <span class="role operator">운영자</span> <a class="anchor" href="#template" aria-label="이 항목 링크">#</a></h3>
           <div class="where">위치 <span class="path">Faith ID › 설정 › 출력 템플릿</span></div>
           <ol class="steps">
-            <li>교회 로고가 있는 배경을 쓰려면 <span class="btn ghost">이미지 불러오기</span>로 그림을 고릅니다. 방향이 맞지 않으면 <span class="btn ghost">이미지 시계방향 90도 회전</span>을 누릅니다.</li>
-            <li><b>글자 영역(점선)</b>의 위치와 크기(px)를 바꿔 이름이 들어갈 자리를 정합니다. 이름표는 1 mm에 8점으로 그려집니다.</li>
-            <li>아래쪽에서 넣을 줄 수(1~3줄)와 줄마다 내용(이름·부서·학년), 글자 크기, 위치 이동을 정합니다.</li>
+            <li>교회 로고가 있는 배경을 쓰려면 <span class="btn ghost">이미지 불러오기</span>로 그림을 고르고, 방향이 맞지 않으면 <span class="btn ghost">이미지 시계방향 90도 회전</span>을 누릅니다.</li>
+            <li><b>글자 영역(점선)</b>의 위치와 크기(px)로 이름이 들어갈 자리를 정합니다. 이름표는 1 mm에 8점으로 그려집니다.</li>
+            <li>넣을 줄 수(1~3줄)와 줄마다 내용(이름·부서·학년), 글자 크기, 위치 이동을 정합니다.</li>
             <li>왼쪽 미리보기를 확인하고 저장합니다.</li>
           </ol>
-          <div class="note tip"><b>줄 간격 자동 맞춤</b>을 켜 두면 긴 이름도 영역 안에서 줄여 겹치지 않게 놓습니다. 이전 버전에서 직접 맞춘 모양은 그대로 유지됩니다.</div>
+          <div class="note tip"><b>줄 간격 자동 맞춤</b>을 켜 두면 긴 이름도 영역 안에서 줄여 겹치지 않게 놓습니다. 끄면 이전 버전처럼 고정 위치에 놓여 글자가 크면 겹칠 수 있습니다.</div>
         </div>
-        <div class="shots one" style="max-width: 560px">
-          <figure class="shot dialog"><img src="img/kset-template.webp" alt="출력 템플릿 탭: 홍길동, 올스타반, 3학년 미리보기와 템플릿 이미지, 글자 영역 위치·크기 입력" loading="lazy" width="900" height="979"><figcaption>설정 › 출력 템플릿. 점선이 글자 영역입니다.</figcaption></figure>
+        <div class="shots one">
+          <figure class="shot tablet"><img src="img/kset-template.webp" alt="출력 템플릿 탭: 홍길동, 올스타반, 3학년 미리보기와 템플릿 이미지, 글자 영역 위치·크기 입력" loading="lazy" width="1400" height="876"><figcaption>설정 › 출력 템플릿. 점선이 글자 영역입니다.</figcaption></figure>
         </div>
       </article>
     </section>
@@ -492,33 +539,35 @@ footer { color: var(--muted); font-size: 0.85rem; max-width: 760px; border-top: 
 
       <article class="feature" id="people-find">
         <div class="text">
-          <h3>찾기와 고치기 <span class="role admin">관리자</span> <a class="anchor" href="#people-find" aria-label="이 항목 링크">#</a></h3>
+          <h3>찾기, 정렬, 고치기 <span class="role admin">관리자</span> <a class="anchor" href="#people-find" aria-label="이 항목 링크">#</a></h3>
           <div class="where">위치 <span class="path">Faith DB Server › 명단</span></div>
           <ol class="steps">
-            <li>위쪽 검색란에 이름, 부서, 학년 중 아무거나 입력하면 목록이 좁혀집니다.</li>
-            <li>고칠 사람의 <span class="btn ghost">수정</span>을 눌러 이름, 부서, 학년을 바꾸고 저장합니다.</li>
+            <li>검색란에 이름이나 부서를 입력하거나, 부서 칩을 눌러 그 부서만 봅니다.</li>
+            <li>표의 머리글(이름, 부서, 학년·나이, 얼굴 사진, 오늘)을 누르면 그 순서로 정렬하고, 다시 누르면 거꾸로 정렬합니다.</li>
+            <li>고칠 사람의 줄을 누르면 그 자리에서 이름, 부서, 학년 칸이 열립니다. 고치고 <span class="btn">저장</span>을 누릅니다.</li>
           </ol>
-          <p>목록 위 요약에 등록 인원과 동명이인 수가 나옵니다. 샘플 열은 그 사람의 얼굴 데이터 수(최대 100개)입니다.</p>
+          <p><b>얼굴 사진</b> 열은 그 사람의 얼굴 데이터 수, <b>오늘</b> 열은 오늘 출석 여부입니다.</p>
         </div>
         <div class="shots">
-          <figure class="shot tablet"><img src="img/server-people.webp" alt="명단 탭: 검색란, CSV 편집 반영, CSV 저장, DB 다시 읽기 버튼과 번호, 이름, 부서, 학년, 샘플, 최근 변경 열이 있는 목록" loading="lazy" width="1400" height="876"><figcaption>명단 탭 (예시 명단)</figcaption></figure>
-          <figure class="shot dialog"><img src="img/server-person-edit.webp" alt="명단 수정 창: 이름, 부서, 학년 입력란과 취소, 저장" loading="lazy" width="900" height="455"><figcaption>명단 수정</figcaption></figure>
+          <figure class="shot tablet"><img src="img/server-people.webp" alt="명단 탭: 검색란과 부서 칩, 이름·부서·학년·얼굴 사진·오늘 열의 표와 줄마다 고치기" loading="lazy" width="1400" height="876"><figcaption>명단 표 (예시 명단)</figcaption></figure>
+          <figure class="shot tablet"><img src="img/server-person-edit.webp" alt="명단 표에서 이하늘 줄이 열려 이름, 부서, 학년 칸과 저장, 닫기, 명단에서 지우기 버튼이 보임" loading="lazy" width="1400" height="876"><figcaption>줄을 누르면 그 자리에서 고칩니다.</figcaption></figure>
         </div>
       </article>
 
       <article class="feature" id="people-delete">
         <div class="text">
-          <h3>명단에서 삭제 <span class="role admin">관리자</span> <a class="anchor" href="#people-delete" aria-label="이 항목 링크">#</a></h3>
-          <p>사람의 <span class="btn ghost">삭제</span>를 누르면 확인 창이 뜹니다. 삭제하면 모든 키오스크에서도 지워지고 되돌릴 수 없습니다. 이미 남은 출석 기록은 지워지지 않습니다.</p>
+          <h3>명단에서 지우기 <span class="role admin">관리자</span> <a class="anchor" href="#people-delete" aria-label="이 항목 링크">#</a></h3>
+          <p>줄을 열고 <span class="btn ghost">명단에서 지우기</span>를 누르면 확인 창이 뜹니다. 지우면 모든 키오스크에서도 지워지고 되돌릴 수 없습니다. 이미 남은 출석 기록은 지워지지 않습니다.</p>
         </div>
-        <div class="shots one" style="max-width: 560px">
-          <figure class="shot dialog"><img src="img/server-person-delete.webp" alt="명단에서 삭제 확인 창: 김철수, 얼굴 샘플 12개, 모든 키오스크에서도 지워지고 되돌릴 수 없습니다" loading="lazy" width="900" height="323"><figcaption>삭제 확인</figcaption></figure>
+        <div class="shots one">
+          <figure class="shot tablet"><img src="img/server-person-delete.webp" alt="명단에서 삭제 확인 창: 이하늘 (유년부, 2학년), 얼굴 샘플 12개, 모든 키오스크에서도 지워지고 되돌릴 수 없습니다" loading="lazy" width="1400" height="876"><figcaption>지우기 확인</figcaption></figure>
         </div>
       </article>
 
       <article class="feature" id="people-csv">
         <div class="text">
           <h3>엑셀로 한꺼번에 고치기 <span class="role admin">관리자</span> <a class="anchor" href="#people-csv" aria-label="이 항목 링크">#</a></h3>
+          <div class="where">위치 <span class="path">Faith DB Server › 개발자 화면 › 데이터</span></div>
           <ol class="steps">
             <li><span class="btn ghost">CSV 저장</span>을 누르면 데이터 폴더에 <code>face_db.csv</code>가 만들어집니다.</li>
             <li>이 파일을 엑셀로 열어 이름, 부서, 학년을 고치고 같은 이름으로 저장합니다. 맨 끝 열(사람 구분 번호)은 고치지 않습니다.</li>
@@ -530,15 +579,16 @@ footer { color: var(--muted); font-size: 0.85rem; max-width: 760px; border-top: 
       <article class="feature" id="restore">
         <div class="text">
           <h3>백업에서 복원 (DB 다시 읽기) <span class="role admin">관리자</span> <a class="anchor" href="#restore" aria-label="이 항목 링크">#</a></h3>
+          <div class="where">위치 <span class="path">Faith DB Server › 개발자 화면 › 상태, 데이터</span></div>
           <ol class="steps">
-            <li><a href="#server-stop">현황 탭에서 서버를 중지</a>합니다.</li>
+            <li><a href="#server-stop">서버를 중지</a>합니다.</li>
             <li>데이터 폴더(<code>/sdcard/faceDB</code>)의 <code>face_meta.db</code>를 백업 파일로 바꾸고, 같은 이름의 <code>-wal</code>, <code>-shm</code> 파일은 지웁니다.</li>
-            <li>서버를 시작하고 명단 탭의 <span class="btn ghost">DB 다시 읽기</span>를 누릅니다.</li>
+            <li>서버를 시작하고 <b>데이터</b>의 <span class="btn ghost">DB 다시 읽기</span>를 누릅니다.</li>
             <li>모든 키오스크가 명단 전체를 새로 받습니다. 80명 기준 1초 안쪽입니다.</li>
           </ol>
         </div>
-        <div class="shots one" style="max-width: 560px">
-          <figure class="shot dialog"><img src="img/server-reload.webp" alt="DB 다시 읽기 확인 창: 백업 파일로 바꿀 때의 순서 안내와 취소, 다시 읽기 버튼" loading="lazy" width="900" height="357"><figcaption>DB 다시 읽기 확인</figcaption></figure>
+        <div class="shots one">
+          <figure class="shot tablet"><img src="img/server-reload.webp" alt="DB 다시 읽기 확인 창: 백업 파일로 바꿀 때의 순서 안내와 취소, 다시 읽기 버튼" loading="lazy" width="1400" height="876"><figcaption>DB 다시 읽기 확인</figcaption></figure>
         </div>
       </article>
     </section>
@@ -548,21 +598,22 @@ footer { color: var(--muted); font-size: 0.85rem; max-width: 760px; border-top: 
       <div class="chapter-head">
         <span class="eyebrow">출석 기록</span>
         <h2 id="h-attendance">서버 앱의 출석 탭</h2>
-        <p>출석은 키오스크에서 출력 버튼을 누른 순간 서버로 보내집니다. 서버가 꺼져 있던 동안의 출석은 다시 연결되면 들어옵니다.</p>
+        <p>출석은 키오스크에서 이름표 버튼을 누른 순간 서버로 보내집니다. 서버가 꺼져 있던 동안의 출석은 다시 연결되면 들어옵니다.</p>
       </div>
 
       <article class="feature" id="attendance-day">
         <div class="text">
-          <h3>날짜별 출석 보기 <span class="role admin">관리자</span> <a class="anchor" href="#attendance-day" aria-label="이 항목 링크">#</a></h3>
+          <h3>날짜별 출석 표 <span class="role admin">관리자</span> <a class="anchor" href="#attendance-day" aria-label="이 항목 링크">#</a></h3>
           <div class="where">위치 <span class="path">Faith DB Server › 출석</span></div>
           <ul class="facts">
-            <li><span class="btn ghost">◂ 전날</span> <span class="btn ghost">다음날 ▸</span> <span class="btn ghost">오늘</span>로 날짜를 옮깁니다.</li>
-            <li>요약 줄에 <b>출석 인원 / 명단 인원</b>, 명단 외 인원, 두 번 이상 체크인한 인원이 나옵니다.</li>
-            <li>사람마다 출석 여부, 첫 출석과 마지막 시각, 횟수, 출석한 키오스크가 보입니다. 명단 외 출석은 이름 뒤에 <b>(명단 외)</b>가 붙습니다.</li>
+            <li><span class="btn ghost">◀ 전날</span> <span class="btn ghost">오늘</span> <span class="btn ghost">다음날 ▶</span>로 날짜를 옮깁니다.</li>
+            <li>위쪽 부서 버튼에 부서별 출석 막대와 <b>온 사람/명단</b> 수가 나옵니다. 누르면 그 부서만 봅니다.</li>
+            <li><b>모두 / 온 사람 / 아직 안 온 사람</b>으로 나눠 보고, 이름으로 찾을 수 있습니다.</li>
+            <li>표에는 출석 여부, 이름, 부서, 학년, 처음 온 시각, 키오스크가 나옵니다. 머리글을 누르면 정렬합니다. 명단 외 출석에는 <b>명단 외</b> 표시가 붙습니다.</li>
           </ul>
         </div>
         <div class="shots one">
-          <figure class="shot tablet"><img src="img/server-attendance.webp" alt="출석 탭: 날짜 이동 버튼, 출석 2명 / 명단 117명 요약, 이름·부서·학년·출석·첫 출석·마지막·횟수·키오스크 열의 목록" loading="lazy" width="1400" height="876"><figcaption>출석 탭 (예시 명단)</figcaption></figure>
+          <figure class="shot tablet"><img src="img/server-attendance.webp" alt="출석 탭: 날짜 이동, 부서별 요약 버튼, 모두/온 사람/아직 안 온 사람, 출석·이름·부서·학년·온 시각·키오스크 열의 표" loading="lazy" width="1400" height="876"><figcaption>출석 표 (시험 데이터)</figcaption></figure>
         </div>
       </article>
 
@@ -570,13 +621,13 @@ footer { color: var(--muted); font-size: 0.85rem; max-width: 760px; border-top: 
         <div class="text">
           <h3>출석부 파일로 받기 <span class="role admin">관리자</span> <a class="anchor" href="#attendance-export" aria-label="이 항목 링크">#</a></h3>
           <ul class="facts">
-            <li><span class="btn ghost">출석부 CSV 저장</span>: 보고 있는 날짜의 출석부를 <code>attendance_2026-10-30.csv</code> 같은 이름으로 데이터 폴더에 저장합니다. 이 파일은 출석이 들어올 때마다 자동으로도 갱신됩니다.</li>
+            <li><span class="btn ghost">출석부 CSV 저장</span>: 보고 있는 날짜의 출석부를 <code>attendance_2026-10-31.csv</code> 같은 이름으로 데이터 폴더에 저장합니다. 출석이 들어올 때마다 자동으로도 갱신됩니다. 오늘의 순서 4번 <span class="btn ghost">출석부 저장</span>도 같은 일을 합니다.</li>
             <li><span class="btn ghost">기간 내보내기</span>: 최근 7일, 최근 4주, 이번 달, 지난 달, 최근 3개월 중 고르면 <code>attendance_시작일_끝일.csv</code>로 저장합니다.</li>
-            <li>저장된 위치는 화면 아래 알림으로 알려 줍니다. USB로 PC에 연결해 <code>faceDB</code> 폴더에서 가져갑니다.</li>
+            <li>USB로 PC에 연결해 <code>faceDB</code> 폴더에서 가져갑니다.</li>
           </ul>
         </div>
-        <div class="shots one" style="max-width: 560px">
-          <figure class="shot dialog"><img src="img/server-export-range.webp" alt="출석 기록 내보내기 기간 창: 최근 7일, 최근 4주, 이번 달, 지난 달, 최근 3개월" loading="lazy" width="900" height="539"><figcaption>기간 고르기</figcaption></figure>
+        <div class="shots one">
+          <figure class="shot tablet"><img src="img/server-export-range.webp" alt="출석 기록 내보내기 기간 창: 최근 7일, 최근 4주, 이번 달, 지난 달, 최근 3개월" loading="lazy" width="1400" height="876"><figcaption>기간 고르기</figcaption></figure>
         </div>
       </article>
     </section>
@@ -586,14 +637,14 @@ footer { color: var(--muted); font-size: 0.85rem; max-width: 760px; border-top: 
       <div class="chapter-head">
         <span class="eyebrow">키오스크 관리</span>
         <h2 id="h-kiosks">어떤 키오스크가 붙어 있나</h2>
-        <p>서버 앱 현황 탭의 아래쪽입니다.</p>
+        <p>서버 앱의 <b>키오스크</b> 탭입니다. 요청·허락·마지막 접속 시각을 표로 보려면 <a href="#server-dev">개발자 화면 › 키오스크</a>를 씁니다.</p>
       </div>
 
       <article class="feature" id="kiosk-list">
         <div class="text">
           <h3>키오스크 상태 보기 <span class="role admin">관리자</span> <a class="anchor" href="#kiosk-list" aria-label="이 항목 링크">#</a></h3>
           <ul class="facts">
-            <li>키오스크마다 상태 표시(<b>연결됨</b>, <b>오프라인</b>, <b>승인 대기</b>)와 ID, 기기 이름, 요청·승인·마지막 접속 시각이 나옵니다.</li>
+            <li>키오스크마다 상태(<b>연결됨</b>, <b>오프라인</b>, <b>허락 대기</b>)와 기기 이름, ID, 마지막 접속이 나옵니다.</li>
             <li>키오스크가 오프라인이어도 인식과 출석은 계속됩니다. 다시 연결되면 모아 둔 출석을 보냅니다.</li>
           </ul>
         </div>
@@ -601,23 +652,24 @@ footer { color: var(--muted); font-size: 0.85rem; max-width: 760px; border-top: 
 
       <article class="feature" id="kiosk-remove">
         <div class="text">
-          <h3>승인 해제 <span class="role admin">관리자</span> <a class="anchor" href="#kiosk-remove" aria-label="이 항목 링크">#</a></h3>
-          <p>더 쓰지 않거나 잃어버린 기기는 목록에서 <span class="btn ghost">승인 해제</span>를 누릅니다. 그 기기는 더 이상 명단을 받거나 출석을 보낼 수 없고, 다시 쓰려면 새로 승인해야 합니다.</p>
+          <h3>연결 끊기와 요청 거절 <span class="role admin">관리자</span> <a class="anchor" href="#kiosk-remove" aria-label="이 항목 링크">#</a></h3>
+          <p>더 쓰지 않거나 잃어버린 기기는 <span class="btn ghost">연결 끊기</span>를 누릅니다. 그 기기는 더 이상 명단을 받거나 출석을 보낼 수 없고, 다시 쓰려면 새로 허락해야 합니다. 허락을 기다리는 모르는 기기는 <span class="btn ghost">거절</span>합니다.</p>
         </div>
       </article>
 
       <article class="feature" id="server-stop">
         <div class="text">
           <h3>서버 중지와 종료 <span class="role admin">관리자</span> <a class="anchor" href="#server-stop" aria-label="이 항목 링크">#</a></h3>
+          <div class="where">위치 <span class="path">Faith DB Server › 개발자 화면 › 상태</span></div>
           <ul class="facts">
-            <li><span class="btn ghost">서버 중지</span> (현황 탭): 서버만 멈춥니다. 백업 파일을 바꿀 때 씁니다.</li>
-            <li><span class="btn ghost">서버 종료</span> (오른쪽 위): 서버를 끄고 앱을 닫습니다.</li>
+            <li><span class="btn ghost">서버 중지</span>: 서버만 멈춥니다. 백업 파일을 바꿀 때 씁니다. 멈춘 동안에는 <span class="btn">서버 시작</span>이 보입니다.</li>
+            <li><span class="btn ghost">서버 종료 (앱 닫기)</span>: 서버를 끄고 앱을 닫습니다.</li>
             <li>어느 쪽이든 키오스크는 오프라인으로 계속 동작하고, 서버를 다시 시작하면 10초 안쪽에 다시 연결됩니다.</li>
-            <li><span class="btn ghost">로그아웃</span>은 서버를 켠 채로 관리 화면만 잠급니다. 자리를 비울 때 누르세요.</li>
+            <li>앱 위쪽의 <span class="btn ghost">로그아웃</span>은 서버를 켠 채로 관리 화면만 잠급니다. 자리를 비울 때 누르세요.</li>
           </ul>
         </div>
-        <div class="shots one" style="max-width: 560px">
-          <figure class="shot dialog"><img src="img/server-quit.webp" alt="서버 종료 확인 창: 서버를 끄면 키오스크가 오프라인으로 동작합니다. 종료할까요?" loading="lazy" width="900" height="276"><figcaption>서버 종료 확인</figcaption></figure>
+        <div class="shots one">
+          <figure class="shot tablet"><img src="img/server-quit.webp" alt="서버 종료 확인 창: 서버를 끄면 키오스크가 오프라인으로 동작합니다. 종료할까요?" loading="lazy" width="1400" height="876"><figcaption>서버 종료 확인</figcaption></figure>
         </div>
       </article>
     </section>
@@ -630,21 +682,42 @@ footer { color: var(--muted); font-size: 0.85rem; max-width: 760px; border-top: 
         <p>인식과 등록 기준은 처음 값으로 시험을 마쳤습니다. 바꿀 이유가 분명할 때만 바꾸세요.</p>
       </div>
 
+      <article class="feature" id="server-dev">
+        <div class="text">
+          <h3>서버 개발자 화면과 로그 <span class="role admin">관리자</span> <a class="anchor" href="#server-dev" aria-label="이 항목 링크">#</a></h3>
+          <div class="where">위치 <span class="path">Faith DB Server › 앱 이름 옆 “개발자 화면”</span></div>
+          <p>서버 앱의 모든 설정과 상태, 기록을 꾸밈없이 확인하는 화면입니다. <span class="btn ghost">서버 앱으로</span>를 누르면 돌아갑니다.</p>
+          <ul class="facts">
+            <li><b>상태</b>: 실행 여부와 켠 시각, 키오스크 접속 주소, DB revision, 명단·얼굴 샘플·삭제 기록 수, 오늘 출석, 키오스크 수, 앱 버전. 서버 중지·시작·종료 버튼.</li>
+            <li><b>설정</b>: <a href="#server-settings">서버 설정</a>과 <code>config.yaml</code> 내용(비밀번호는 가려짐).</li>
+            <li><b>데이터</b>: 데이터 폴더의 파일과 크기, CSV 편집 반영·CSV 저장·DB 다시 읽기·출석부 저장·기간 내보내기 버튼.</li>
+            <li><b>키오스크</b>: 모든 키오스크의 상태, ID, 기기 이름, 요청·허락·마지막 접속 시각을 한 표로.</li>
+            <li><b>로그</b>: 서버 기록 전체. 서버·키오스크 연결·명단 변경·출석·오류로 나눠 보고 찾을 수 있습니다. <span class="btn ghost">복사</span>로 담당 개발자에게 보낼 수 있습니다.</li>
+          </ul>
+        </div>
+        <div class="shots">
+          <figure class="shot tablet"><img src="img/server-dev-status.webp" alt="서버 개발자 화면 상태: 실행 중, 접속 주소, DB revision, 명단, 오늘 출석, 키오스크, 앱 버전과 서버 중지, 서버 종료 버튼" loading="lazy" width="1400" height="876"><figcaption>개발자 화면 › 상태</figcaption></figure>
+          <figure class="shot tablet"><img src="img/server-dev-data.webp" alt="서버 개발자 화면 데이터: 데이터 폴더 위치, DB revision, 관리 버튼과 파일 목록" loading="lazy" width="1400" height="876"><figcaption>개발자 화면 › 데이터</figcaption></figure>
+          <figure class="shot tablet"><img src="img/server-dev-kiosks.webp" alt="서버 개발자 화면 키오스크 표: 상태, ID, 기기 이름, 요청, 허락, 마지막 접속" loading="lazy" width="1400" height="876"><figcaption>개발자 화면 › 키오스크</figcaption></figure>
+          <figure class="shot tablet"><img src="img/server-dev-log.webp" alt="서버 개발자 화면 로그: 종류별 필터 칩, 찾기, 시각이 붙은 서버 기록" loading="lazy" width="1400" height="876"><figcaption>개발자 화면 › 로그</figcaption></figure>
+        </div>
+      </article>
+
       <article class="feature" id="server-settings">
         <div class="text">
           <h3>서버 설정 <span class="role admin">관리자</span> <a class="anchor" href="#server-settings" aria-label="이 항목 링크">#</a></h3>
-          <div class="where">위치 <span class="path">Faith DB Server › 설정 (오른쪽 위)</span></div>
+          <div class="where">위치 <span class="path">Faith DB Server › 개발자 화면 › 설정</span></div>
           <ul class="facts">
             <li><b>관리자 ID</b>: 로그인 ID. 처음 값은 <code>admin</code>입니다.</li>
             <li><b>포트</b>: 처음 값 <code>18080</code>. 바꾸면 모든 키오스크의 서버 주소도 바꿔야 합니다.</li>
-            <li><b>데이터 폴더</b>: 얼굴 DB와 출석부가 저장되는 곳. 처음 값 <code>/sdcard/faceDB</code>. <span class="btn">폴더 선택</span>으로 고를 수 있습니다.</li>
+            <li><b>데이터 폴더</b>: 얼굴 DB와 출석부가 저장되는 곳. 처음 값 <code>/sdcard/faceDB</code>. <span class="btn ghost">폴더 선택</span>으로 고를 수 있습니다.</li>
             <li><b>사람별 최대 얼굴 샘플 수</b>: 자동 보정으로 늘어나는 얼굴 데이터의 상한 (처음 값 100).</li>
             <li><b>앱 실행 시 로그인 없이 서버 자동 시작</b>: 켜면 태블릿을 다시 켠 뒤 앱만 열어도 서버가 시작됩니다.</li>
           </ul>
-          <p>저장하면 서버가 새 설정으로 다시 시작합니다. 연결된 키오스크는 잠시 오프라인이 되었다가 다시 붙습니다.</p>
+          <p><span class="btn">저장</span>하면, 포트·데이터 폴더·최대 샘플 수가 바뀐 경우 서버가 새 설정으로 다시 시작합니다. <span class="btn ghost">되돌리기</span>는 저장 전 값으로 돌립니다.</p>
         </div>
-        <div class="shots one" style="max-width: 560px">
-          <figure class="shot dialog"><img src="img/server-settings.webp" alt="서버 설정 창: 관리자 ID, 포트, 데이터 폴더와 폴더 선택, 사람별 최대 얼굴 샘플 수, 자동 시작 스위치, 관리자 비밀번호 변경 버튼" loading="lazy" width="900" height="801"><figcaption>서버 설정</figcaption></figure>
+        <div class="shots one">
+          <figure class="shot tablet"><img src="img/server-dev-settings.webp" alt="서버 개발자 화면 설정: 관리자 ID, 포트, 데이터 폴더와 폴더 선택, 최대 샘플 수, 자동 시작, 비밀번호 변경, 저장 버튼과 config.yaml" loading="lazy" width="1400" height="876"><figcaption>개발자 화면 › 설정</figcaption></figure>
         </div>
       </article>
 
@@ -652,45 +725,61 @@ footer { color: var(--muted); font-size: 0.85rem; max-width: 760px; border-top: 
         <div class="text">
           <h3>관리자 비밀번호 바꾸기 <span class="role admin">관리자</span> <a class="anchor" href="#password" aria-label="이 항목 링크">#</a></h3>
           <ol class="steps">
-            <li>서버 설정에서 <span class="btn">관리자 비밀번호 변경</span>을 누릅니다.</li>
+            <li>개발자 화면 › 설정에서 <span class="btn ghost">관리자 비밀번호 변경</span>을 누릅니다.</li>
             <li>새 비밀번호를 두 번 입력하고 <span class="btn ghost">변경</span>합니다. 6자 이상이어야 하고 <code>1234</code>는 쓸 수 없습니다.</li>
           </ol>
           <div class="note">비밀번호는 문서나 단체 대화방에 적지 말고 담당자끼리 직접 전달하세요. 담당자가 바뀌면 비밀번호도 바꾸세요.</div>
         </div>
-        <div class="shots one" style="max-width: 560px">
-          <figure class="shot dialog"><img src="img/server-password.webp" alt="관리자 비밀번호 변경 창: 새 비밀번호 6자 이상, 새 비밀번호 확인, 취소와 변경 버튼" loading="lazy" width="900" height="392"><figcaption>비밀번호 변경</figcaption></figure>
+        <div class="shots one">
+          <figure class="shot tablet"><img src="img/server-password.webp" alt="관리자 비밀번호 변경 창: 새 비밀번호, 새 비밀번호 확인, 취소와 변경 버튼" loading="lazy" width="1400" height="876"><figcaption>비밀번호 변경</figcaption></figure>
         </div>
       </article>
 
       <article class="feature" id="kiosk-settings">
         <div class="text">
           <h3>키오스크 설정 <span class="role operator">운영자</span> <a class="anchor" href="#kiosk-settings" aria-label="이 항목 링크">#</a></h3>
-          <div class="where">위치 <span class="path">Faith ID › 오른쪽 위 톱니 버튼</span></div>
-          <p>여섯 개 탭으로 나뉩니다. 인쇄와 출력 템플릿은 <a href="#print">이름표 출력</a>에서 설명합니다.</p>
+          <div class="where">위치 <span class="path">Faith ID › 오른쪽 위 흐린 톱니를 1초 넘게 누르기</span></div>
+          <p>아이들이 실수로 열지 않도록 톱니는 거의 보이지 않고, 짧게 누르면 아무 반응이 없습니다. 길게 누르는 동안 톱니가 또렷해지고 설정이 열립니다. <a href="#developer">키오스크 개발자 화면</a>에서는 <span class="btn ghost">설정</span> 버튼으로 엽니다. 일곱 개 탭이 있고, 인쇄와 출력 템플릿은 <a href="#print">이름표 출력</a>에서 설명합니다.</p>
           <ul class="facts">
-            <li><b>일반</b>: <a href="#developer">연결 상태 화면</a> 켜기, 운영 중 상단·하단 시스템 바 숨기기, 화면 안내 문구 바꾸기. 문구의 <code>{name}</code>, <code>{label}</code>, <code>{clientId}</code>는 실제 이름, 이름(부서, 학년), 키오스크 ID로 바뀝니다.</li>
-            <li><b>인식</b>: 인식 최소 유사도(처음 값 0.4, 높을수록 엄격), 1·2위 점수 차(0.1, 작으면 후보를 보여 줌), 후보 표시 개수, 사용할 카메라(전면/후면).</li>
-            <li><b>등록</b>: 방향별 수집 장수(3), 이미 등록된 얼굴로 볼 유사도(0.45), 사람별 최대 샘플 수, 인식될 때 얼굴 샘플 자동 추가(자동 보정).</li>
-            <li><b>DB 서버</b>: 현재 연결 상태, 서버와 동기화 켜기/끄기, 서버 주소, 재시도 간격과 연결 제한 시간, 이 키오스크의 ID와 기기 이름. <span class="btn ghost">새 키오스크 ID 발급</span>을 누르면 서버에서 다시 승인해야 합니다.</li>
+            <li><b>일반</b>: 안내 대상(어린이/어른), <a href="#developer">개발자 화면</a> 보기, 운영 중 시스템 바 숨기기.</li>
+            <li><b>안내 문구</b>: <a href="#guide-lines">빛이의 말 바꾸기</a>.</li>
+            <li><b>인식</b>: 인식 최소 유사도(처음 값 0.4, 높을수록 엄격), 1·2위 점수 차(0.1, 작으면 후보를 보여 줌), 후보 표시 개수, 카메라, 얼굴 동그라미의 크기·위치·바깥 어둡기.</li>
+            <li><b>등록</b>: 방향마다 동그라미 3단계 켜기/끄기, 큰·작은 동그라미 배율(1.18, 0.73), 방향별 수집 장수(3), 이미 등록된 얼굴로 볼 유사도(0.45), 사람별 최대 샘플 수, 자동 보정.</li>
+            <li><b>DB 서버</b>: 연결 상태, 서버와 동기화 켜기/끄기, 서버 주소, 재시도 간격과 연결 제한 시간, 키오스크 ID와 기기 이름. <span class="btn ghost">새 키오스크 ID 발급</span>을 누르면 서버에서 다시 허락해야 합니다.</li>
           </ul>
-          <div class="note">서버 주소를 바꿔 저장하면 키오스크가 새 서버에 바로 다시 연결합니다. 앱을 다시 켤 필요는 없습니다.</div>
+          <div class="note">얼굴 동그라미 크기를 크게 바꿔 두어도, 등록할 때는 빛이 말풍선과 별이 화면에 들어가도록 세 동그라미가 같은 비율로 줄어듭니다.</div>
         </div>
         <div class="shots">
-          <figure class="shot dialog"><img src="img/kset-general.webp" alt="키오스크 설정 일반 탭: 개발자 화면 보기, 시스템 바 숨기기 스위치와 안내 문구 입력란" loading="lazy" width="900" height="979"><figcaption>일반</figcaption></figure>
-          <figure class="shot dialog"><img src="img/kset-recognition.webp" alt="키오스크 설정 인식 탭: 인식 최소 유사도 0.4, 1·2위 점수 차 0.1, 후보 표시 개수 3, 카메라 선택" loading="lazy" width="900" height="979"><figcaption>인식</figcaption></figure>
-          <figure class="shot dialog"><img src="img/kset-register.webp" alt="키오스크 설정 등록 탭: 방향별 수집 장수 3, 샘플 유사도 하한·상한, 이미 등록된 얼굴로 볼 유사도 0.45, 자동 보정" loading="lazy" width="900" height="979"><figcaption>등록</figcaption></figure>
-          <figure class="shot dialog"><img src="img/kset-server.webp" alt="키오스크 설정 DB 서버 탭: 현재 상태 연결됨, 서버와 동기화 스위치, DB 서버 주소, 재시도 간격, 키오스크 ID, 새 키오스크 ID 발급" loading="lazy" width="900" height="979"><figcaption>DB 서버</figcaption></figure>
+          <figure class="shot tablet"><img src="img/kset-general.webp" alt="키오스크 설정 일반 탭: 안내 대상 어린이, 개발자 화면 보기, 시스템 바 숨기기" loading="lazy" width="1400" height="876"><figcaption>일반</figcaption></figure>
+          <figure class="shot tablet"><img src="img/kset-recognition.webp" alt="키오스크 설정 인식 탭: 인식 최소 유사도, 점수 차, 후보 표시 개수, 카메라, 얼굴 동그라미 비율" loading="lazy" width="1400" height="876"><figcaption>인식</figcaption></figure>
+          <figure class="shot tablet"><img src="img/kset-register.webp" alt="키오스크 설정 등록 탭: 방향마다 동그라미 3단계 스위치, 큰·작은 동그라미 배율, 방향별 수집 장수와 유사도 기준" loading="lazy" width="1400" height="876"><figcaption>등록</figcaption></figure>
+          <figure class="shot tablet"><img src="img/kset-server.webp" alt="키오스크 설정 DB 서버 탭: 서버와 동기화 스위치, 서버 주소, 재시도 간격, 키오스크 ID, 새 키오스크 ID 발급" loading="lazy" width="1400" height="876"><figcaption>DB 서버</figcaption></figure>
+        </div>
+      </article>
+
+      <article class="feature" id="guide-lines">
+        <div class="text">
+          <h3>빛이의 말 바꾸기 <span class="role operator">운영자</span> <a class="anchor" href="#guide-lines" aria-label="이 항목 링크">#</a></h3>
+          <div class="where">위치 <span class="path">Faith ID › 설정 › 안내 문구</span></div>
+          <ul class="facts">
+            <li>빛이가 하는 말을 어린이용과 어른용으로 따로 바꿀 수 있습니다. 칸을 비워 두면 회색 글씨의 기본 문구를 씁니다.</li>
+            <li><code>{name}</code>은 이름으로(어린이는 “하늘아”, 어른은 “이하늘”), <code>{direction}</code>은 “왼쪽을”(어린이)·“왼쪽으로”(어른)처럼 바뀝니다.</li>
+            <li>아래쪽에는 개발자 화면과 서버 연결 안내 문구가 있습니다. 서버 미연결과 허락 대기 문구는 운영 화면에도 그대로 나옵니다.</li>
+          </ul>
+        </div>
+        <div class="shots one">
+          <figure class="shot tablet"><img src="img/kset-copy.webp" alt="키오스크 설정 안내 문구 탭: 빛이가 하는 말 어린이 항목들과 회색 기본 문구" loading="lazy" width="1400" height="876"><figcaption>안내 문구</figcaption></figure>
         </div>
       </article>
 
       <article class="feature" id="developer">
         <div class="text">
-          <h3>연결 상태 화면 <span class="role operator">운영자</span> <a class="anchor" href="#developer" aria-label="이 항목 링크">#</a></h3>
+          <h3>키오스크 개발자 화면 <span class="role operator">운영자</span> <a class="anchor" href="#developer" aria-label="이 항목 링크">#</a></h3>
           <div class="where">위치 <span class="path">Faith ID › 설정 › 일반 › 개발자 화면 보기</span></div>
           <p>문제가 있을 때 켜서 확인합니다. 서버 연결 상태와 주소, 키오스크가 가진 명단 인원, 아직 보내지 못한 변경·출석 건수, 마지막 출력 결과가 나옵니다. <span class="btn">지금 동기화</span>로 바로 받기를 요청하고, <span class="btn">로그</span>로 최근 기록을 봅니다. 확인이 끝나면 다시 끄세요.</p>
         </div>
         <div class="shots one">
-          <figure class="shot tablet"><img src="img/kiosk-developer.webp" alt="개발자 화면: 서버 연결됨과 주소, 로컬 DB 117명, 전송 대기 0건, 지금 동기화와 로그, 설정 버튼" loading="lazy" width="1400" height="876"><figcaption>연결 상태 화면</figcaption></figure>
+          <figure class="shot tablet"><img src="img/kiosk-developer.webp" alt="키오스크 개발자 화면: 서버 연결됨과 주소, 로컬 DB 인원, 전송 대기 건수, 카메라와 안내 문구, 로그와 설정 버튼" loading="lazy" width="1400" height="876"><figcaption>키오스크 개발자 화면</figcaption></figure>
         </div>
       </article>
     </section>
@@ -702,19 +791,21 @@ footer { color: var(--muted); font-size: 0.85rem; max-width: 760px; border-top: 
         <h2 id="h-trouble">이럴 때는</h2>
       </div>
       <div class="trouble">
-        <div><b>키오스크에 “서버 앱 실행 및 연동 후 사용해주세요”가 나옴</b><span>서버 앱이 <a href="#server-start">실행 중</a>인지, 두 태블릿이 같은 Wi-Fi인지 확인하세요. 태블릿 IP는 공유기가 정하므로 바뀔 수 있습니다. 서버 현황 탭의 주소와 <a href="#kiosk-settings">키오스크 설정 › DB 서버</a>의 주소가 같은지 보세요.</span></div>
-        <div><b>“서버 승인 대기 중”에서 멈춤</b><span>서버 앱 현황 탭에서 그 키오스크를 <a href="#connect">승인</a>하세요. 목록에 없으면 키오스크 서버 주소를 다시 확인합니다.</span></div>
-        <div><b>서버를 다시 켠 뒤 잠시 오프라인</b><span>키오스크는 재시도 간격을 조금씩 늘려 가며 다시 붙습니다. 보통 10초 안쪽입니다. 그동안의 출석은 연결 후 보내집니다.</span></div>
-        <div><b>인식이 잘 안 되거나 미등록으로 나옴</b><span>타원 안에 얼굴 전체가 들어오도록 조금 가까이 오거나 멀어지세요. 역광(뒤에 창문)이면 키오스크 위치를 바꾸세요. 계속 안 되면 <a href="#register">다시 등록</a>하면 본인 확인 후 얼굴 데이터가 보강됩니다.</span></div>
-        <div><b>다른 사람으로 인식됨</b><span>출력하지 말고 <a href="#home">처음으로</a>를 누르세요. 자주 그러면 운영자가 <a href="#kiosk-settings">인식 최소 유사도</a>를 조금 올립니다.</span></div>
-        <div><b>이름표가 안 나옴</b><span>출석은 이미 기록되었습니다. <a href="#printer">설정 › 인쇄</a>에서 프린터 종류와 Bluetooth 연결을 확인하세요. 연결 상태 화면의 출력 줄에 마지막 출력 결과가 나옵니다.</span></div>
-        <div><b>“서버와 동기화를 유지하고 있습니다” 알림이 안 보임</b><span>알림 권한을 거절한 경우입니다. 동기화는 계속됩니다. 태블릿 설정에서 Allstar Faith ID의 알림을 켜면 보입니다.</span></div>
+        <div><b>빛이가 서버 앱을 실행하고 연동하라고 함</b><span>서버 앱이 <a href="#server-start">실행 중</a>인지, 두 태블릿이 같은 Wi-Fi인지 확인하세요. 태블릿 IP는 공유기가 정하므로 바뀔 수 있습니다. 서버 앱 키오스크 탭의 주소와 <a href="#kiosk-settings">키오스크 설정 › DB 서버</a>의 주소가 같은지 보세요.</span></div>
+        <div><b>서버 허락을 기다린다는 안내에서 멈춤</b><span>서버 앱 키오스크 탭에서 그 키오스크를 <a href="#connect">허락</a>하세요. 목록에 없으면 키오스크 서버 주소를 다시 확인합니다.</span></div>
+        <div><b>키오스크가 자꾸 “오프라인으로 동작 중”이 됨</b><span>서버 태블릿이 배터리 부족으로 절전에 들어가면 키오스크가 서버에 닿지 못할 수 있습니다. 서버 태블릿을 충전기에 꽂아 두세요. 그동안의 출석은 연결 후 보내집니다.</span></div>
+        <div><b>등록할 때 별이 잘 안 켜짐</b><span>빛이가 말한 방향을 보고, 큰 동그라미는 얼굴로 채우도록 조금 다가오고 작은 동그라미는 쏙 들어가도록 조금 물러나세요. 오른쪽 머리 그림을 따라 하면 됩니다.</span></div>
+        <div><b>인식이 잘 안 되거나 처음 보는 얼굴로 나옴</b><span>동그라미 안에 얼굴 전체가 들어오도록 서세요. 역광(뒤에 창문)이면 키오스크 위치를 바꾸세요. 계속 안 되면 <a href="#register">다시 등록</a>하면 본인 확인 후 얼굴 데이터가 보강됩니다.</span></div>
+        <div><b>다른 사람으로 인식됨</b><span>이름표를 받지 말고 <b>나 아닌데?</b>를 누르세요. 자주 그러면 운영자가 <a href="#kiosk-settings">인식 최소 유사도</a>를 조금 올립니다.</span></div>
+        <div><b>이름을 적을 때 “스마트 추천이 계속 중단됨” 창이 뜸</b><span>Samsung 키보드의 추천 기능 오류로, 앱과 상관없습니다. <b>앱 닫기</b>를 누르고 계속 입력하면 됩니다. 자주 뜨면 태블릿 설정에서 Samsung 앱을 업데이트하거나 키보드의 스마트 추천 기능을 끄세요.</span></div>
+        <div><b>이름표가 안 나옴</b><span>출석은 이미 기록되었습니다. <a href="#printer">설정 › 인쇄</a>에서 프린터 종류와 Bluetooth 연결을 확인하세요. 개발자 화면의 출력 줄에 마지막 출력 결과가 나옵니다.</span></div>
+        <div><b>설정 톱니가 안 보임</b><span>오른쪽 위 구석에 아주 흐리게 있습니다. 그 자리를 1초 넘게 누르고 있으면 열립니다.</span></div>
         <div><b>관리자 비밀번호를 잊음</b><span>담당 개발자에게 문의하세요. 서버는 비밀번호를 암호화해 저장해서 화면이나 파일에서 확인할 수 없습니다.</span></div>
       </div>
     </section>
 
     <footer>
-      이 안내서의 화면은 예시 명단과 가상 카메라를 쓴 시험 기기에서 찍었습니다. 화면 속 이름은 실제 교인이 아닙니다. 앱 2.0, 2026-10-30 기준.
+      이 안내서의 화면은 예시 명단과 가상 카메라를 쓴 시험 기기에서 찍었습니다. 화면 속 이름은 실제 교인이 아닙니다. 앱 2.0 · 따뜻한 안내자 화면, 2026-10-31 기준.
     </footer>
   </main>
 </div>

@@ -76,7 +76,7 @@ sleep 4 # the celebration plays first
 check "12가지 동작 후 이름 입력 화면" 'ui_has "선생님, 이름을 적어 주세요"'
 ui_tap opNameInput; ui_close_crash_dialog; ui_type "$NAME"; ui_tap opDepartmentInput; ui_type "E2E"; ui_tap opGradeInput; ui_type "G1"
 ui_close_crash_dialog
-adbs shell input keyevent KEYCODE_BACK # hide keyboard
+ui_hide_keyboard
 ui_tap opSubmitButton; sleep 2
 check "서버 명단에 반영 (face_db.csv)" 'wait_for 20 csv "adbs shell grep -c \"$NAME\" $DATA_DIR/face_db.csv | grep -q 1"'
 
@@ -105,7 +105,7 @@ seen "guest-$RUN"; sleep 1
 ui_tap "오늘은 이름표만"; sleep 1
 ui_tap opNameInput; ui_close_crash_dialog; ui_type "GUEST-$RUN"
 ui_close_crash_dialog
-adbs shell input keyevent KEYCODE_BACK
+ui_hide_keyboard
 ui_tap opSubmitButton
 cancel_print_dialog
 check "명단 외 출석 기록" 'wait_for 20 sheet "[ \"\$(sheet_count GUEST-$RUN)\" = 1 ]"'

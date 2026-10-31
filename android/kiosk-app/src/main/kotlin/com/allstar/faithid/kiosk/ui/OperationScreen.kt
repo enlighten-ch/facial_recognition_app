@@ -459,9 +459,12 @@ class OperationScreen(
         DepartmentChoices.departments(people()).forEach { department ->
             departmentChips.addView(chip(department, DepartmentColors.of(department)) { checked ->
                 if (!checked) return@chip
-                hideKeyboard()
-                setFromChip(departmentInput, department)
-                setFromChip(gradeInput, "")
+                // A chip the person tapped ends typing; one selected because the typed text matches does not.
+                if (!chipsFromCode) {
+                    hideKeyboard()
+                    setFromChip(departmentInput, department)
+                    setFromChip(gradeInput, "")
+                }
                 showGrades(department)
             })
         }
@@ -473,7 +476,7 @@ class OperationScreen(
         val grades = department?.let { DepartmentChoices.grades(people(), it) }.orEmpty()
         grades.forEach { grade ->
             gradeChips.addView(chip(grade, null) { checked ->
-                if (checked) {
+                if (checked && !chipsFromCode) {
                     hideKeyboard()
                     setFromChip(gradeInput, grade)
                 }

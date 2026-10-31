@@ -39,3 +39,5 @@ ui_type() { adbs shell input text "$1"; }
 ui_shot() { adbs exec-out screencap -p > "$1"; }
 # Closes another app's "keeps stopping" dialog (seen with Samsung's smart suggestions service on one tablet).
 ui_close_crash_dialog() { local i; for i in 1 2 3; do if ui_has "앱 닫기"; then ui_tap "앱 닫기"; elif ui_has "Close app"; then ui_tap "Close app"; else break; fi; sleep 1; done; true; }
+# Hides the on-screen keyboard; BACK only while it shows, otherwise BACK would close the app screen.
+ui_hide_keyboard() { adbs shell dumpsys input_method | grep -q "mInputShown=true" && adbs shell input keyevent KEYCODE_BACK; sleep 0.5; true; }
