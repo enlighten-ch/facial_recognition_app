@@ -303,14 +303,17 @@
 
 
   /* ---------- page shell: test panel, device frame, render loop ---------- */
-  // opts: { root, kiosk: state => html, server: state => html }
+  // opts: { root, kiosk: state => html, server: state => html, views?: [{ id, label, render: state => html }] }
+  // Extra views sit between the kiosk and the server app in the view switch and use the kiosk scenarios.
   Proto.mount = function (opts) {
     const root = opts.root;
+    const extra = opts.views || [];
     root.innerHTML = `
       <div class="lab" role="region" aria-label="테스트 도구">
         <div class="lab-row">
           <div class="seg" role="tablist" aria-label="화면">
             <button type="button" data-lab="view" data-v="kiosk" role="tab">키오스크</button>
+            ${extra.map(v => `<button type="button" data-lab="view" data-v="${v.id}" role="tab">${v.label}</button>`).join('')}
             <button type="button" data-lab="view" data-v="server" role="tab">서버 앱</button>
           </div>
           <div class="seg" aria-label="대상">
@@ -345,7 +348,7 @@
         const v = lab.dataset.v;
         if (lab.dataset.lab === 'view') Proto.setView(v);
         if (lab.dataset.lab === 'aud') Proto.setAudience(v);
-        if (lab.dataset.lab === 'sim') { Proto.setView('kiosk'); Proto.simulate(v); }
+        if (lab.dataset.lab === 'sim') { if (state.view === 'server') Proto.setView('kiosk'); Proto.simulate(v); }
         if (lab.dataset.lab === 'conn') Proto.setConnection(v);
         return;
       }
@@ -387,11 +390,12 @@
       const caret = field ? active.selectionStart : null;
       screen.dataset.view = state.view;
       screen.dataset.aud = state.audience;
-      screen.innerHTML = state.view === 'kiosk' ? opts.kiosk(state) : opts.server(state);
+      const view = extra.find(v => v.id === state.view);
+      screen.innerHTML = view ? view.render(state) : state.view === 'kiosk' ? opts.kiosk(state) : opts.server(state);
       root.querySelectorAll('[data-lab="view"]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.v === state.view)));
       root.querySelectorAll('[data-lab="aud"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === state.audience)));
       root.querySelectorAll('[data-lab="conn"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === state.connection)));
-      root.querySelectorAll('.kiosk-only').forEach(r => { r.hidden = state.view !== 'kiosk'; });
+      root.querySelectorAll('.kiosk-only').forEach(r => { r.hidden = state.view === 'server'; });
       if (field) {
         const again = screen.querySelector('[data-field="' + field + '"]');
         if (again) { again.focus(); try { again.setSelectionRange(caret, caret); } catch (e) {} }
