@@ -29,11 +29,17 @@ ok() { echo "  PASS: $*"; PASS=$((PASS + 1)); }
 bad() { echo "  FAIL: $*"; FAIL=$((FAIL + 1)); ui_shot "/tmp/e2e_fail_${RUN}_$FAIL.png" 2>/dev/null; }
 check() { if eval "$2"; then ok "$1"; else bad "$1"; fi; }
 broadcast() { adbs shell am broadcast -n "$RECEIVER" -a "com.allstar.faithid.kiosk.$1" "${@:2}" >/dev/null; }
-face() { # identity [direction] [count]
+face() { # identity [direction] [count] [size]
   local args=(--es identity "$1" --ei count "${3:-1}")
   [ -n "${2:-}" ] && args+=(--es direction "$2")
+  [ -n "${4:-}" ] && args+=(--ef size "$4")
   broadcast DEBUG_FACE "${args[@]}"
 }
+# A face held in front of the camera for a few frames (the kiosk ignores one-frame flickers).
+seen() { face "$1" "" 5; }
+no_face() { for _ in 1 2 3 4 5 6 7; do broadcast DEBUG_NO_FACE; done; }
+# The 12 registration motions: each direction with the normal, big (closer) and small (further) circle.
+register_motions() { for d in LEFT RIGHT UP DOWN; do face "$1" "$d" 1 0.30; face "$1" "$d" 1 0.37; face "$1" "$d" 1 0.24; sleep 0.3; done; }
 wait_for() { # seconds description command
   local deadline=$(( $(date +%s) + $1 ))
   while [ "$(date +%s)" -lt "$deadline" ]; do eval "$3" && return 0; sleep 1; done
@@ -57,47 +63,47 @@ cancel_print_dialog() { # the Android print dialog belongs to the print spooler
 
 kiosk_front
 broadcast DEBUG_CAMERA --ez paused true
-broadcast DEBUG_NO_FACE
+no_face
 sleep 1
 
-step "1. 처음 보는 얼굴 → 등록"
-face "$PERSON"; sleep 1
-check "미등록 안내와 등록 버튼" 'ui_has "등록 시작하기"'
-ui_tap "등록 시작하기"; sleep 1
-for d in LEFT RIGHT UP DOWN; do face "$PERSON" "$d" 3; sleep 0.5; done
-sleep 1
-check "12장 수집 후 이름 입력 화면" 'ui_has "저장하기"'
-ui_tap nameInput; ui_type "$NAME"; ui_tap departmentInput; ui_type "E2E"; ui_tap gradeInput; ui_type "G1"
+step "1. 처음 보는 얼굴 → 등록 (12가지 동작)"
+seen "$PERSON"; sleep 1
+check "미등록 안내와 등록 버튼" 'ui_has "좋아, 등록할래!"'
+ui_tap "좋아, 등록할래!"; sleep 1
+register_motions "$PERSON"
+sleep 4 # the celebration plays first
+check "12가지 동작 후 이름 입력 화면" 'ui_has "선생님, 이름을 적어 주세요"'
+ui_tap opNameInput; ui_type "$NAME"; ui_tap opDepartmentInput; ui_type "E2E"; ui_tap opGradeInput; ui_type "G1"
 adbs shell input keyevent KEYCODE_BACK # hide keyboard
-ui_tap submitInfoButton; sleep 2
+ui_tap opSubmitButton; sleep 2
 check "서버 명단에 반영 (face_db.csv)" 'wait_for 20 csv "adbs shell grep -c \"$NAME\" /sdcard/faceDB/face_db.csv | grep -q 1"'
 
 step "2. 등록된 얼굴 → 인식 → 출력 버튼 → 출석"
-face "$PERSON"; sleep 1
+sleep 3; seen "$PERSON"; sleep 1
 check "인식 문구에 이름 표시" "ui_texts | grep -q \"$NAME\""
-ui_tap operationPrintButton
+ui_tap "이름표 받기"
 cancel_print_dialog
 check "인쇄를 취소해도 출석 1회" 'wait_for 20 sheet "[ \"\$(sheet_count $NAME)\" = 1 ]"'
 
 step "3. 이미 등록된 얼굴로 다시 등록 시도 → 본인 확인"
-broadcast DEBUG_NO_FACE; sleep 4
-face "other-$RUN"; sleep 1
-ui_tap "등록 시작하기"; sleep 1
-for d in LEFT RIGHT UP DOWN; do face "$PERSON" "$d" 3; sleep 0.5; done
-sleep 1
-check "'본인이 맞아요' 질문 표시" 'ui_has "본인이 맞아요"'
-ui_tap "본인이 맞아요"; sleep 1
-ui_tap operationPrintButton
+no_face; sleep 4
+seen "other-$RUN"; sleep 1
+ui_tap "좋아, 등록할래!"; sleep 1
+register_motions "$PERSON"
+sleep 4
+check "'○○ 맞아요?' 질문 표시" 'ui_has "네, 맞아요"'
+ui_tap "네, 맞아요"; sleep 1
+ui_tap "이름표 받기"
 cancel_print_dialog
 check "본인 확인 후 출석 2회, 새 사람은 만들지 않음" 'wait_for 20 sheet "[ \"\$(sheet_count $NAME)\" = 2 ]" && [ "$(adbs shell grep -c "$NAME" /sdcard/faceDB/face_db.csv | tr -d "\r")" = 1 ]'
 
 step "4. 이름표만 출력 → 명단 외 출석"
-broadcast DEBUG_NO_FACE; sleep 4
-face "guest-$RUN"; sleep 1
-ui_tap "이름표만 출력하기"; sleep 1
-ui_tap nameInput; ui_type "GUEST-$RUN"
+no_face; sleep 4
+seen "guest-$RUN"; sleep 1
+ui_tap "오늘은 이름표만"; sleep 1
+ui_tap opNameInput; ui_type "GUEST-$RUN"
 adbs shell input keyevent KEYCODE_BACK
-ui_tap submitInfoButton
+ui_tap opSubmitButton
 cancel_print_dialog
 check "명단 외 출석 기록" 'wait_for 20 sheet "[ \"\$(sheet_count GUEST-$RUN)\" = 1 ]"'
 
@@ -112,12 +118,12 @@ check "서버 명단에서 삭제" 'wait_for 10 csv "! adbs shell grep -q \"$NAM
 ui_tap "키오스크"
 kiosk_front
 broadcast DEBUG_CAMERA --ez paused true
-broadcast DEBUG_NO_FACE; sleep 6
-face "$PERSON"; sleep 1
-check "삭제된 사람은 미등록으로 보임" 'wait_for 15 ui "face $PERSON; sleep 1; ui_has \"등록 시작하기\""'
+no_face; sleep 6
+seen "$PERSON"; sleep 1
+check "삭제된 사람은 미등록으로 보임" 'wait_for 15 ui "seen $PERSON; sleep 1; ui_has \"좋아, 등록할래!\""'
 check "삭제 후에도 오늘 출석 기록은 유지" '[ "$(sheet_count $NAME)" = 2 ]'
 
-broadcast DEBUG_NO_FACE
+no_face
 broadcast DEBUG_CAMERA --ez paused false
 echo
 echo "E2E kiosk flow: PASS=$PASS FAIL=$FAIL (run $RUN)"

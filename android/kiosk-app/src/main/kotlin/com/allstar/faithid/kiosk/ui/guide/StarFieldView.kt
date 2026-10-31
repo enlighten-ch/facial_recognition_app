@@ -64,7 +64,8 @@ class StarFieldView @JvmOverloads constructor(
 
     /** Star centre for direction [d] (0..3) and step [k] (0 normal, 1 big, 2 small). */
     private fun position(d: Int, k: Int, out: FloatArray) {
-        val gap = 34 * density
+        // Clear of the biggest circle by the largest star's radius plus a margin.
+        val gap = (sizeFor(1) / 2) + 18 * density
         val o = k - 1
         val a = abs(o)
         val cx = circle.centerX()
@@ -130,7 +131,7 @@ class StarFieldView @JvmOverloads constructor(
     /** The area the stars use, for keeping other views clear of them. */
     fun bounds(): RectF {
         val r = RectF(circle)
-        val reach = 34 * density + 32 * density
+        val reach = sizeFor(1) + 18 * density
         r.inset(-reach, -reach)
         return RectF(max(0f, r.left), max(0f, r.top), min(width.toFloat(), r.right), min(height.toFloat(), r.bottom))
     }

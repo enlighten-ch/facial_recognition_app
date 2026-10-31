@@ -64,6 +64,11 @@ object SettingsDialog {
             .setPositiveButton("저장") { _, _ -> onSave(draft()) }
             .create()
             .apply { setOnDismissListener { template?.release() } }
-            .show()
+            .also { dialog ->
+                dialog.show()
+                // Use most of a tablet screen; the template preview and long texts need the room.
+                val metrics = context.resources.displayMetrics
+                dialog.window?.setLayout((metrics.widthPixels * 0.86f).toInt(), ViewGroup.LayoutParams.WRAP_CONTENT)
+            }
     }
 }

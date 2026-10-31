@@ -250,6 +250,7 @@ class MainActivity : AppCompatActivity(), ServerService.Listener {
                     autoStart = settings.autoStart,
                     pending = kiosks.filter { !it.record.approved }.map { it.record },
                     approvedKiosks = kiosks.count { it.record.approved },
+                    connectedKiosks = kiosks.count { it.record.approved && it.connections > 0 },
                     rosterCount = people.size,
                     sampleCount = samples,
                     today = today,
@@ -313,7 +314,13 @@ class MainActivity : AppCompatActivity(), ServerService.Listener {
     }
 
     private fun remove(clientId: String) {
-        Dialogs.confirm(this, "연결 끊기", "$clientId 의 접속 허락을 없앱니다. 다시 쓰려면 새로 허락해야 합니다.", "끊기") {
+        val waiting = service?.server?.clients?.isPending(clientId) == true
+        val (title, message, button) = if (waiting) {
+            Triple("요청 거절", "$clientId 의 연결 요청을 거절합니다. 우리 교회 태블릿이면 키오스크에서 다시 요청할 수 있습니다.", "거절")
+        } else {
+            Triple("연결 끊기", "$clientId 의 접속 허락을 없앱니다. 다시 쓰려면 새로 허락해야 합니다.", "끊기")
+        }
+        Dialogs.confirm(this, title, message, button) {
             service?.run({ it.revokeClient(clientId) })
         }
     }

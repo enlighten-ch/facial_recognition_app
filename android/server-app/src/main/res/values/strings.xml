@@ -16,6 +16,7 @@
     <string name="tab_kiosks">키오스크</string>
     <string name="kiosk_waiting_badge">허락을 기다리는 키오스크가 있습니다</string>
     <string name="today_title">좋은 주일 아침이에요</string>
+    <string name="today_title_weekday">오늘의 순서</string>
     <string name="today_present">지금까지 출석</string>
     <string name="today_who">누가 왔는지 보기</string>
     <string name="people_title">명단</string>

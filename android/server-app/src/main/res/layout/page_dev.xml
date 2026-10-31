@@ -464,13 +464,6 @@
                         android:orientation="vertical" />
 
                     <LinearLayout
-                        android:id="@+id/devFileList"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        android:orientation="vertical" />
-
-                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
@@ -525,6 +518,14 @@
                     android:text="@string/reload_help"
                     android:textColor="@color/dev_muted"
                     android:textSize="13sp" />
+
+                    <!-- The file list can be long; the actions stay above it. -->
+                    <LinearLayout
+                        android:id="@+id/devFileList"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:orientation="vertical" />
                 </LinearLayout>
             </ScrollView>
 

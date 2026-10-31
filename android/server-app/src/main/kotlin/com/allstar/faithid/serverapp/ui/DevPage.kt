@@ -200,8 +200,8 @@ internal class DevPage(
     }
 
     private fun renderStatus(state: State) {
-        startButton.isEnabled = !state.running
-        stopButton.isEnabled = state.running
+        startButton.visibility = if (state.running) View.GONE else View.VISIBLE
+        stopButton.visibility = if (state.running) View.VISIBLE else View.GONE
         val online = state.kiosks.count { it.record.approved && it.connections > 0 }
         val pending = state.kiosks.count { !it.record.approved }
         val addresses = Format.localAddresses().map { "http://$it:${state.port}" }

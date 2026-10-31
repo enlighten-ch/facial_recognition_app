@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Runs RemoteServerScenarioTest (6 simulated kiosks) against the Faith DB Server app on a device.
 #
-# Preconditions: the server app is installed, logged in, on the "키오스크" tab, and the server is running.
+# Preconditions: the server app is installed, logged in and the server is running.
 # Usage: tools/e2e_server_scenario.sh <adb-serial> [server-url]
 #   server-url defaults to http://127.0.0.1:18080 through adb forward; pass the tablet's Wi-Fi
 #   address (http://192.168.x.y:18080) to test over the real network.
@@ -13,6 +13,9 @@ ROOT="$(cd "$HERE/.." && pwd)"
 source "$HERE/ui_automation.sh" "$SERIAL"
 
 adbs forward tcp:18080 tcp:18080 >/dev/null
+# Bring the server app to the front on its 키오스크 tab, where waiting kiosks are approved.
+adbs shell am start -n com.example.facedbserver/com.allstar.faithid.serverapp.ui.MainActivity >/dev/null 2>&1; sleep 3
+ui_tap "서버 앱으로" || true; ui_tap "키오스크" || true; sleep 1
 LOG="$ROOT/integration-tests/build/remote-scenario.log"
 mkdir -p "$(dirname "$LOG")"
 rm -f "$ROOT/integration-tests/build/remote-scenario.properties"

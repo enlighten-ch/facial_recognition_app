@@ -33,12 +33,14 @@ internal class TodayPage(
         val autoStart: Boolean,
         val pending: List<ClientRecord>,
         val approvedKiosks: Int,
+        val connectedKiosks: Int,
         val rosterCount: Int,
         val sampleCount: Int,
         val today: List<AttendanceRow>?,
     )
 
     private val context = root.context
+    private val title: TextView = root.findViewById(R.id.todayTitleText)
     private val date: TextView = root.findViewById(R.id.todayDateText)
     private val steps: LinearLayout = root.findViewById(R.id.todaySteps)
     private val count: TextView = root.findViewById(R.id.todayCountText)
@@ -52,6 +54,7 @@ internal class TodayPage(
     fun render(state: State) {
         if (state == last) return
         last = state
+        title.text = context.getString(if (LocalDate.now().dayOfWeek == java.time.DayOfWeek.SUNDAY) R.string.today_title else R.string.today_title_weekday)
         date.text = LocalDate.now().format(DateTimeFormatter.ofPattern("M월 d일 EEEE · 위에서부터 차례로 확인하세요", Locale.KOREAN))
         steps.removeAllViews()
         val firstPending = state.pending.firstOrNull()
@@ -66,7 +69,12 @@ internal class TodayPage(
         )
         step(
             2, done = firstPending == null, title = "키오스크 연결",
-            detail = if (firstPending != null) "${firstPending.deviceName.ifBlank { firstPending.clientId }}이(가) 허락을 기다려요" else "${state.approvedKiosks}대 모두 연결됨",
+            detail = when {
+                firstPending != null -> "${firstPending.deviceName.ifBlank { firstPending.clientId }}이(가) 허락을 기다려요"
+                state.approvedKiosks == 0 -> "아직 허락한 키오스크가 없어요"
+                !state.running -> "서버를 켜면 키오스크 ${state.approvedKiosks}대가 연결됩니다"
+                else -> "키오스크 ${state.approvedKiosks}대 중 ${state.connectedKiosks}대 연결됨"
+            },
             button = firstPending?.let { p -> "허락하기" to { actions.approve(p.clientId) } },
         )
         step(3, done = state.rosterCount > 0, title = "명단", detail = "등록 ${state.rosterCount}명 · 얼굴 사진 ${state.sampleCount}장")
