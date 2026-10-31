@@ -1,0 +1,816 @@
+<title>따뜻한 안내자 v6</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&family=Gothic+A1:wght@400;600;700;800&display=swap">
+<style>
+/* Layout: proposal B, v2. The camera fills the whole kiosk screen; the guide's bubble and the reply
+   buttons float over it as frosted glass. During registration the stars sit where the child looks,
+   and a featureless 3D head turns the same way. The server app keeps "오늘의 순서" and shows the
+   roster and attendance as tables. */
+:root {
+  --sky: #fff4ec;        /* apricot morning */
+  --sky-2: #ffe6d6;
+  --card: #fffdfb;
+  --ink: #33263f;        /* plum ink */
+  --ink-2: #6e6078;
+  --line: #f0dfd4;
+  --plum: #5b3f8c;       /* the action */
+  --plum-soft: #ece4f7;
+  --apricot: #ff9a62;
+  --mint: #3f9d7a;
+  --gold: #ffc93c;       /* stars */
+  --font-kids: "Jua", "Gowun Dodum", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font: "Gowun Dodum", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+  --font-ui: "Gothic A1", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --sky: #1d1824; --sky-2: #271f31; --card: #251e2e; --ink: #f4ecf7; --ink-2: #bcaec6; --line: #3a3045; --plum: #b49cf0; --plum-soft: #352a48; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --sky: #1d1824; --sky-2: #271f31; --card: #251e2e; --ink: #f4ecf7; --ink-2: #bcaec6; --line: #3a3045; --plum: #b49cf0; --plum-soft: #352a48; color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { background: var(--sky); color: var(--ink); font-family: var(--font-ui); line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 56px; }
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 22px; }
+.intro { display: grid; gap: 10px; max-width: 820px; }
+.eyebrow { font-size: .78rem; font-weight: 700; letter-spacing: .1em; color: var(--ink-2); }
+.intro h1 { font-family: var(--font-kids); font-weight: 400; font-size: 2.6rem; margin: 0; line-height: 1.2; }
+.intro p { margin: 0; color: var(--ink-2); max-width: 65ch; }
+.intro a { color: var(--plum); }
+.principles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.principles div { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 12px 16px; font-size: .92rem; }
+.principles b { display: block; font-size: 1rem; }
+
+.lab { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 12px 14px; display: grid; gap: 8px; font-size: .9rem; }
+.lab-row { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; }
+.lab-label { color: var(--ink-2); font-weight: 700; font-size: .8rem; margin-right: 4px; min-width: 64px; }
+.lab button { font: inherit; border: 1px solid var(--line); background: var(--sky); color: var(--ink); border-radius: 999px; padding: 4px 12px; cursor: pointer; }
+.lab .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 2px; background: var(--sky); }
+.lab .seg button { border: 0; background: transparent; }
+.lab [aria-selected="true"], .lab [aria-pressed="true"] { background: var(--plum) !important; color: #fff !important; border-color: var(--plum) !important; }
+.lab-check { display: inline-flex; gap: 6px; align-items: center; margin-left: auto; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--apricot); outline-offset: 2px; }
+
+.device { position: relative; overflow: hidden; border-radius: 30px; box-shadow: 0 0 0 10px #2a2230, 0 22px 50px rgba(91,63,140,.22); margin: 10px; width: calc(100% - 20px); }
+.device-screen { position: absolute; top: 0; left: 0; width: 1280px; height: 800px; transform-origin: 0 0; overflow: hidden; background: linear-gradient(160deg, #fff6ef, #ffe7d8); color: #33263f; font-family: var(--font-ui); }
+
+/* ================= KIOSK ================= */
+.k { position: absolute; inset: 0; }
+
+/* full-screen camera */
+.fullcam { position: absolute; inset: 0; overflow: hidden;
+  background: radial-gradient(40% 45% at 50% 50%, #f3d6bb, transparent 70%), radial-gradient(60% 40% at 20% 10%, #efe0cf, transparent 70%), linear-gradient(170deg, #d6bfa4, #8f7a65); }
+.fullcam .oval { position: absolute; left: 640px; top: 432px; width: 280px; height: 350px; transform: translate(-50%, -50%); border-radius: 50%; border: 6px solid rgba(255,255,255,.95); overflow: hidden; box-shadow: 0 0 0 1400px rgba(51,38,63,.2); transition: border-color .3s; }
+.fullcam.reg .oval { top: 420px; width: var(--w); height: var(--h); animation: resize .7s cubic-bezier(.3,1.4,.5,1) both; }
+.fullcam.reg .oval .silhouette { width: 92%; }
+@keyframes resize { from { width: var(--pw); height: var(--ph); } }
+.oval-label { position: absolute; left: 640px; transform: translateX(-50%); z-index: 2; border-radius: 999px; padding: 6px 18px; font-size: 21px; font-weight: 800; color: #33263f; white-space: nowrap; pointer-events: none; }
+.motions .h svg { width: 22px; height: 22px; display: block; margin: 0 auto; }
+@media (prefers-reduced-motion: reduce) { .fullcam.reg .oval { animation: none; } }
+.oval.found { border-color: #ffb183; }
+.silhouette { position: absolute; left: 50%; bottom: -6px; transform: translateX(-50%); width: 240px; opacity: .55; }
+.camnote { position: absolute; left: 0; right: 0; top: 620px; text-align: center; color: #fff; font-size: 20px; font-weight: 600; text-shadow: 0 1px 8px rgba(0,0,0,.35); }
+
+/* frosted glass: the floating layer over the camera */
+.glass { background: rgba(255,255,255,.62); -webkit-backdrop-filter: blur(16px) saturate(1.3); backdrop-filter: blur(16px) saturate(1.3); border: 1.5px solid rgba(255,255,255,.75); box-shadow: 0 12px 34px rgba(51,38,63,.16); }
+
+.guide { display: flex; gap: 18px; align-items: flex-start; }
+.guide.float { position: absolute; left: 120px; right: 120px; top: 28px; }
+.avatar { width: 96px; height: 96px; flex: none; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #ffd2b4, #ff9a62); display: grid; place-items: center; box-shadow: 0 8px 20px rgba(255,154,98,.35); position: relative; }
+.avatar i { position: absolute; top: 40px; width: 10px; height: 14px; border-radius: 5px; background: #33263f; }
+.avatar i:nth-child(1) { left: 32px; } .avatar i:nth-child(2) { right: 32px; }
+.avatar b { position: absolute; bottom: 26px; left: 50%; width: 26px; height: 12px; margin-left: -13px; border: 4px solid #33263f; border-top: 0; border-radius: 0 0 14px 14px; }
+.k[data-aud="adults"] .avatar { width: 64px; height: 64px; background: var(--plum); box-shadow: none; }
+.k[data-aud="adults"] .avatar i, .k[data-aud="adults"] .avatar b { display: none; }
+.k[data-aud="adults"] .avatar::after { content: "F"; color: #fff; font-weight: 800; font-size: 30px; font-family: var(--font-ui); }
+.bubble { background: #fff; border-radius: 8px 34px 34px 34px; padding: 26px 32px; font-family: var(--font-kids); font-size: 46px; line-height: 1.25; color: #33263f; box-shadow: 0 10px 30px rgba(91,63,140,.12); flex: 1; }
+.bubble.glass { background: rgba(255,255,255,.8); padding: 20px 30px; font-size: 40px; }
+.bubble small { display: block; font-family: var(--font); font-size: 24px; color: #6e6078; margin-top: 8px; line-height: 1.4; }
+.k[data-aud="adults"] .bubble { font-family: var(--font-ui); font-weight: 800; font-size: 36px; }
+
+/* reply buttons: translucent, floating */
+.replies { display: grid; gap: 16px; margin-top: auto; }
+.replies.float { position: absolute; left: 120px; right: 120px; bottom: 34px; display: flex; gap: 18px; align-items: stretch; }
+.replies.float .reply { flex: 1; }
+.replies.float .reply.small { flex: none; }
+.reply { border-radius: 30px; min-height: 112px; padding: 0 34px; font-family: var(--font-kids); font-size: 40px; display: flex; align-items: center; gap: 20px; cursor: pointer; text-align: left; color: #33263f;
+  background: rgba(255,255,255,.6); -webkit-backdrop-filter: blur(16px) saturate(1.3); backdrop-filter: blur(16px) saturate(1.3); border: 1.5px solid rgba(255,255,255,.8); box-shadow: 0 10px 28px rgba(51,38,63,.16); transition: transform .12s; }
+.reply .em { width: 64px; height: 64px; border-radius: 20px; display: grid; place-items: center; flex: none; background: rgba(255,255,255,.7); }
+.reply .em svg { width: 38px; height: 38px; }
+.reply.main { background: rgba(91,63,140,.78); border-color: rgba(255,255,255,.35); color: #fff; }
+.reply.main .em { background: rgba(255,255,255,.18); }
+.reply:active { transform: scale(.97); }
+.reply.small { min-height: 72px; font-size: 26px; padding: 0 28px; color: #33263f; justify-content: center; background: rgba(255,255,255,.45); box-shadow: none; }
+.replies.float .reply.small { align-self: center; }
+.k[data-aud="adults"] .reply { font-family: var(--font-ui); font-weight: 700; font-size: 32px; min-height: 100px; }
+.k[data-aud="adults"] .reply.small { font-size: 22px; min-height: 64px; }
+.homebtn { position: absolute; left: 32px; top: 36px; width: 64px; height: 64px; border-radius: 50%; color: #33263f; display: grid; place-items: center; cursor: pointer; z-index: 3; }
+.homebtn svg { width: 30px; height: 30px; }
+.conn { position: absolute; left: 50%; top: 214px; transform: translateX(-50%); z-index: 2; border-radius: 999px; padding: 6px 16px; font-size: 18px; font-weight: 700; display: none; white-space: nowrap; }
+.conn.off { display: inline-flex; gap: 8px; align-items: center; }
+.conn i { width: 10px; height: 10px; border-radius: 50%; background: #e07a2f; }
+.split .conn { top: auto; bottom: 20px; left: 312px; }
+
+/* split layout for forms and printing (unchanged from v1) */
+.camcard { position: absolute; left: 32px; top: 32px; width: 560px; height: 736px; border-radius: 40px; overflow: hidden;
+  background: radial-gradient(70% 50% at 40% 30%, #f6dcc2, transparent 70%), linear-gradient(170deg, #d9c2a8, #9c8670); box-shadow: 0 18px 40px rgba(91,63,140,.18); }
+.camcard .oval { position: absolute; left: 50%; top: 46%; width: 300px; height: 370px; transform: translate(-50%, -50%); border-radius: 50%; border: 6px solid rgba(255,255,255,.95); overflow: hidden; box-shadow: 0 0 0 600px rgba(51,38,63,.22); }
+.camcard .camnote { top: auto; bottom: 26px; }
+.talk { position: absolute; left: 632px; right: 40px; top: 40px; bottom: 40px; display: flex; flex-direction: column; gap: 22px; }
+.split .homebtn { left: 52px; top: 52px; }
+
+.field { display: grid; gap: 6px; }
+.field label { font-size: 20px; font-weight: 700; color: #6e6078; }
+.field input { font-family: var(--font-ui); font-size: 36px; font-weight: 800; padding: 14px 22px; border-radius: 22px; border: 3px solid #f0dfd4; background: #fff; color: #33263f; width: 100%; }
+.field input:focus { border-color: #5b3f8c; outline: none; }
+.chips { display: flex; flex-wrap: wrap; gap: 10px; }
+.chip { font-family: var(--font-ui); font-size: 22px; font-weight: 700; border: 3px solid #f0dfd4; background: #fff; color: #33263f; border-radius: 999px; padding: 8px 18px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+.chip[aria-pressed="true"] { border-color: #5b3f8c; background: #5b3f8c; color: #fff; }
+.chipdot { width: 16px; height: 16px; border-radius: 50%; display: inline-block; flex: none; }
+.form { background: #fff; border-radius: 30px; padding: 22px 26px; display: grid; gap: 14px; box-shadow: 0 10px 30px rgba(91,63,140,.1); }
+
+/* registration: stars where the child looks, a 3D head that turns the same way */
+.star { position: absolute; width: 66px; height: 66px; margin: -33px; z-index: 1; }
+.star svg { width: 100%; height: 100%; overflow: visible; }
+.star .body { fill: rgba(255,255,255,.32); stroke: rgba(255,255,255,.85); stroke-width: 2.6; stroke-linejoin: round; stroke-dasharray: 3 3.2; }
+.star .face { display: none; }
+.star.on .body { fill: var(--gold); stroke: #f4a81d; stroke-dasharray: none; stroke-width: 3.4; }
+.star.on .face { display: inline; }
+.star.on { filter: drop-shadow(0 4px 8px rgba(244,168,29,.45)); }
+.star.next .body { animation: breathe 1.2s ease-in-out infinite; transform-origin: 12px 12.6px; }
+.star.pop svg { animation: pop .55s cubic-bezier(.3,1.6,.5,1) both; transform-origin: 50% 50%; }
+.star.pop::after { content: ""; position: absolute; inset: -14px; border-radius: 50%; border: 4px solid #ffe08a; animation: ring .6s ease-out both; }
+@keyframes pop { 0% { transform: scale(.2) rotate(-40deg); } 70% { transform: scale(1.3) rotate(8deg); } 100% { transform: none; } }
+@keyframes ring { from { transform: scale(.4); opacity: 1; } to { transform: scale(1.5); opacity: 0; } }
+@keyframes breathe { 50% { transform: scale(1.14); } }
+.k[data-aud="adults"] .star { width: 34px; height: 34px; margin: -17px; filter: none; }
+.k[data-aud="adults"] .star svg { display: none; }
+.k[data-aud="adults"] .star::before { content: ""; position: absolute; inset: 0; border-radius: 50%; border: 3px solid rgba(255,255,255,.85); background: rgba(255,255,255,.25); }
+.k[data-aud="adults"] .star.on::before { background: #fff; border-color: #fff; box-shadow: 0 0 0 5px rgba(91,63,140,.55); }
+.k[data-aud="adults"] .star.pop::after { border-color: #fff; }
+.glow { position: absolute; width: 230px; height: 300px; margin: -150px -115px; border-radius: 50%; background: radial-gradient(closest-side, rgba(255,214,110,.55), rgba(255,214,110,0)); animation: glow 1.6s ease-in-out infinite; pointer-events: none; }
+.glow.h { width: 320px; height: 200px; margin: -100px -160px; }
+@keyframes glow { 50% { opacity: .45; transform: scale(.92); } }
+.k[data-aud="adults"] .glow { background: radial-gradient(closest-side, rgba(255,255,255,.4), rgba(255,255,255,0)); }
+
+.regguide { position: absolute; left: 32px; top: 124px; width: 300px; border-radius: 30px; padding: 22px; display: grid; gap: 14px; justify-items: start; }
+.regguide .avatar { width: 72px; height: 72px; }
+.regguide .avatar i { top: 30px; width: 8px; height: 11px; } .regguide .avatar i:nth-child(1) { left: 24px; } .regguide .avatar i:nth-child(2) { right: 24px; }
+.regguide .avatar b { bottom: 18px; width: 20px; height: 10px; margin-left: -10px; border-width: 3px; }
+.regguide .say { word-break: keep-all; font-family: var(--font-kids); font-size: 40px; line-height: 1.2; color: #33263f; }
+.k[data-aud="adults"] .regguide .say { font-family: var(--font-ui); font-weight: 800; font-size: 30px; }
+.regguide .say small { word-break: keep-all; display: block; font-size: 30px; color: #c4672f; margin-top: 6px; }
+.k[data-aud="adults"] .regguide .say small { font-size: 24px; }
+.motions { display: grid; grid-template-columns: 34px repeat(3, 1fr); gap: 4px 6px; width: 100%; font-size: 15px; font-weight: 800; color: #6e6078; align-items: center; }
+.motions .h { text-align: center; font-size: 14px; }
+.motions .a { font-size: 22px; color: #5b3f8c; text-align: center; }
+.motions i { height: 22px; border-radius: 8px; background: rgba(51,38,63,.1); display: grid; place-items: center; font-style: normal; font-size: 14px; color: transparent; }
+.motions i.on { background: #ffc93c; color: #7a4a00; }
+.motions i.now { background: #fff; box-shadow: inset 0 0 0 3px #5b3f8c; }
+.steptag { position: absolute; z-index: 2; transform: translate(-50%, 0); border-radius: 999px; padding: 4px 14px; font-size: 19px; font-weight: 800; color: #33263f; white-space: nowrap; pointer-events: none; }
+.regguide .say .arrow { display: block; font-size: 64px; line-height: 1; color: #5b3f8c; }
+.meter { width: 100%; display: grid; gap: 6px; font-size: 20px; font-weight: 800; color: #6e6078; }
+.meter span { display: block; height: 14px; border-radius: 7px; background: rgba(51,38,63,.12); overflow: hidden; }
+.meter span i { display: block; height: 100%; border-radius: 7px; background: linear-gradient(90deg, #ffc93c, #ff9a62); transition: width .3s; }
+.headcard { position: absolute; right: 32px; top: 124px; width: 300px; border-radius: 30px; padding: 18px 20px 20px; display: grid; justify-items: center; gap: 6px; }
+.headcard b { font-family: var(--font-kids); font-weight: 400; font-size: 28px; color: #33263f; }
+.k[data-aud="adults"] .headcard b { font-family: var(--font-ui); font-weight: 800; font-size: 22px; }
+.headcard span { font-size: 20px; font-weight: 700; color: #6e6078; }
+.head-slot { width: 250px; height: 250px; border-radius: 24px; background: radial-gradient(circle at 50% 40%, rgba(255,255,255,.9), rgba(255,240,228,.6)); }
+.head-slot canvas { width: 250px; height: 250px; display: block; }
+.regnote { position: absolute; left: 0; right: 0; bottom: 22px; text-align: center; z-index: 2; }
+.fitwrap { display: inline-flex; gap: 16px; align-items: flex-end; max-width: 1060px; text-align: left; }
+.fitwrap .avatar { width: 84px; height: 84px; }
+.fitwrap .avatar i { top: 34px; width: 9px; height: 12px; } .fitwrap .avatar i:nth-child(1) { left: 27px; } .fitwrap .avatar i:nth-child(2) { right: 27px; }
+.fitwrap .avatar b { bottom: 22px; width: 22px; height: 11px; margin-left: -11px; border-width: 3.5px; }
+.regnote .fitline { display: inline-block; background: rgba(255,255,255,.88); border-radius: 34px 34px 34px 8px; padding: 16px 32px; font-family: var(--font-kids); font-size: 42px; line-height: 1.2; color: #33263f; word-break: keep-all; max-width: 1000px; animation: lineIn .45s cubic-bezier(.3,1.5,.5,1) both; }
+.fitline b { font-weight: 400; color: #5b3f8c; }
+.k[data-aud="adults"] .regnote .fitline { font-family: var(--font-ui); font-weight: 800; font-size: 32px; }
+@keyframes lineIn { from { transform: translateY(18px) scale(.94); opacity: 0; } }
+.regtop { position: absolute; left: 0; right: 0; top: 40px; text-align: center; z-index: 2; pointer-events: none; }
+.regtop span { display: inline-flex; gap: 10px; align-items: center; border-radius: 999px; padding: 6px 18px; font-size: 19px; font-weight: 800; color: #33263f; font-variant-numeric: tabular-nums; }
+.regtop i { font-style: normal; color: #f4a81d; }
+.regtop small { font-size: 16px; font-weight: 700; color: #6e6078; }
+@media (prefers-reduced-motion: reduce) { .fitline { animation: none; } }
+.regnote span { display: inline-block; border-radius: 999px; padding: 8px 22px; font-size: 20px; font-weight: 700; color: #33263f; }
+
+/* celebration when all 12 are in */
+.celebrate { position: absolute; inset: 0; display: grid; place-items: center; z-index: 4; pointer-events: none; background: radial-gradient(circle at 50% 50%, rgba(255,233,180,.55), rgba(51,38,63,.35)); animation: fadein .3s both; }
+@keyframes fadein { from { opacity: 0; } }
+.bigstar { position: absolute; left: 640px; top: 360px; width: 260px; height: 260px; margin: -130px; animation: bounce 1.1s cubic-bezier(.3,1.5,.5,1) both; }
+.bigstar svg { width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 12px 24px rgba(244,168,29,.5)); }
+@keyframes bounce { 0% { transform: scale(0) rotate(-180deg); } 60% { transform: scale(1.15) rotate(10deg); } 100% { transform: none; } }
+.spark { position: absolute; left: 640px; top: 360px; width: 40px; height: 40px; margin: -20px; animation: burst 1.2s ease-out both; }
+.spark svg { width: 100%; height: 100%; }
+@keyframes burst { 0% { transform: translate(0, 0) scale(.3); opacity: 0; } 20% { opacity: 1; } 100% { transform: translate(var(--dx), var(--dy)) scale(1) rotate(200deg); opacity: 0; } }
+.cheer { position: absolute; left: 50%; top: 540px; transform: translateX(-50%); border-radius: 999px; padding: 16px 40px; font-family: var(--font-kids); font-size: 52px; color: #33263f; white-space: nowrap; animation: rise .6s .35s cubic-bezier(.3,1.5,.5,1) both; }
+@keyframes rise { from { transform: translate(-50%, 40px); opacity: 0; } }
+.checkdone { position: absolute; left: 640px; top: 380px; width: 200px; height: 200px; margin: -100px; }
+.checkdone circle, .checkdone path { fill: none; stroke: #fff; stroke-width: 10; stroke-linecap: round; stroke-linejoin: round; }
+.checkdone circle { stroke-dasharray: 100; animation: draw .7s ease-out both; }
+.checkdone path { stroke-dasharray: 100; animation: draw .45s .55s ease-out both; }
+@keyframes draw { from { stroke-dashoffset: 100; } to { stroke-dashoffset: 0; } }
+.k[data-aud="adults"] .cheer { font-family: var(--font-ui); font-weight: 800; font-size: 36px; top: 520px; }
+
+/* name tag coming out */
+.tagout { position: absolute; left: 32px; top: 32px; width: 560px; height: 736px; border-radius: 40px; background: #fff; display: grid; place-items: center; box-shadow: 0 18px 40px rgba(91,63,140,.18); overflow: hidden; }
+.slot { position: absolute; top: 80px; left: 70px; right: 70px; height: 22px; border-radius: 11px; background: #33263f; }
+.tag { position: relative; width: 400px; height: 270px; background: #fff; border-radius: 16px; border: 2px solid #f0dfd4; box-shadow: 0 16px 40px rgba(91,63,140,.15); padding: 30px 34px; display: grid; align-content: center; gap: 4px; border-left: 20px solid var(--tagc); color: #33263f; }
+.tag b { font-family: var(--font-kids); font-weight: 400; font-size: 72px; line-height: 1; }
+.tag span { font-size: 26px; font-weight: 700; color: #6e6078; }
+.printing .tag { animation: feed 1.5s ease-out both; }
+@keyframes feed { from { transform: translateY(-260px); } to { transform: none; } }
+.confetti { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
+.confetti i { position: absolute; top: -20px; width: 14px; height: 22px; border-radius: 4px; animation: fall 1.8s ease-in forwards; }
+@keyframes fall { to { transform: translateY(820px) rotate(540deg); } }
+.k[data-aud="adults"] .confetti { display: none; }
+.count { font-family: var(--font-ui); font-weight: 800; font-size: 22px; color: #6e6078; }
+.pendingbox { position: absolute; inset: 0; background: rgba(51,38,63,.86); display: grid; place-items: center; color: #fff; text-align: center; z-index: 5; }
+.pendingbox div { display: grid; gap: 14px; max-width: 760px; }
+.pendingbox b { font-family: var(--font-kids); font-weight: 400; font-size: 48px; line-height: 1.25; }
+.pendingbox code { font-size: 28px; background: rgba(255,255,255,.15); padding: 6px 16px; border-radius: 12px; justify-self: center; }
+.ktoast { position: absolute; right: 60px; bottom: 60px; background: #33263f; color: #fff; font-size: 24px; padding: 12px 22px; border-radius: 999px; z-index: 6; }
+@media (prefers-reduced-motion: reduce) {
+  .confetti, .spark { display: none; }
+  .printing .tag, .star.pop svg, .star.pop::after, .star.next .body, .glow, .bigstar, .cheer, .checkdone circle, .checkdone path { animation: none; }
+}
+
+/* ================= SERVER ================= */
+.s { position: absolute; inset: 0; display: flex; flex-direction: column; background: #fff8f3; font-size: 20px; color: #33263f; }
+.top { display: flex; align-items: center; gap: 18px; padding: 22px 34px 0; }
+.top .brand { font-family: var(--font-kids); font-size: 30px; }
+.top .brand small { font-family: var(--font-ui); font-size: 16px; color: #6e6078; margin-left: 8px; }
+.tabs { margin-left: auto; display: flex; gap: 6px; background: #fff; padding: 6px; border-radius: 999px; box-shadow: 0 2px 10px rgba(91,63,140,.08); }
+.tabs button { border: 0; background: transparent; font-family: var(--font-ui); font-size: 20px; font-weight: 700; color: #6e6078; padding: 10px 22px; border-radius: 999px; cursor: pointer; position: relative; }
+.tabs button[aria-current="true"] { background: #5b3f8c; color: #fff; }
+.tabs .badge { position: absolute; top: 2px; right: 6px; width: 12px; height: 12px; border-radius: 50%; background: #ff9a62; }
+.smain { flex: 1; overflow: auto; padding: 22px 34px 30px; display: flex; flex-direction: column; gap: 18px; }
+.smain h1 { font-family: var(--font-kids); font-weight: 400; font-size: 40px; margin: 0; line-height: 1.2; }
+.smain h1 small { display: block; font-family: var(--font-ui); font-size: 19px; color: #6e6078; }
+.today { display: grid; grid-template-columns: 1.2fr 1fr; gap: 20px; }
+.steplist { background: #fff; border-radius: 28px; padding: 10px 26px; box-shadow: 0 6px 24px rgba(91,63,140,.08); }
+.stepi { display: grid; grid-template-columns: 52px 1fr auto; gap: 16px; align-items: center; padding: 16px 0; border-top: 1px solid #f3e7de; }
+.stepi:first-child { border-top: 0; }
+.stepi .n { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; background: #f3ecfa; color: #5b3f8c; }
+.stepi.ok .n { background: #3f9d7a; color: #fff; }
+.stepi.todo .n { background: #ff9a62; color: #fff; }
+.stepi b { display: block; font-size: 22px; }
+.stepi span { color: #6e6078; font-size: 18px; }
+.sbtn { font-family: var(--font-ui); font-size: 19px; font-weight: 800; border-radius: 999px; border: 0; padding: 12px 22px; cursor: pointer; background: #f3ecfa; color: #5b3f8c; white-space: nowrap; }
+.sbtn.primary { background: #5b3f8c; color: #fff; }
+.sbtn.danger { background: transparent; color: #c0461b; border: 2px solid currentColor; }
+.sbtn.ghost { background: #fff; border: 2px solid #f0dfd4; color: #33263f; }
+.big-count { background: #5b3f8c; color: #fff; border-radius: 28px; padding: 24px 28px; display: grid; gap: 8px; align-content: start; }
+.big-count .num { font-family: var(--font-kids); font-size: 92px; line-height: 1; }
+.big-count .num small { font-size: 32px; opacity: .8; }
+.donuts { display: flex; flex-wrap: wrap; gap: 14px; }
+.donut { display: grid; justify-items: center; gap: 2px; font-size: 16px; }
+.donut svg { width: 64px; height: 64px; }
+.search { font: inherit; font-size: 21px; padding: 12px 22px; border-radius: 999px; border: 2px solid #f0dfd4; background: #fff; color: #33263f; flex: 1; min-width: 0; }
+.toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.toolbar .chips { gap: 8px; }
+.toolbar .chip { font-size: 17px; padding: 5px 13px; border-width: 2px; }
+.seg2 { display: inline-flex; background: #fff; border: 2px solid #f0dfd4; border-radius: 999px; padding: 3px; }
+.seg2 button { border: 0; background: transparent; font: inherit; font-size: 18px; font-weight: 700; color: #6e6078; padding: 6px 16px; border-radius: 999px; cursor: pointer; }
+.seg2 button[aria-pressed="true"] { background: #5b3f8c; color: #fff; }
+
+/* tables */
+.tbl { width: 100%; border-collapse: separate; border-spacing: 0; background: #fff; border-radius: 22px; box-shadow: 0 4px 18px rgba(91,63,140,.07); font-size: 20px; }
+.tbl th { position: sticky; top: -22px; z-index: 1; background: #f7f0fb; color: #5b3f8c; font-size: 17px; font-weight: 800; text-align: left; padding: 0; border-bottom: 2px solid #ece0f5; }
+.tbl th:first-child { border-top-left-radius: 22px; } .tbl th:last-child { border-top-right-radius: 22px; }
+.tbl th button { all: unset; display: flex; align-items: center; gap: 6px; padding: 13px 18px; cursor: pointer; width: 100%; box-sizing: border-box; }
+.tbl th button:focus-visible { outline: 3px solid var(--apricot); outline-offset: -3px; }
+.tbl th .arr { font-size: 13px; opacity: .35; }
+.tbl th[aria-sort] .arr { opacity: 1; }
+.tbl th.static { padding: 13px 18px; }
+.tbl td { padding: 12px 18px; border-bottom: 1px solid #f5ebe3; vertical-align: middle; }
+.tbl tbody tr:last-child td { border-bottom: 0; }
+.tbl tbody tr.row { cursor: pointer; }
+.tbl tbody tr.row:hover td { background: #fff6ef; }
+.tbl tbody tr.muted td { color: #a99bb3; }
+.tbl .num { font-variant-numeric: tabular-nums; }
+.tbl .r { text-align: right; }
+.nm { display: flex; align-items: center; gap: 12px; font-weight: 800; }
+.ini { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; font-family: var(--font-kids); font-weight: 400; font-size: 19px; color: #fff; flex: none; }
+.muted .ini { opacity: .45; }
+.dpt { display: inline-flex; align-items: center; gap: 8px; }
+.pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 3px 12px; font-size: 16px; font-weight: 800; white-space: nowrap; }
+.pill.in { background: #e3f4ec; color: #22684d; }
+.pill.out { background: #f3eef6; color: #8a7b94; }
+.pill.new { background: #fff0e4; color: #b4541c; }
+.pill.guest { background: #eef3fb; color: #36598c; }
+.editrow td { background: #faf6fd; padding: 16px 18px; }
+.editrow .grid3 { display: grid; grid-template-columns: 1.2fr 1fr 1fr auto; gap: 12px; align-items: center; }
+.editrow input, .editrow select { font: inherit; font-size: 20px; padding: 9px 14px; border-radius: 12px; border: 2px solid #e6d8ef; background: #fff; color: #33263f; width: 100%; }
+.editrow .acts { display: flex; gap: 8px; margin-top: 12px; }
+.tfoot { color: #6e6078; font-size: 17px; }
+.dsum { display: flex; flex-wrap: wrap; gap: 8px; }
+.dsum button { font: inherit; font-size: 17px; font-weight: 700; display: inline-flex; gap: 8px; align-items: center; background: #fff; border: 2px solid #f0dfd4; border-radius: 16px; padding: 7px 12px; cursor: pointer; color: #33263f; }
+.dsum button[aria-pressed="true"] { border-color: #5b3f8c; box-shadow: inset 0 0 0 1px #5b3f8c; }
+.dsum .bar { width: 44px; height: 8px; border-radius: 4px; background: #f1e8f6; overflow: hidden; }
+.dsum .bar i { display: block; height: 100%; }
+.dsum .num { font-variant-numeric: tabular-nums; color: #6e6078; }
+.klist { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.kcard { background: #fff; border-radius: 26px; padding: 22px; display: grid; gap: 10px; box-shadow: 0 4px 16px rgba(91,63,140,.07); }
+.kcard.pending { border: 3px solid #ff9a62; }
+.kcard b { font-size: 23px; }
+.kcard span { color: #6e6078; font-size: 17px; }
+.stoast { position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%); background: #33263f; color: #fff; font-weight: 700; padding: 12px 22px; border-radius: 999px; font-size: 19px; z-index: 3; }
+</style>
+
+<div class="wrap">
+  <header class="intro">
+    <span class="eyebrow">제안 B v6 · UI 연구 · Faith ID</span>
+    <h1>따뜻한 안내자 v6</h1>
+    <p>v1의 빛이와 대화형 안내는 그대로 두고 화면 구성을 바꿨습니다. 카메라가 키오스크 화면 전체를 채우고, 말풍선과 버튼은 반투명 유리처럼 그 위에 떠 있습니다. 얼굴 등록 때는 아이가 바라볼 쪽에 별이 있고, 오른쪽 그림의 머리가 같은 방향으로 돌아갑니다. 서버 앱의 명단과 출석은 표로 바꿨습니다. v6에서는 “동그라미에 얼굴을 맞춰 줘” 같은 안내를 화면 가운데 아래에 크게 띄우고, 왼쪽의 진행 표를 없앴습니다. 별 개수는 위쪽에 작게 보입니다. v5부터는 거리를 말로 설명하지 않습니다. 방향마다 얼굴 동그라미가 보통 → 크게 → 작게 바뀌고, 아이는 얼굴을 동그라미에 맞추기만 하면 됩니다. 큰 동그라미를 채우려면 다가오고, 작은 동그라미에 들어가려면 물러나게 됩니다. <a href="https://claude.ai/artifact/CjoFDg91PA9bUdeyJjsFoD">v5 보기</a> · <a href="https://claude.ai/artifact/432P5BYJMLvsk2ZnqmcE72">v4 보기</a> · <a href="https://claude.ai/artifact/81UuS3EPBZdj4cps1fT87u">v3 보기</a> · <a href="https://claude.ai/artifact/XQynTHsmvkqybcEo3ASnUC">v2 보기</a> · <a href="https://claude.ai/artifact/41rHRSUb7sWGaps9Xe6gR1">v1 보기</a></p>
+    <div class="principles">
+      <div><b>카메라가 화면 전체</b>얼굴 동그라미가 가운데, 말풍선은 위, 버튼은 아래에 떠 있음</div>
+      <div><b>동그라미에 맞추기</b>방향 4개 × 동그라미 3개(보통·큰·작은). 얼굴을 맞추면 거리가 저절로 바뀜</div>
+      <div><b>따라 하는 머리</b>코와 입이 없는 3D 머리가 고개 돌리는 방향을 보여 줌</div>
+      <div><b>표로 보는 명단</b>이름·부서·학년·출석을 한 줄씩. 머리글을 누르면 정렬</div>
+    </div>
+  </header>
+  <div id="app"></div>
+</div>
+
+<script src="proto.js"></script>
+<script>
+const P = window.Proto;
+P.regDoneDelay = 2600; // hold the finished registration so the celebration can play
+const I = {
+  print: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 14h10v7H7z"/></svg>',
+  face: '<svg viewBox="0 0 24 24" fill="none" stroke="#5b3f8c" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="10" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>',
+  tag: '<svg viewBox="0 0 24 24" fill="none" stroke="#c4672f" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 11h6M7 14h4"/></svg>',
+  home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>',
+  yes: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg>',
+};
+// A chubby star: a fat inner radius and round joins, with a little face once it is collected.
+const STAR_PTS = Array.from({ length: 10 }, (_, i) => {
+  const a = -Math.PI / 2 + i * Math.PI / 5, r = i % 2 ? 5.6 : 10;
+  return (12 + r * Math.cos(a)).toFixed(2) + ',' + (12.6 + r * Math.sin(a)).toFixed(2);
+}).join(' ');
+const starSvg = `<svg viewBox="0 0 24 24" aria-hidden="true"><polygon class="body" points="${STAR_PTS}"/>
+  <g class="face"><ellipse cx="8.4" cy="8.9" rx="1.5" ry=".9" fill="#fff" opacity=".7" transform="rotate(-30 8.4 8.9)"/>
+  <ellipse cx="10.1" cy="11.5" rx="1.05" ry="1.25" fill="#1d120c"/><ellipse cx="13.9" cy="11.5" rx="1.05" ry="1.25" fill="#1d120c"/>
+  <circle cx="10.45" cy="11.05" r=".42" fill="#fff"/><circle cx="14.25" cy="11.05" r=".42" fill="#fff"/>
+  <path d="M11.2 13.25q.8.75 1.6 0" fill="none" stroke="#1d120c" stroke-width=".62" stroke-linecap="round"/>
+  <ellipse cx="8.5" cy="13.2" rx="1.15" ry=".65" fill="#ff7a8a" opacity=".55"/><ellipse cx="15.5" cy="13.2" rx="1.15" ry=".65" fill="#ff7a8a" opacity=".55"/></g></svg>`;
+const plainStar = `<svg viewBox="0 0 24 24" aria-hidden="true"><polygon points="${STAR_PTS}" fill="#ffc93c" stroke="#f4a81d" stroke-width="2" stroke-linejoin="round"/></svg>`;
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const silhouette = '<svg class="silhouette" viewBox="0 0 200 240" aria-hidden="true"><circle cx="100" cy="88" r="58" fill="#fff"/><path d="M14 240c8-56 44-86 86-86s78 30 86 86z" fill="#fff"/></svg>';
+const kids = s => s.audience === 'kids';
+const hasFace = s => s.face && s.face.kind !== 'leave';
+// Keeps looping CSS animations continuous although the screen is redrawn on every state change.
+const phase = ms => `animation-delay:-${Date.now() % ms}ms`;
+
+function overlays(s) {
+  return `${s.connection === 'pending' ? `<div class="pendingbox"><div><b>${P.t('pending')}</b><span style="font-size:24px">서버 앱 › 오늘의 순서 › 키오스크 허락</span><code>client-3f90</code></div></div>` : ''}
+    ${s.toast ? `<div class="ktoast">${esc(s.toast)}</div>` : ''}`;
+}
+const homeBtn = `<button class="homebtn glass" data-act="home" aria-label="처음으로">${I.home}</button>`;
+const connChip = s => `<span class="conn glass ${s.connection === 'offline' ? 'off' : ''}"><i></i>오프라인 · 출석 보관 중</span>`;
+const avatar = '<div class="avatar" aria-hidden="true"><i></i><i></i><b></b></div>';
+
+// Camera screens: the camera fills the screen and everything else floats over it.
+function camScreen(s, o) {
+  return `<div class="k" data-aud="${s.audience}">
+    <div class="fullcam"><div class="oval ${o.found ? 'found' : ''}">${hasFace(s) ? silhouette : ''}</div>
+      <div class="camnote">${o.note || '사진은 저장하지 않아요'}</div></div>
+    ${o.extra || ''}
+    ${homeBtn}${connChip(s)}
+    <div class="guide float">${avatar}<div class="bubble glass">${o.bubble}${o.sub ? `<small>${o.sub}</small>` : ''}</div></div>
+    ${o.replies ? `<div class="replies float">${o.replies}</div>` : ''}
+    ${overlays(s)}</div>`;
+}
+// Form and print screens keep v1's split layout.
+function cam(s, opts = {}) {
+  return `<div class="camcard"><div class="oval">${hasFace(s) ? silhouette : ''}</div>
+    <div class="camnote">${opts.note || '사진은 저장하지 않아요'}</div></div>`;
+}
+function frame(s, left, bubble, sub, replies) {
+  return `<div class="k split" data-aud="${s.audience}">
+    ${left}${homeBtn}${connChip(s)}
+    <div class="talk"><div class="guide">${avatar}
+      <div class="bubble">${bubble}${sub ? `<small>${sub}</small>` : ''}</div></div>
+      ${replies}</div>
+    ${overlays(s)}</div>`;
+}
+const reply = (act, label, icon, cls = '', id = '') => `<button class="reply ${cls}" data-act="${act}" ${id ? `data-id="${id}"` : ''}>${icon ? `<span class="em">${icon}</span>` : ''}${label}</button>`;
+
+/* ---------- registration ---------- */
+// Star k (0..2) of each direction sits on the side of the oval the child is asked to look at.
+function starPos(dir, k) {
+  const o = k - 1, a = Math.abs(o);
+  if (dir === 'left') return [432 + a * 20, 420 + o * 76];
+  if (dir === 'right') return [848 - a * 20, 420 + o * 76];
+  if (dir === 'up') return [640 + o * 84, 168 + a * 18];
+  return [640 + o * 84, 672 - a * 18];
+}
+const GLOW = { left: [440, 420], right: [840, 420], up: [640, 178], down: [640, 662] };
+// Three circles per direction. The child only fits their face to the circle; a big circle brings
+// them closer, a small one sends them back. Star size follows the circle size.
+const STEPS = [
+  { id: 'mid', word: '보통 동그라미', kids: '동그라미에 얼굴을 쏙 맞춰 줄래?', adults: '원 안에 얼굴을 맞춰 주세요', oval: [260, 330], size: 66, zoom: 1 },
+  { id: 'big', word: '큰 동그라미', kids: '우아, 동그라미가 커졌다! 얼굴로 꽉 채워 줄래?', adults: '원이 커졌습니다. 얼굴이 원을 채우도록 맞춰 주세요', oval: [306, 384], size: 82, zoom: 1.24 },
+  { id: 'small', word: '작은 동그라미', kids: '이번엔 동그라미가 작아졌어! 쏙 들어와 볼까?', adults: '원이 작아졌습니다. 얼굴이 원 안에 들어오도록 맞춰 주세요', oval: [190, 240], size: 52, zoom: 0.78 },
+];
+const circleIcon = r => `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="${r}" fill="none" stroke="#5b3f8c" stroke-width="2.4"/></svg>`;
+const STEP_ICON = [circleIcon(6.5), circleIcon(9.5), circleIcon(4)];
+const turnWord = (d, kidsMode) => kidsMode ? `${d.label}${d.id === 'up' || d.id === 'down' ? '를' : '을'} 봐 줘!` : `고개를 ${d.label}${d.id === 'up' || d.id === 'down' ? '로' : '으로'}`;
+P.regStepMs = 1300; P.regTurnMs = 1500; // slower than v3 so each move can be followed
+P.regStepSay = (d, k) => P.state.audience === 'kids' ? `${turnWord(d, true)} ${STEPS[k].kids}` : `${turnWord(d, false)}, ${STEPS[k].adults}`;
+
+function register(s) {
+  const r = s.reg, done = r.dir >= P.DIRECTIONS.length;
+  const dir = P.DIRECTIONS[Math.min(r.dir, 3)];
+  const got = r.counts.reduce((a, b) => a + b, 0), total = P.DIRECTIONS.length * P.PER_DIRECTION;
+  // The star that was just collected; every redraw during capture is caused by one.
+  let popDir = -1, popK = -1;
+  if (got > 0) {
+    popDir = done ? 3 : (r.counts[r.dir] === 0 ? r.dir - 1 : r.dir);
+    popK = r.counts[popDir] - 1;
+  }
+  const stars = P.DIRECTIONS.map((d, di) => [0, 1, 2].map(k => {
+    const [x, y] = starPos(d.id, k);
+    const on = r.counts[di] > k;
+    const cls = on ? (di === popDir && k === popK ? 'on pop' : 'on') : (!done && di === r.dir && k === r.counts[di] ? 'next' : '');
+    const sz = STEPS[k].size;
+    return `<span class="star ${cls}" style="left:${x}px;top:${y}px;width:${sz}px;height:${sz}px;margin:-${sz / 2}px">${starSvg}</span>`;
+  }).join('')).join('');
+  const g = GLOW[dir.id];
+  const k = done ? 2 : r.counts[r.dir], step = STEPS[k];
+  const [tx, ty] = starPos(dir.id, k);
+  const tagY = dir.id === 'up' ? ty - 74 : ty + step.size / 2 + 8;
+  const prev = k > 0 ? STEPS[k - 1] : STEPS[2];
+  const ov = done ? STEPS[0].oval : step.oval, pv = done ? STEPS[2].oval : (got === 0 ? step.oval : prev.oval);
+  const ovalStyle = `--w:${ov[0]}px;--h:${ov[1]}px;--pw:${pv[0]}px;--ph:${pv[1]}px`;
+  const stepTag = done ? '' : `<span class="oval-label glass" style="top:${420 + ov[1] / 2 - 56}px">${kids(s) ? (k === 1 ? '꽉 채우기' : k === 2 ? '쏙 들어가기' : '딱 맞추기') : step.word}</span>`;
+  const motions = `<div class="motions" aria-label="12가지 동작 중 ${got}개 완료"><span></span>${STEPS.map((st, si) => `<span class="h" title="${st.word}">${STEP_ICON[si]}</span>`).join('')}
+    ${P.DIRECTIONS.map((d, di) => `<span class="a">${d.arrow}</span>${STEPS.map((st, si) => `<i class="${r.counts[di] > si ? 'on' : (!done && di === r.dir && si === r.counts[di] ? 'now' : '')}">${r.counts[di] > si ? '★' : ''}</i>`).join('')}`).join('')}</div>`;
+  const glow = done ? '' : `<span class="glow ${dir.id === 'up' || dir.id === 'down' ? 'h' : ''}" style="left:${g[0]}px;top:${g[1]}px;${phase(1600)}"></span>`;
+  const say = done ? (kids(s) ? '다 모았다!' : '완료되었습니다')
+    : `<span class="arrow">${dir.arrow}</span>${turnWord(dir, kids(s))}`;
+  // The one thing to do right now, large and centred under the circle.
+  const fitLine = done ? '' : `<div class="fitwrap">${avatar}<span class="fitline">${kids(s) ? step.kids : step.adults}</span></div>`;
+  const celebrate = !done ? '' : kids(s)
+    ? `<div class="celebrate">${Array.from({ length: 14 }, (_, i) => { const a = i / 14 * Math.PI * 2; return `<span class="spark" style="--dx:${Math.round(Math.cos(a) * 420)}px;--dy:${Math.round(Math.sin(a) * 300)}px;animation-delay:${(i % 3) * .08}s">${plainStar}</span>`; }).join('')}
+        <span class="bigstar">${starSvg.replace('class="body"', 'class="body" style="fill:#ffc93c;stroke:#f4a81d;stroke-width:2;stroke-dasharray:none"').replace('class="face"', 'class="face" style="display:inline"')}</span>
+        <span class="cheer glass">별 12개 다 모았다!</span>${confetti()}</div>`
+    : `<div class="celebrate"><svg class="checkdone" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="44" pathLength="100" transform="rotate(-90 50 50)"/><path d="M30 52l13 13 27-29" pathLength="100"/></svg><span class="cheer glass">얼굴 등록 완료</span></div>`;
+  const howto = done ? (kids(s) ? '최고야!' : '정면') : `${dir.arrow} ${dir.label} · ${step.word}`;
+  return `<div class="k" data-aud="${s.audience}">
+    <div class="fullcam reg"><div class="oval found" style="${ovalStyle}">${silhouette}</div></div>
+    ${glow}${stars}
+    ${homeBtn}
+    <div class="regguide glass"><div class="say">${say}</div>
+</div>
+    <div class="headcard glass"><b>${kids(s) ? '이렇게 따라 해 봐!' : '이렇게 돌려 주세요'}</b><div class="head-slot" role="img" aria-label="${dir.label}으로 고개를 돌리고 ${step.word}에 맞추는 머리 그림"></div><span>${howto}</span></div>
+    <div class="regtop"><span class="glass">${kids(s) ? `<i>★</i> 별 ${got} / ${total}` : `${got} / ${total} 동작`}<small>· 사진은 저장하지 않아요</small></span></div>
+    <div class="regnote">${fitLine}</div>
+    ${celebrate}${overlays(s)}</div>`;
+}
+
+function tag(p, guest) {
+  const d = p ? P.dept(p.dept) : null;
+  return `<div class="tag" style="--tagc:${d ? d.color : '#c9bcd2'}"><b>${esc(p ? p.name : guest.name)}</b><span>${esc(p ? d.name + ' · ' + p.grade : [guest.dept, guest.grade].filter(Boolean).join(' · '))}</span></div>`;
+}
+function deptChips(s) {
+  const grades = s.form.dept ? P.GRADES[s.form.dept] : [];
+  return `<div class="field"><label>부서</label><div class="chips">${P.DEPTS.map(d => `<button class="chip" data-act="dept" data-id="${d.id}" aria-pressed="${s.form.dept === d.id}"><i class="chipdot" style="background:${d.color}"></i>${d.name}</button>`).join('')}</div></div>
+    ${grades.length ? `<div class="field"><label>학년 · 나이</label><div class="chips">${grades.map(g => `<button class="chip" data-act="grade" data-id="${g}" aria-pressed="${s.form.grade === g}">${g}</button>`).join('')}</div></div>` : ''}`;
+}
+function confetti() {
+  const colors = ['#ff9a62', '#ffc24b', '#7cc7a4', '#a98be0', '#6fa8e8'];
+  return `<div class="confetti" aria-hidden="true">${Array.from({ length: 26 }, (_, i) => `<i style="left:${(i * 37) % 100}%;background:${colors[i % 5]};animation-delay:${(i % 7) * 0.08}s"></i>`).join('')}</div>`;
+}
+
+function kiosk(s) {
+  const p = s.person;
+  switch (s.screen) {
+    case 'idle':
+      return camScreen(s, { bubble: kids(s) ? '안녕! 나는 빛이야. 동그라미 안에 얼굴을 보여 줄래?' : '안녕하세요. 화면을 바라봐 주세요', sub: kids(s) ? '내가 이름을 찾아 줄게' : '얼굴로 출석을 확인합니다' });
+    case 'detecting':
+      return camScreen(s, { found: true, bubble: kids(s) ? '음… 누구더라?' : '확인 중입니다' });
+    case 'recognized': {
+      const d = P.dept(p.dept);
+      return camScreen(s, { found: true, note: `${d.name} · ${esc(p.grade)}`, extra: kids(s) ? confetti() : '',
+        bubble: esc(P.t('hello', p)), sub: kids(s) ? '오늘도 와 줘서 고마워' : `${d.name} · ${esc(p.grade)}`,
+        replies: reply('print', P.t('printCta'), I.print, 'main') + reply('home', kids(s) ? '나 아닌데?' : '본인이 아닙니다', '', 'small') });
+    }
+    case 'candidates':
+      return camScreen(s, { found: true, bubble: kids(s) ? '어? 닮은 친구가 둘이네!' : '비슷한 분이 두 명 있습니다', sub: P.t('twins'),
+        replies: s.candidates.map(c => reply('pick', `${esc(c.name)} <span style="font-size:24px;opacity:.7">${P.dept(c.dept).name} ${esc(c.grade)}</span>`, '', '', c.id)).join('') + reply('home', '둘 다 아니에요', '', 'small') });
+    case 'unknown':
+      return camScreen(s, { found: true, bubble: kids(s) ? '처음 보는 얼굴이네! 우리 친구 할까?' : '처음 오셨나요?', sub: kids(s) ? '얼굴을 등록하면 다음부터 바로 이름표가 나와' : '얼굴을 등록하면 다음부터 바로 출석됩니다',
+        replies: reply('register', kids(s) ? '좋아, 등록할래!' : '얼굴 등록하기', I.face, 'main') + reply('labelonly', kids(s) ? '오늘은 이름표만' : '등록 없이 이름표만', I.tag) });
+    case 'register':
+      return register(s);
+    case 'regName':
+      return frame(s, cam(s, { note: '얼굴 12장 완료' }), kids(s) ? '별 12개 다 모았다!' : '얼굴 등록이 끝났습니다', kids(s) ? '선생님, 이름을 적어 주세요' : '이름과 소속을 입력해 주세요',
+        `<div class="form"><div class="field"><label for="f-name">이름</label><input id="f-name" data-field="name" value="${esc(s.form.name)}" placeholder="예: 김하은" autocomplete="off"></div>${deptChips(s)}</div>
+        <div class="replies">${reply('save', '다 됐어요', I.yes, 'main')}</div>`);
+    case 'saved':
+      return frame(s, `<div class="tagout">${tag(p)}</div>${kids(s) ? confetti() : ''}`, esc(P.t('saved')), kids(s) ? `이제 ${esc(P.callName(p))}는 내 친구야` : '다음부터는 바로 출석됩니다', '');
+    case 'confirmSelf':
+      return camScreen(s, { found: true, bubble: esc(P.t('confirm', p)), sub: kids(s) ? '어, 이미 아는 얼굴이야! 맞으면 네를 눌러 줘' : '이미 등록된 얼굴과 같습니다',
+        replies: reply('confirm-yes', P.t('confirmYes'), I.yes, 'main') + reply('confirm-no', P.t('confirmNo'), '') });
+    case 'labelOnly':
+      return frame(s, cam(s), kids(s) ? '이름표에 뭐라고 쓸까?' : '이름표에 넣을 내용', '얼굴은 저장하지 않아요',
+        `<div class="form"><div class="field"><label for="f-gname">이름</label><input id="f-gname" data-field="name" value="${esc(s.form.name)}" placeholder="예: 이준호" autocomplete="off"></div>${deptChips(s)}</div>
+        <div class="replies">${reply('printlabel', P.t('printCta'), I.print, 'main')}</div>`);
+    case 'printing':
+      return frame(s, `<div class="tagout printing"><span class="slot"></span>${tag(p, s.guest)}</div>`, P.t('printing'), kids(s) ? '프린터에서 이름표를 꺼내 줘' : '', '');
+    case 'done':
+      return frame(s, `<div class="tagout">${tag(p, s.guest)}</div>`, esc(P.t('done', p)), `<span class="count">${s.countdown}초 뒤에 처음으로 돌아가요</span>`,
+        `<div class="replies">${reply('home', '처음으로', '', 'small')}</div>`);
+  }
+  return '';
+}
+
+/* ---------- the 3D head: a featureless cartoon head, ray-cast into a canvas ---------- */
+// One canvas lives across redraws and is moved into each new .head-slot, so the turn stays smooth.
+const Head = (() => {
+  const N = 300, R0 = 78, CX = N / 2, CY = N * 0.43;
+  let R = R0, zoom = 1, wantZoom = 1;
+  const cv = document.createElement('canvas');
+  cv.width = N; cv.height = N;
+  const ctx = cv.getContext('2d');
+  const img = ctx.createImageData(N, N);
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const TARGET = { left: [-0.98, 0], right: [0.98, 0], up: [0, -0.6], down: [0, 0.55] };
+  const L = norm([-0.45, 0.6, 0.66]);
+  let yaw = 0, pitch = 0, last = 0, drawnAt = null, slot = null, aud = 'kids', want = null;
+
+  function norm(v) { const l = Math.hypot(v[0], v[1], v[2]); return [v[0] / l, v[1] / l, v[2] / l]; }
+  // Ray (o + t·d) against an axis-aligned ellipsoid at c with radii r; returns t or -1.
+  function hitEllipsoid(o, d, c, r) {
+    const ox = (o[0] - c[0]) / r[0], oy = (o[1] - c[1]) / r[1], oz = (o[2] - c[2]) / r[2];
+    const dx = d[0] / r[0], dy = d[1] / r[1], dz = d[2] / r[2];
+    const a = dx * dx + dy * dy + dz * dz, b = 2 * (ox * dx + oy * dy + oz * dz), k = ox * ox + oy * oy + oz * oz - 1;
+    const disc = b * b - 4 * a * k;
+    if (disc < 0) return -1;
+    return (-b - Math.sqrt(disc)) / (2 * a);
+  }
+  const HEAD = [[0, 0, 0], [1, 1.04, 0.96]];
+  const EARS = [[[-0.97, -0.05, -0.04], [0.2, 0.24, 0.16]], [[0.97, -0.05, -0.04], [0.2, 0.24, 0.16]]];
+  const TUFT = [[0.12, 1.04, -0.12], [0.2, 0.2, 0.2]];
+  const NECK = [[0, -1.05, -0.08], [0.36, 0.42, 0.34]];
+  const BODY = [[0, -1.78, -0.2], [1.45, 0.78, 0.8]];
+
+  function draw() {
+    const kidsMode = aud === 'kids';
+    const skin = kidsMode ? [255, 214, 186] : [236, 203, 178];
+    const hair = kidsMode ? [120, 78, 64] : [86, 70, 78];
+    const shirt = kidsMode ? [255, 160, 110] : [104, 78, 150];
+    const blush = [255, 140, 140];
+    const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
+    // world → head local: undo yaw, then undo pitch
+    const toLocal = v => { const x1 = cy * v[0] - sy * v[2], z1 = sy * v[0] + cy * v[2]; return [x1, cp * v[1] + sp * z1, -sp * v[1] + cp * z1]; };
+    // head local → world: pitch, then yaw
+    const toWorld = v => { const y1 = cp * v[1] - sp * v[2], z1 = sp * v[1] + cp * v[2]; return [cy * v[0] + sy * z1, y1, -sy * v[0] + cy * z1]; };
+    const dW = [0, 0, -1], dL = toLocal(dW);
+    const data = img.data;
+    for (let py = 0; py < N; py++) {
+      for (let px = 0; px < N; px++) {
+        const i = (py * N + px) * 4;
+        const wx = (px - CX) / R, wy = -(py - CY) / R;
+        if (wx * wx + wy * wy > 7) { data[i + 3] = 0; continue; }
+        const oW = [wx, wy, 5], oL = toLocal(oW);
+        let best = 1e9, col = null, nW = null, gloss = 0;
+        // rotating parts
+        let t = hitEllipsoid(oL, dL, HEAD[0], HEAD[1]);
+        if (t > 0 && t < best) {
+          best = t;
+          const p = [oL[0] + t * dL[0], oL[1] + t * dL[1], oL[2] + t * dL[2]];
+          const n = norm([p[0], p[1] / 1.0816, p[2] / 0.9216]);
+          const u = norm(p); // direction on the head, used for hair and cheeks
+          const fringe = 0.5 + 0.07 * Math.cos(u[0] * 11);
+          const line = u[2] > 0 ? fringe + 0.05 * u[2] : 0.5 + u[2] * 0.95;
+          if (u[1] > line) { col = hair; gloss = 0.35; }
+          else {
+            col = skin; gloss = 0.08;
+            // Eyes only (no nose or mouth): dark, slightly tall, a little above the middle of the face.
+            for (const sx of [-1, 1]) {
+              const ex = u[0] - sx * 0.3, ey = u[1] - 0.06;
+              if (u[2] > 0.5 && (ex / 0.105) ** 2 + (ey / 0.135) ** 2 < 1) {
+                col = [34, 24, 26]; gloss = 0.6;
+                if (kidsMode && ((ex + sx * 0.0 - 0.03) / 0.04) ** 2 + ((ey - 0.045) / 0.04) ** 2 < 1) col = [255, 255, 255];
+              }
+              if (kidsMode && u[2] > 0.4) {
+                const bx = u[0] - sx * 0.5, by = u[1] + 0.17;
+                const d2 = (bx / 0.13) ** 2 + (by / 0.08) ** 2;
+                if (d2 < 1 && col === skin) { const w = (1 - d2) * 0.6; col = [col[0] + (blush[0] - col[0]) * w, col[1] + (blush[1] - col[1]) * w, col[2] + (blush[2] - col[2]) * w]; }
+              }
+            }
+          }
+          nW = toWorld(n);
+        }
+        for (const [c, r] of EARS) {
+          t = hitEllipsoid(oL, dL, c, r);
+          if (t > 0 && t < best) { best = t; const p = [oL[0] + t * dL[0] - c[0], oL[1] + t * dL[1] - c[1], oL[2] + t * dL[2] - c[2]]; nW = toWorld(norm([p[0] / r[0] ** 2, p[1] / r[1] ** 2, p[2] / r[2] ** 2])); col = skin; gloss = 0.05; }
+        }
+        t = hitEllipsoid(oL, dL, TUFT[0], TUFT[1]);
+        if (t > 0 && t < best) { best = t; const c = TUFT[0]; nW = toWorld(norm([oL[0] + t * dL[0] - c[0], oL[1] + t * dL[1] - c[1], oL[2] + t * dL[2] - c[2]])); col = hair; gloss = 0.35; }
+        // the body stays put
+        for (const [[c, r], tone] of [[NECK, skin], [BODY, shirt]]) {
+          t = hitEllipsoid(oW, dW, c, r);
+          if (t > 0 && t < best) { best = t; const p = [oW[0] - c[0], oW[1] - c[1], 5 - t - c[2]]; nW = norm([p[0] / r[0] ** 2, p[1] / r[1] ** 2, p[2] / r[2] ** 2]); col = tone === skin ? skin.map(v => v * 0.9) : tone; gloss = 0.05; }
+        }
+        if (!col) { data[i + 3] = 0; continue; }
+        const diff = Math.max(0, nW[0] * L[0] + nW[1] * L[1] + nW[2] * L[2]);
+        const h = norm([L[0], L[1], L[2] + 1]);
+        const spec = Math.pow(Math.max(0, nW[0] * h[0] + nW[1] * h[1] + nW[2] * h[2]), 28) * gloss * 255;
+        const rim = Math.pow(1 - Math.max(0, nW[2]), 3) * 0.18;
+        const k = 0.52 + 0.55 * diff;
+        data[i] = Math.min(255, col[0] * k + spec + 255 * rim);
+        data[i + 1] = Math.min(255, col[1] * k + spec + 230 * rim);
+        data[i + 2] = Math.min(255, col[2] * k + spec + 210 * rim);
+        data[i + 3] = 255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+
+  function frame(now) {
+    requestAnimationFrame(frame);
+    if (!slot || !cv.isConnected) { last = now; return; }
+    const dt = Math.min(0.1, (now - last) / 1000 || 0); last = now;
+    let ty = 0, tp = 0;
+    if (want === 'done') { tp = reduce ? 0 : Math.sin(now / 160) * 0.22; }
+    else if (want) {
+      const [y, p] = TARGET[want];
+      const sway = reduce ? 1 : 0.86 + 0.14 * Math.sin(now / 420);
+      ty = y * sway; tp = p * sway;
+    }
+    const ease = reduce ? 1 : 1 - Math.exp(-dt * 4.5);
+    yaw += (ty - yaw) * ease; pitch += (tp - pitch) * ease;
+    zoom += ((want === 'done' ? 1 : wantZoom) - zoom) * (reduce ? 1 : 1 - Math.exp(-dt * 3));
+    R = R0 * zoom;
+    const key = yaw.toFixed(3) + ',' + pitch.toFixed(3) + ',' + zoom.toFixed(3) + aud;
+    if (key !== drawnAt) { drawnAt = key; draw(); }
+  }
+  requestAnimationFrame(frame);
+
+  return {
+    sync(s) {
+      slot = document.querySelector('.head-slot');
+      if (!slot) { want = null; yaw = pitch = 0; zoom = wantZoom = 1; return; }
+      slot.appendChild(cv);
+      aud = s.audience;
+      const r = s.reg;
+      want = r.dir >= P.DIRECTIONS.length ? 'done' : P.DIRECTIONS[r.dir].id;
+      wantZoom = want === 'done' ? 1 : STEPS[r.counts[r.dir]].zoom;
+    },
+  };
+})();
+
+/* ---------------- server ---------------- */
+// Table sort and attendance filter live on this page; Proto.refresh() redraws.
+const view = { peopleSort: { key: 'dept', dir: 1 }, attSort: { key: 'status', dir: 1 }, attShow: 'all' };
+const DEPT_ORDER = id => P.DEPTS.findIndex(d => d.id === id);
+const gradeOrder = p => (P.GRADES[p.dept] || []).indexOf(p.grade);
+
+function server(s) {
+  const pending = P.kiosks.filter(k => k.status === 'pending');
+  const tabs = [['home', '오늘의 순서'], ['people', '명단'], ['attendance', '출석'], ['kiosks', '키오스크']];
+  let body = '';
+  if (s.tab === 'home') body = home(s, pending);
+  if (s.tab === 'people') body = people(s);
+  if (s.tab === 'attendance') body = attendance(s);
+  if (s.tab === 'kiosks') body = kiosks(s);
+  return `<div class="s"><div class="top"><span class="brand">Faith DB<small>우리교회 · 서버 켜짐 ●</small></span>
+    <nav class="tabs" aria-label="서버 앱 메뉴">${tabs.map(([id, l]) => `<button data-act="tab" data-id="${id}" aria-current="${s.tab === id}">${l}${id === 'kiosks' && pending.length ? '<i class="badge"></i>' : ''}</button>`).join('')}</nav></div>
+    <main class="smain">${body}</main>${s.toast ? `<div class="stoast">${esc(s.toast)}</div>` : ''}</div>`;
+}
+function donut(g) {
+  const pct = g.roster ? g.present / g.roster : 0;
+  return `<div class="donut"><svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="15" fill="none" stroke="rgba(255,255,255,.25)" stroke-width="5"/><circle cx="18" cy="18" r="15" fill="none" stroke="${g.dept.color}" stroke-width="5" pathLength="100" stroke-dasharray="${Math.round(pct * 100)} 100" transform="rotate(-90 18 18)" stroke-linecap="round"/></svg><span>${g.dept.name} ${g.present}/${g.roster}</span></div>`;
+}
+function home(s, pending) {
+  const present = P.attendance.filter(a => a.person).length;
+  const steps = [
+    { ok: true, t: '서버 켜기', d: '07:40에 켰어요 · 자동 시작' },
+    { ok: !pending.length, t: '키오스크 연결', d: pending.length ? `${pending[0].name}이(가) 허락을 기다려요` : `${P.kiosks.length}대 모두 연결됨`, btn: pending.length ? `<button class="sbtn primary" data-act="approve" data-id="${pending[0].id}">허락하기</button>` : '' },
+    { ok: true, t: '프린터 용지', d: '본당 로비 · 유년부 입구 모두 정상' },
+    { ok: false, t: '예배 후 출석부 저장', d: '예배가 끝나면 눌러 주세요', btn: '<button class="sbtn ghost">출석부 저장</button>', later: true },
+  ];
+  return `<h1>좋은 주일 아침이에요<small>10월 31일 주일 · 위에서부터 차례로 확인하세요</small></h1>
+    <div class="today"><div class="steplist">${steps.map((st, i) => `<div class="stepi ${st.ok ? 'ok' : st.later ? '' : 'todo'}"><span class="n">${st.ok ? '✓' : i + 1}</span><div><b>${st.t}</b><span>${esc(st.d)}</span></div>${st.btn || ''}</div>`).join('')}</div>
+    <div class="big-count"><span style="font-weight:700">지금까지 출석</span><span class="num">${present}<small>명</small></span>
+      <div class="donuts">${P.attendanceByDept().map(donut).join('')}</div>
+      <button class="sbtn" style="justify-self:start;margin-top:8px" data-act="tab" data-id="attendance">누가 왔는지 보기</button></div></div>`;
+}
+
+function th(table, key, label, cls = '') {
+  const st = view[table];
+  const on = st.key === key;
+  return `<th class="${cls}" ${on ? `aria-sort="${st.dir > 0 ? 'ascending' : 'descending'}"` : ''}><button data-act="sort" data-id="${table}:${key}">${label}<span class="arr">${on && st.dir < 0 ? '▼' : '▲'}</span></button></th>`;
+}
+function sortRows(rows, st, getters) {
+  const g = getters[st.key];
+  return rows.slice().sort((a, b) => {
+    for (const fn of [g, getters.name]) {
+      const x = fn(a), y = fn(b);
+      const c = typeof x === 'number' ? x - y : String(x).localeCompare(String(y), 'ko');
+      if (c) return fn === g ? c * st.dir : c;
+    }
+    return 0;
+  });
+}
+function filters(s, placeholder) {
+  return `<div class="toolbar"><input class="search" data-field="search" value="${esc(s.search)}" placeholder="${placeholder}" aria-label="${placeholder}">
+    <div class="chips">${P.DEPTS.map(d => `<button class="chip" data-act="filter" data-id="${d.id}" aria-pressed="${s.deptFilter === d.id}"><i class="chipdot" style="background:${d.color}"></i>${d.name}</button>`).join('')}</div></div>`;
+}
+const nameCell = (name, color) => `<span class="nm"><span class="ini" style="background:${color}">${esc(name.slice(1, 2) || name.slice(0, 1))}</span>${esc(name)}</span>`;
+const deptCell = d => `<span class="dpt"><i class="chipdot" style="background:${d.color}"></i>${d.name}</span>`;
+
+function people(s) {
+  const here = new Set(P.attendance.filter(a => a.person).map(a => a.person.id));
+  const rows = sortRows(P.visiblePeople(), view.peopleSort, {
+    name: p => p.name, dept: p => DEPT_ORDER(p.dept) * 100 + gradeOrder(p), grade: p => DEPT_ORDER(p.dept) * 100 + gradeOrder(p),
+    samples: p => p.samples, today: p => here.has(p.id) ? 0 : 1,
+  });
+  const body = rows.map(p => {
+    const d = P.dept(p.dept);
+    if (s.editing === p.id) {
+      return `<tr class="editrow"><td colspan="6"><div data-editform><div class="grid3">
+        <input data-edit="name" value="${esc(p.name)}" aria-label="이름">
+        <select data-edit="dept" aria-label="부서">${P.DEPTS.map(x => `<option value="${x.id}" ${x.id === p.dept ? 'selected' : ''}>${x.name}</option>`).join('')}</select>
+        <input data-edit="grade" value="${esc(p.grade)}" aria-label="학년">
+        <span class="pill out">사진 ${p.samples}장</span></div>
+        <div class="acts"><button class="sbtn primary" data-act="saveperson" data-id="${p.id}">저장</button><button class="sbtn ghost" data-act="cancel-edit">닫기</button>
+        <button class="sbtn danger" style="margin-left:auto" data-act="deleteperson" data-id="${p.id}">명단에서 지우기</button></div></div></td></tr>`;
+    }
+    return `<tr class="row" data-act="edit" data-id="${p.id}" tabindex="0">
+      <td>${nameCell(p.name, d.color)}</td><td>${deptCell(d)}</td><td>${esc(p.grade)}</td>
+      <td class="num r">${p.samples}장</td>
+      <td>${here.has(p.id) ? '<span class="pill in">✓ 왔어요</span>' : '<span class="pill out">아직</span>'}${p.isNew ? ' <span class="pill new">새로 등록</span>' : ''}</td>
+      <td class="r"><span class="sbtn ghost" style="padding:6px 14px;font-size:16px">고치기</span></td></tr>`;
+  }).join('');
+  return `<h1>명단<small>${P.people.length}명 · 줄을 누르면 그 자리에서 고칠 수 있어요</small></h1>
+    ${filters(s, '이름이나 부서로 찾기')}
+    <table class="tbl"><thead><tr>${th('peopleSort', 'name', '이름')}${th('peopleSort', 'dept', '부서')}${th('peopleSort', 'grade', '학년 · 나이')}${th('peopleSort', 'samples', '얼굴 사진', 'r')}${th('peopleSort', 'today', '오늘')}<th class="static" aria-label="고치기"></th></tr></thead>
+    <tbody>${body || '<tr><td colspan="6" style="text-align:center;color:#6e6078;padding:28px">찾는 이름이 없어요. 검색어나 부서를 바꿔 보세요.</td></tr>'}</tbody></table>
+    <span class="tfoot">${rows.length}명 표시 중</span>`;
+}
+
+function attendance(s) {
+  const q = s.search.trim();
+  const byPerson = new Map(P.attendance.filter(a => a.person).map(a => [a.person.id, a]));
+  let rows = P.visiblePeople().map(p => ({ name: p.name, dept: P.dept(p.dept), grade: p.grade, gOrder: gradeOrder(p), a: byPerson.get(p.id) || null }));
+  P.guests().filter(g => !s.deptFilter && (!q || g.guest.name.includes(q))).forEach(g => rows.push({ name: g.guest.name, guest: true, dept: { name: g.guest.dept || '명단 외', color: '#c9bcd2' }, grade: '', gOrder: 99, a: g }));
+  const presentCount = rows.filter(r => r.a).length;
+  if (view.attShow === 'in') rows = rows.filter(r => r.a);
+  if (view.attShow === 'out') rows = rows.filter(r => !r.a);
+  rows = sortRows(rows, view.attSort, {
+    name: r => r.name,
+    status: r => r.a ? r.a.first.getTime() : 9e15 + DEPT_ORDER(r.dept.id) * 100 + r.gOrder,
+    dept: r => (r.guest ? 90 : DEPT_ORDER(r.dept.id)) * 100 + r.gOrder,
+    time: r => r.a ? r.a.first.getTime() : 9e15,
+    kiosk: r => r.a ? r.a.kiosk : '힣',
+  });
+  const groups = P.attendanceByDept();
+  const body = rows.map(r => `<tr class="${r.a ? '' : 'muted'}">
+    <td>${r.a ? '<span class="pill in">✓ 출석</span>' : '<span class="pill out">아직</span>'}</td>
+    <td>${nameCell(r.name, r.dept.color)}</td>
+    <td>${r.guest ? `<span class="pill guest">명단 외</span> ${esc(r.dept.name === '명단 외' ? '' : r.dept.name)}` : deptCell(r.dept)}</td>
+    <td>${esc(r.grade)}</td>
+    <td class="num">${r.a ? P.hhmm(r.a.first) : '–'}</td>
+    <td>${r.a ? esc(r.a.kiosk) : '–'}</td></tr>`).join('');
+  const seg = (v, l) => `<button data-act="attshow" data-id="${v}" aria-pressed="${view.attShow === v}">${l}</button>`;
+  return `<h1>오늘 출석<small>10월 31일 · ${presentCount}명 왔어요 · 부서를 누르면 그 부서만 봐요</small></h1>
+    <div class="dsum">${groups.map(g => `<button data-act="filter" data-id="${g.dept.id}" aria-pressed="${s.deptFilter === g.dept.id}"><i class="chipdot" style="background:${g.dept.color}"></i>${g.dept.name}<span class="bar"><i style="width:${g.roster ? g.present / g.roster * 100 : 0}%;background:${g.dept.color}"></i></span><span class="num">${g.present}/${g.roster}</span></button>`).join('')}</div>
+    <div class="toolbar"><input class="search" data-field="search" value="${esc(s.search)}" placeholder="이름으로 찾기" aria-label="이름으로 찾기">
+      <div class="seg2">${seg('all', '모두')}${seg('in', '온 사람')}${seg('out', '아직 안 온 사람')}</div>
+      <button class="sbtn ghost">◂ 지난주</button><button class="sbtn ghost">엑셀 파일로 저장</button></div>
+    <table class="tbl"><thead><tr>${th('attSort', 'status', '출석')}${th('attSort', 'name', '이름')}${th('attSort', 'dept', '부서')}<th class="static">학년 · 나이</th>${th('attSort', 'time', '온 시각')}${th('attSort', 'kiosk', '키오스크')}</tr></thead>
+    <tbody>${body || '<tr><td colspan="6" style="text-align:center;color:#6e6078;padding:28px">조건에 맞는 사람이 없어요.</td></tr>'}</tbody></table>
+    <span class="tfoot">${rows.length}명 표시 중 · 시각은 처음 키오스크에 온 시각</span>`;
+}
+function kiosks(s) {
+  return `<h1>키오스크<small>교회 태블릿이 맞을 때만 허락해 주세요</small></h1>
+    <div class="klist">${P.kiosks.map(k => `<div class="kcard ${k.status}"><b>${esc(k.name)}</b><span>${k.status === 'online' ? '● 연결됨 · ' + k.last : '허락을 기다리는 중'}</span><span>${k.id}</span>
+      ${k.status === 'pending' ? `<button class="sbtn primary" data-act="approve" data-id="${k.id}">허락하기</button>` : `<button class="sbtn ghost" data-act="remove" data-id="${k.id}">연결 끊기</button>`}</div>`).join('')}
+      <div class="kcard" style="background:#f3ecfa"><b>새 키오스크 연결</b><span>키오스크 설정에 이 주소를 입력하세요</span><span style="font-weight:800;color:#33263f">http://192.168.45.107:18080</span></div></div>`;
+}
+
+const app = document.getElementById('app');
+P.mount({ root: app, kiosk, server });
+P.subscribe(s => Head.sync(s));
+app.addEventListener('click', e => {
+  const el = e.target.closest('[data-act]');
+  if (!el) return;
+  if (el.dataset.act === 'sort') {
+    const [table, key] = el.dataset.id.split(':');
+    const st = view[table];
+    view[table] = { key, dir: st.key === key ? -st.dir : 1 };
+    P.refresh();
+  }
+  if (el.dataset.act === 'attshow') { view.attShow = el.dataset.id; P.refresh(); }
+});
+// Rows open with Enter too.
+app.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.matches('tr.row')) e.target.click();
+});
+</script>
