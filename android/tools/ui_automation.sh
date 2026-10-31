@@ -3,7 +3,8 @@
 SERIAL=${1:-${ANDROID_SERIAL:-}}
 ADB="${ADB:-$HOME/Android/Sdk/platform-tools/adb}"
 adbs() { "$ADB" -s "$SERIAL" "$@"; }
-ui_dump() { adbs shell uiautomator dump /sdcard/faith_ui.xml >/dev/null 2>&1; adbs shell cat /sdcard/faith_ui.xml; }
+# The old dump is removed first, so a failed dump returns nothing instead of a stale screen.
+ui_dump() { adbs shell "rm -f /sdcard/faith_ui.xml; uiautomator dump /sdcard/faith_ui.xml >/dev/null 2>&1; cat /sdcard/faith_ui.xml 2>/dev/null"; }
 ui_texts() { ui_dump | grep -o 'text="[^"]\+"' | sed 's/^text="//; s/"$//'; }
 # Captured first: with pipefail, grep -q closing the pipe early on a large dump fails the pipeline.
 ui_has() { local xml; xml=$(ui_dump); [[ "$xml" == *"text=\"$1\""* ]]; }
@@ -36,3 +37,5 @@ print(hits[n - 1] if len(hits) >= n else "")' "$cls" "$nth")
 }
 ui_type() { adbs shell input text "$1"; }
 ui_shot() { adbs exec-out screencap -p > "$1"; }
+# Closes another app's "keeps stopping" dialog (seen with Samsung's smart suggestions service on one tablet).
+ui_close_crash_dialog() { local i; for i in 1 2 3; do if ui_has "앱 닫기"; then ui_tap "앱 닫기"; elif ui_has "Close app"; then ui_tap "Close app"; else break; fi; sleep 1; done; true; }

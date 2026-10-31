@@ -6,7 +6,7 @@
 #   - Faith ID (debug build) is running in operation mode, server URL http://127.0.0.1:18080
 #   - printer type "Android 기본 인쇄" (the print dialog is cancelled with BACK, which also
 #     checks that a cancelled print still records the check-in)
-# Usage: tools/e2e_kiosk_flow.sh <adb-serial> <server-admin-password>
+# Usage: [DATA_DIR=/sdcard/faceDB] tools/e2e_kiosk_flow.sh <adb-serial> <server-admin-password>
 set -uo pipefail
 SERIAL="$1"
 ADMIN_PASSWORD="${2:?server admin password required}"
@@ -20,7 +20,8 @@ RUN=$(date +%H%M%S)
 PERSON="e2e-face-$RUN"
 NAME="E2E-$RUN"
 TODAY=$(adbs shell date +%F | tr -d '\r')
-SHEET="/sdcard/faceDB/attendance_$TODAY.csv"
+DATA_DIR="${DATA_DIR:-/sdcard/faceDB}" # the server's data folder (Developer screen › 설정)
+SHEET="$DATA_DIR/attendance_$TODAY.csv"
 PASS=0
 FAIL=0
 
@@ -73,10 +74,11 @@ ui_tap "좋아, 등록할래!"; sleep 1
 register_motions "$PERSON"
 sleep 4 # the celebration plays first
 check "12가지 동작 후 이름 입력 화면" 'ui_has "선생님, 이름을 적어 주세요"'
-ui_tap opNameInput; ui_type "$NAME"; ui_tap opDepartmentInput; ui_type "E2E"; ui_tap opGradeInput; ui_type "G1"
+ui_tap opNameInput; ui_close_crash_dialog; ui_type "$NAME"; ui_tap opDepartmentInput; ui_type "E2E"; ui_tap opGradeInput; ui_type "G1"
+ui_close_crash_dialog
 adbs shell input keyevent KEYCODE_BACK # hide keyboard
 ui_tap opSubmitButton; sleep 2
-check "서버 명단에 반영 (face_db.csv)" 'wait_for 20 csv "adbs shell grep -c \"$NAME\" /sdcard/faceDB/face_db.csv | grep -q 1"'
+check "서버 명단에 반영 (face_db.csv)" 'wait_for 20 csv "adbs shell grep -c \"$NAME\" $DATA_DIR/face_db.csv | grep -q 1"'
 
 step "2. 등록된 얼굴 → 인식 → 출력 버튼 → 출석"
 sleep 3; seen "$PERSON"; sleep 1
@@ -95,13 +97,14 @@ check "'○○ 맞아요?' 질문 표시" 'ui_has "네, 맞아요"'
 ui_tap "네, 맞아요"; sleep 1
 ui_tap "이름표 받기"
 cancel_print_dialog
-check "본인 확인 후 출석 2회, 새 사람은 만들지 않음" 'wait_for 20 sheet "[ \"\$(sheet_count $NAME)\" = 2 ]" && [ "$(adbs shell grep -c "$NAME" /sdcard/faceDB/face_db.csv | tr -d "\r")" = 1 ]'
+check "본인 확인 후 출석 2회, 새 사람은 만들지 않음" 'wait_for 20 sheet "[ \"\$(sheet_count $NAME)\" = 2 ]" && [ "$(adbs shell grep -c "$NAME" $DATA_DIR/face_db.csv | tr -d "\r")" = 1 ]'
 
 step "4. 이름표만 출력 → 명단 외 출석"
 no_face; sleep 4
 seen "guest-$RUN"; sleep 1
 ui_tap "오늘은 이름표만"; sleep 1
-ui_tap opNameInput; ui_type "GUEST-$RUN"
+ui_tap opNameInput; ui_close_crash_dialog; ui_type "GUEST-$RUN"
+ui_close_crash_dialog
 adbs shell input keyevent KEYCODE_BACK
 ui_tap opSubmitButton
 cancel_print_dialog
@@ -114,7 +117,7 @@ ui_tap "명단"; sleep 1
 ui_tap peopleSearchInput; clear_field; ui_type "$NAME"; adbs shell input keyevent KEYCODE_BACK; sleep 1
 ui_tap personName; sleep 1 # opens the row for editing
 ui_tap personDeleteButton; sleep 1; ui_tap "삭제"; sleep 2
-check "서버 명단에서 삭제" 'wait_for 10 csv "! adbs shell grep -q \"$NAME\" /sdcard/faceDB/face_db.csv"'
+check "서버 명단에서 삭제" 'wait_for 10 csv "! adbs shell grep -q \"$NAME\" $DATA_DIR/face_db.csv"'
 ui_tap "키오스크"
 kiosk_front
 broadcast DEBUG_CAMERA --ez paused true

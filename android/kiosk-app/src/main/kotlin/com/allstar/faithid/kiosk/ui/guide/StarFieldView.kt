@@ -128,6 +128,9 @@ class StarFieldView @JvmOverloads constructor(
         if (animating && isShown) postInvalidateOnAnimation()
     }
 
+    /** How far the stars reach beyond the biggest circle. */
+    fun reach(): Float = sizeFor(1) + 18 * density
+
     /** The area the stars use, for keeping other views clear of them. */
     fun bounds(): RectF {
         val r = RectF(circle)

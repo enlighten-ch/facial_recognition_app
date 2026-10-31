@@ -17,12 +17,16 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.EditorInfo
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.content.res.ResourcesCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
 import androidx.core.widget.doAfterTextChanged
 import com.allstar.faithid.core.model.PersonMetadata
 import com.allstar.faithid.core.recognition.FaceCircle
@@ -129,6 +133,14 @@ class OperationScreen(
         setUpGear()
         departmentInput.doAfterTextChanged { if (!chipsFromCode) selectChip(departmentChips, it.toString()) }
         gradeInput.doAfterTextChanged { if (!chipsFromCode) selectChip(gradeChips, it.toString()) }
+        // Android 15 draws behind the keyboard; keep the form (and its save button) above it.
+        ViewCompat.setOnApplyWindowInsetsListener(form) { view, insets ->
+            view.updatePadding(bottom = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom)
+            insets
+        }
+        gradeInput.setOnEditorActionListener { _, action, _ ->
+            (action == EditorInfo.IME_ACTION_DONE).also { if (it) submit.performClick() }
+        }
         guideOverlay.onOvalChanged = { placeAroundOval() }
         root.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> placeAroundOval() }
     }
@@ -371,6 +383,7 @@ class OperationScreen(
         DepartmentChoices.departments(people()).forEach { department ->
             departmentChips.addView(chip(department, DepartmentColors.of(department)) { checked ->
                 if (!checked) return@chip
+                hideKeyboard()
                 setFromChip(departmentInput, department)
                 setFromChip(gradeInput, "")
                 showGrades(department)
@@ -383,7 +396,12 @@ class OperationScreen(
         gradeChips.removeAllViews()
         val grades = department?.let { DepartmentChoices.grades(people(), it) }.orEmpty()
         grades.forEach { grade ->
-            gradeChips.addView(chip(grade, null) { checked -> if (checked) setFromChip(gradeInput, grade) })
+            gradeChips.addView(chip(grade, null) { checked ->
+                if (checked) {
+                    hideKeyboard()
+                    setFromChip(gradeInput, grade)
+                }
+            })
         }
         val visible = if (grades.isEmpty()) View.GONE else View.VISIBLE
         gradeChips.visibility = visible
@@ -410,6 +428,12 @@ class OperationScreen(
         setOnCheckedChangeListener { _, checked -> onChecked(checked) }
     }
 
+    /** Choosing a chip means typing is done; the keyboard would otherwise cover the save button. */
+    private fun hideKeyboard() {
+        val focused = activity.currentFocus ?: return
+        activity.getSystemService(android.view.inputmethod.InputMethodManager::class.java)?.hideSoftInputFromWindow(focused.windowToken, 0)
+    }
+
     private fun setFromChip(input: EditText, text: String) {
         chipsFromCode = true
         input.setText(text)
@@ -427,10 +451,35 @@ class OperationScreen(
 
     // ----- layout around the face circle ----------------------------------------------------
 
-    private fun circleScale(circle: FaceCircle?): Float = when (circle) {
+    /**
+     * The registration circles shrink together (keeping their ratio) when the biggest one and its
+     * stars would not fit between the guide's bubble and the bottom edge, e.g. with a large oval
+     * someone set for the old screen.
+     */
+    private var fit = 1f
+    private var guideBottom = 0f
+
+    private fun circleScale(circle: FaceCircle?): Float = fit * when (circle) {
         FaceCircle.BIG -> bigScale
         FaceCircle.SMALL -> smallScale
         else -> 1f
+    }
+
+    private fun updateFit() {
+        val base = guideOverlay.ovalRect(1f)
+        if (base.height() <= 0f) return
+        val origin = IntArray(2).also { guideOverlay.getLocationInWindow(it) }
+        val rootAt = IntArray(2).also { root.getLocationInWindow(it) }
+        val centerY = base.centerY() + origin[1] - rootAt[1]
+        if (guide.isShown) {
+            val g = IntArray(2).also { guide.getLocationInWindow(it) }
+            guideBottom = maxOf(guideBottom, (g[1] - rootAt[1] + guide.height).toFloat())
+        }
+        val radius = base.height() / 2
+        val margin = 12 * density
+        val reach = stars.reach()
+        val room = minOf(centerY - guideBottom - margin - reach, root.height - margin - reach - centerY)
+        fit = (room / radius / maxOf(bigScale, 1f)).coerceIn(0.5f, 1f)
     }
 
     /** Centre of the face circle in [target]'s coordinates. */
@@ -444,7 +493,8 @@ class OperationScreen(
     /** Stars hug the biggest circle; the head's centre sits level with the circle's centre. */
     private fun placeAroundOval() {
         if (guideOverlay.width == 0 || root.width == 0) return
-        val big = guideOverlay.ovalRect(maxOf(bigScale, 1f))
+        updateFit()
+        val big = guideOverlay.ovalRect(fit * maxOf(bigScale, 1f))
         val from = IntArray(2).also { guideOverlay.getLocationInWindow(it) }
         val to = IntArray(2).also { stars.getLocationInWindow(it) }
         big.offset((from[0] - to[0]).toFloat(), (from[1] - to[1]).toFloat())
