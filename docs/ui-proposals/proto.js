@@ -154,6 +154,9 @@
     subscribe(fn) { listeners.push(fn); fn(state); },
     refresh: () => emit(),
     regDoneDelay: 0,             // pages may hold the finished registration screen longer, e.g. for a celebration
+    regStepMs: 0,                // pause between samples of one direction (default 520 ms)
+    regTurnMs: 0,                // pause after turning to a new direction (default 1100 ms)
+    regStepSay: null,            // (direction, sampleIndex) => spoken line for each sample, if a page wants one
     t,
     setView(v) { state.view = v; emit(); },
     setAudience(a) { state.audience = a; emit(); },
@@ -207,15 +210,15 @@
       clearTimers();
       state.reg = { dir: 0, counts: [0, 0, 0, 0], match: state.face && state.face.kind === 'returning' ? people[0] : null };
       go('register');
-      say(t('regTurn', DIRECTIONS[0]));
+      say(Proto.regStepSay ? Proto.regStepSay(DIRECTIONS[0], 0) : t('regTurn', DIRECTIONS[0]));
       const step = () => {
         const r = state.reg;
         if (r.dir >= DIRECTIONS.length) return;
         r.counts[r.dir] += 1;
         if (r.counts[r.dir] >= PER_DIRECTION) {
           r.dir += 1;
-          if (r.dir < DIRECTIONS.length) say(t('regTurn', DIRECTIONS[r.dir]));
-        }
+          if (r.dir < DIRECTIONS.length) say(Proto.regStepSay ? Proto.regStepSay(DIRECTIONS[r.dir], 0) : t('regTurn', DIRECTIONS[r.dir]));
+        } else if (Proto.regStepSay) say(Proto.regStepSay(DIRECTIONS[r.dir], r.counts[r.dir]));
         if (r.dir >= DIRECTIONS.length) {
           later(Proto.regDoneDelay || 500, () => {
             if (r.match) { go('confirmSelf', { person: r.match }); say(t('confirm', r.match)); }
@@ -225,7 +228,7 @@
           return;
         }
         emit();
-        later(r.counts[r.dir] === 0 ? 1100 : 520, step);
+        later(r.counts[r.dir] === 0 ? (Proto.regTurnMs || 1100) : (Proto.regStepMs || 520), step);
       };
       later(900, step);
     },

@@ -296,11 +296,11 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
   <header class="intro">
     <span class="eyebrow">제안 B v3 · UI 연구 · Faith ID</span>
     <h1>따뜻한 안내자 v3</h1>
-    <p>v1의 빛이와 대화형 안내는 그대로 두고 화면 구성을 바꿨습니다. 카메라가 키오스크 화면 전체를 채우고, 말풍선과 버튼은 반투명 유리처럼 그 위에 떠 있습니다. 얼굴 등록 때는 아이가 바라볼 쪽에 별이 있고, 오른쪽 그림의 머리가 같은 방향으로 돌아갑니다. 서버 앱의 명단과 출석은 표로 바꿨습니다. v3에서는 별 얼굴의 눈을 더 짙고 조금 위로 옮겨 더 귀엽게 다듬었습니다. <a href="https://claude.ai/artifact/XQynTHsmvkqybcEo3ASnUC">v2 보기</a> · <a href="https://claude.ai/artifact/41rHRSUb7sWGaps9Xe6gR1">v1 보기</a></p>
+    <p>v1의 빛이와 대화형 안내는 그대로 두고 화면 구성을 바꿨습니다. 카메라가 키오스크 화면 전체를 채우고, 말풍선과 버튼은 반투명 유리처럼 그 위에 떠 있습니다. 얼굴 등록 때는 아이가 바라볼 쪽에 별이 있고, 오른쪽 그림의 머리가 같은 방향으로 돌아갑니다. 서버 앱의 명단과 출석은 표로 바꿨습니다. v3에서는 별 얼굴과 따라 하는 3D 머리에 짙은 눈을 조금 위쪽에 그려 더 귀엽게 다듬었습니다(코와 입은 없음). <a href="https://claude.ai/artifact/XQynTHsmvkqybcEo3ASnUC">v2 보기</a> · <a href="https://claude.ai/artifact/41rHRSUb7sWGaps9Xe6gR1">v1 보기</a></p>
     <div class="principles">
       <div><b>카메라가 화면 전체</b>얼굴 동그라미가 가운데, 말풍선은 위, 버튼은 아래에 떠 있음</div>
       <div><b>보는 곳에 별</b>왼쪽을 볼 땐 왼쪽 별 3개가 켜짐. 12개를 모으면 축하</div>
-      <div><b>따라 하는 머리</b>눈코입 없는 3D 머리가 고개 돌리는 방향을 보여 줌</div>
+      <div><b>따라 하는 머리</b>코와 입이 없는 3D 머리가 고개 돌리는 방향을 보여 줌</div>
       <div><b>표로 보는 명단</b>이름·부서·학년·출석을 한 줄씩. 머리글을 누르면 정렬</div>
     </div>
   </header>
@@ -537,10 +537,18 @@ const Head = (() => {
           if (u[1] > line) { col = hair; gloss = 0.35; }
           else {
             col = skin; gloss = 0.08;
-            if (kidsMode) for (const sx of [-1, 1]) {
-              const c = norm([sx * 0.5, -0.24, 0.83]);
-              const dd = u[0] * c[0] + u[1] * c[1] + u[2] * c[2];
-              if (dd > 0.965) { const w = Math.min(1, (dd - 0.965) / 0.02) * 0.55; col = [col[0] + (blush[0] - col[0]) * w, col[1] + (blush[1] - col[1]) * w, col[2] + (blush[2] - col[2]) * w]; }
+            // Eyes only (no nose or mouth): dark, slightly tall, a little above the middle of the face.
+            for (const sx of [-1, 1]) {
+              const ex = u[0] - sx * 0.3, ey = u[1] - 0.06;
+              if (u[2] > 0.5 && (ex / 0.105) ** 2 + (ey / 0.135) ** 2 < 1) {
+                col = [34, 24, 26]; gloss = 0.6;
+                if (kidsMode && ((ex + sx * 0.0 - 0.03) / 0.04) ** 2 + ((ey - 0.045) / 0.04) ** 2 < 1) col = [255, 255, 255];
+              }
+              if (kidsMode && u[2] > 0.4) {
+                const bx = u[0] - sx * 0.5, by = u[1] + 0.17;
+                const d2 = (bx / 0.13) ** 2 + (by / 0.08) ** 2;
+                if (d2 < 1 && col === skin) { const w = (1 - d2) * 0.6; col = [col[0] + (blush[0] - col[0]) * w, col[1] + (blush[1] - col[1]) * w, col[2] + (blush[2] - col[2]) * w]; }
+              }
             }
           }
           nW = toWorld(n);
