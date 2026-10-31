@@ -36,26 +36,31 @@ server_front() {
     ui_tap loginPasswordInput; clear_field; ui_type "$ADMIN_PASSWORD"; ui_tap loginButton; sleep 3
   fi
 }
+# Settings, status and DB tasks live on the server app's 개발자 화면 (left menu: 상태 / 설정 / 데이터 / …).
+dev_open() { ui_tap devScreenButton; sleep 1; ui_tap "${1:-상태}"; sleep 1; }
+dev_close() { ui_tap "서버 앱으로"; sleep 1; }
 status_line() { ui_texts | grep -m1 "실행 중 ·\|중지됨"; }
 wait_text() { local deadline=$(( $(date +%s) + $1 )); while [ "$(date +%s)" -lt "$deadline" ]; do ui_texts | grep -q "$2" && return 0; sleep 1; done; return 1; }
-current_data_dir() { status_line | sed -n 's/.*데이터 폴더: //p'; }
+current_data_dir() { ui_texts | sed -n 's/^데이터 폴더: //p' | head -1; }
 # Changes the server's data folder in its settings; a running server restarts on that folder.
 set_data_dir() {
-  server_front; ui_tap "현황"; sleep 1
+  server_front; dev_open "상태"
   local current; current=$(current_data_dir)
-  [ "$current" = "$1" ] && return 0
-  ui_tap settingsButton; sleep 2
-  ui_tap "$current" || { echo "[perf] data folder field not found"; return 1; }
+  [ "$current" = "$1" ] && { dev_close; return 0; }
+  ui_tap "설정"; sleep 1
+  ui_tap devDataDirInput || { echo "[perf] data folder field not found"; dev_close; return 1; }
   clear_field; ui_type "$1"; sleep 1
   adbs shell input keyevent KEYCODE_BACK; sleep 1 # hide the keyboard so it does not cover the buttons
-  ui_has "$1" || { echo "[perf] typed folder did not stick"; ui_tap "취소"; return 1; }
-  ui_tap "저장"; sleep 4
-  wait_text 30 "데이터 폴더: $1" || { echo "[perf] server did not switch to $1"; return 1; }
+  ui_has "$1" || { echo "[perf] typed folder did not stick"; ui_tap devRevertButton; dev_close; return 1; }
+  ui_tap devSaveButton; sleep 4
+  ui_tap "상태"; sleep 1
+  { wait_text 30 "데이터 폴더: $1" && wait_text 30 "실행 중 ·"; } || { echo "[perf] server did not switch to $1"; dev_close; return 1; }
+  dev_close
 }
 # Reloads the server database (new epoch) and sets RELOADED_MS to the moment of the confirming tap,
 # then brings the kiosks to the front, as in operation.
 reload_db() {
-  ui_tap "명단"; sleep 1; ui_tap "DB 다시 읽기"; sleep 1; ui_tap "다시 읽기"; RELOADED_MS=$(now_ms); sleep 1; ui_tap "현황"
+  dev_open "데이터"; ui_tap "DB 다시 읽기"; sleep 1; ui_tap "다시 읽기"; RELOADED_MS=$(now_ms); sleep 1; dev_close; ui_tap "키오스크"
   local k; for k in "${KIOSK_SERIALS[@]}"; do
     adbk "$k" shell am start -n com.example.facetestbed/com.allstar.faithid.kiosk.ui.MainActivity >/dev/null 2>&1
   done
@@ -96,8 +101,9 @@ report_full_download() {
   done
 }
 
-server_front
+server_front; dev_open "상태"
 ORIGINAL_DIR=$(current_data_dir)
+dev_close
 [ -n "$ORIGINAL_DIR" ] || { echo "[perf] server is not running"; exit 1; }
 echo "[perf] server data folder: $ORIGINAL_DIR; measuring in $PERF_DIR"
 
@@ -114,7 +120,9 @@ finish() {
     echo "[perf] could not switch back: set the data folder to $ORIGINAL_DIR in the server settings"
   fi
   kiosk_camera false
+  server_front; dev_open "상태"
   echo "[perf] $(status_line)"
+  dev_close
 }
 trap finish EXIT
 trap 'exit 130' INT TERM
@@ -127,9 +135,9 @@ kiosk_camera true
 (cd "$ROOT" && ./gradlew --no-daemon :integration-tests:test --tests '*SyncPerformanceTest*' --rerun \
   -Pfaith.it.perfUrl="$SERVER_URL" -Pfaith.it.adbSerial="$(IFS=,; echo "${KIOSK_SERIALS[*]}")" --console=plain > "$LOG" 2>&1; echo "GRADLE_EXIT=$?" >> "$LOG") &
 GRADLE_PID=$!
-ui_tap "현황"
+ui_tap "키오스크"
 while kill -0 "$GRADLE_PID" 2>/dev/null; do
-  if ui_has "승인 대기"; then ui_tap "대기 중 전체 승인" && sleep 1 && ui_tap "승인"; fi
+  if ui_has "허락 대기"; then ui_tap "허락하기"; fi
   sleep 3
 done
 GRADLE_PID=""
