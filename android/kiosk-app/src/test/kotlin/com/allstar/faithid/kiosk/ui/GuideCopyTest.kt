@@ -52,6 +52,12 @@ class GuideCopyTest {
     }
 
     @Test
+    fun `not me is answered with a retry line`() {
+        assertEquals(GuideCopy.Line("이런, 다시 찾아볼게!", "동그라미 안에서 잠깐만 기다려 줘"), kids.bubble(UiState(retrying = true)))
+        assertEquals("다시 확인하겠습니다", adults.bubble(UiState(retrying = true)).title)
+    }
+
+    @Test
     fun `server messages are shown as the flow wrote them`() {
         val waiting = UiState(ready = false, message = "이 키오스크(client-1)는 서버 승인을 기다리고 있습니다", detail = "서버 앱에서 허락해 주세요.")
         assertEquals(GuideCopy.Line(waiting.message, waiting.detail), kids.bubble(waiting))

@@ -42,6 +42,9 @@ class KioskFlow(
     /** Person confirmed through "본인이 맞아요"; their check-in is recorded as such. */
     private var duplicateConfirmedKey: String? = null
 
+    /** True between "나 아닌데?" and [resumeAfterRetry]: camera frames are ignored. */
+    private var retrying = false
+
     var state: UiState = UiState()
         private set
 
@@ -82,7 +85,7 @@ class KioskFlow(
     }
 
     private fun monitor(observation: Observation) {
-        if (readiness != Readiness.Ready || state.duplicateOf != null) return
+        if (readiness != Readiness.Ready || state.duplicateOf != null || retrying) return
         when (observation) {
             Observation.NoFace -> {
                 val kind = CandidateStabilizer.Observation(CandidateStabilizer.Kind.NO_FACE)
@@ -314,7 +317,28 @@ class KioskFlow(
         if (left <= 0) goHome() else publish(state.copy(output = output.copy(secondsLeft = left), message = messages.returnCountdown.fill("seconds" to left.toString())))
     }
 
+    /**
+     * "나 아닌데?" (or none of the look-alikes): forgets this result and stops looking for a moment.
+     * The app calls [resumeAfterRetry] after a short pause, then recognition starts over.
+     */
+    fun notMe() {
+        if (state.screen != Screen.MONITOR || readiness != Readiness.Ready) return
+        stabilizer.reset()
+        lastMatches = emptyMap()
+        duplicateConfirmedKey = null
+        retrying = true
+        effects.log("본인 아님: 잠시 뒤 다시 인식")
+        publish(UiState(screen = Screen.MONITOR, retrying = true, banner = banner))
+    }
+
+    fun resumeAfterRetry() {
+        if (!retrying) return
+        retrying = false
+        if (state.screen == Screen.MONITOR) showIdle()
+    }
+
     fun goHome() {
+        retrying = false
         session.reset()
         stabilizer.reset()
         sampler.resetSession()

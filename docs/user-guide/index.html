@@ -379,6 +379,7 @@ footer { color: var(--muted); font-size: 0.85rem; max-width: 760px; border-top: 
                 <tr><td>이름을 찾았을 때</td><td>살짝 점프</td></tr>
                 <tr><td>처음 보는 얼굴</td><td>갸우뚱</td></tr>
                 <tr><td>닮은 얼굴이 여럿일 때</td><td>갸우뚱하고 두리번</td></tr>
+                <tr><td>“나 아닌데?”로 다시 찾을 때</td><td>움찔하고 두리번</td></tr>
                 <tr><td>얼굴 등록 시작, 별 하나를 모을 때마다</td><td>끄덕</td></tr>
                 <tr><td>등록이 잘 안될 때</td><td>갸우뚱</td></tr>
                 <tr><td>별 12개를 다 모았을 때, 등록을 저장했을 때</td><td>콩콩 두 번 점프</td></tr>
@@ -405,7 +406,8 @@ footer { color: var(--muted); font-size: 0.85rem; max-width: 760px; border-top: 
           <h3>얼굴로 출석하고 이름표 받기 <span class="role member">교인</span> <a class="anchor" href="#recognize" aria-label="이 항목 링크">#</a></h3>
           <ol class="steps">
             <li>화면 가운데 동그라미 안에 얼굴이 들어오도록 서서 앞을 바라봅니다.</li>
-            <li>빛이가 <b>반가워, (이름)!</b>이라고 하면 아래쪽 <span class="btn">이름표 받기</span>를 누릅니다. 다른 사람으로 알아봤다면 <span class="btn ghost">나 아닌데?</span>를 누릅니다.</li>
+            <li>빛이가 <b>반가워, (이름)!</b>이라고 하면 아래쪽 <span class="btn">이름표 받기</span>를 누릅니다.</li>
+            <li>다른 사람으로 알아봤다면 <span class="btn ghost">나 아닌데?</span>를 누릅니다. 빛이가 <b>이런, 다시 찾아볼게!</b>라고 하고 2초쯤 기다렸다가 다시 알아봅니다. 그동안 동그라미 안에 그대로 서 있으면 됩니다.</li>
             <li>이름표 카드가 내려오고, 이름표를 가져가라는 안내 뒤 몇 초 지나 처음 화면으로 돌아갑니다. 같은 날 여러 번 출석하면 첫 시각과 횟수가 함께 남습니다.</li>
           </ol>
           <p>인식될 때마다 키오스크가 그날의 얼굴 모습을 조금씩 더 배워(자동 보정) 시간이 지날수록 잘 알아봅니다.</p>
@@ -458,7 +460,7 @@ footer { color: var(--muted); font-size: 0.85rem; max-width: 760px; border-top: 
       <article class="feature" id="candidates">
         <div class="text">
           <h3>닮은 얼굴 중 고르기 <span class="role member">교인</span> <a class="anchor" href="#candidates" aria-label="이 항목 링크">#</a></h3>
-          <p>닮은 형제자매가 모두 등록되어 있어 누구인지 확실하지 않으면, 빛이가 <b>어? 닮은 친구가 있네!</b>라고 하며 후보 이름 버튼을 보여 줍니다. 내 이름을 누르면 인사가 나오고, <span class="btn">이름표 받기</span>를 누릅니다. 아무도 아니면 <span class="btn ghost">둘 다 아니에요</span>를 누릅니다.</p>
+          <p>닮은 형제자매가 모두 등록되어 있어 누구인지 확실하지 않으면, 빛이가 <b>어? 닮은 친구가 있네!</b>라고 하며 후보 이름 버튼을 보여 줍니다. 내 이름을 누르면 인사가 나오고, <span class="btn">이름표 받기</span>를 누릅니다. 아무도 아니면 <span class="btn ghost">둘 다 아니에요</span>를 누르면, 빛이가 잠깐 기다렸다가 다시 찾아봅니다.</p>
           <p>후보가 자주 나오면 운영자가 <a href="#kiosk-settings">키오스크 설정 › 인식</a>의 기준을 조정합니다.</p>
         </div>
       </article>
@@ -796,7 +798,7 @@ footer { color: var(--muted); font-size: 0.85rem; max-width: 760px; border-top: 
         <div><b>키오스크가 자꾸 “오프라인으로 동작 중”이 됨</b><span>서버 태블릿이 배터리 부족으로 절전에 들어가면 키오스크가 서버에 닿지 못할 수 있습니다. 서버 태블릿을 충전기에 꽂아 두세요. 그동안의 출석은 연결 후 보내집니다.</span></div>
         <div><b>등록할 때 별이 잘 안 켜짐</b><span>빛이가 말한 방향을 보고, 큰 동그라미는 얼굴로 채우도록 조금 다가오고 작은 동그라미는 쏙 들어가도록 조금 물러나세요. 오른쪽 머리 그림을 따라 하면 됩니다.</span></div>
         <div><b>인식이 잘 안 되거나 처음 보는 얼굴로 나옴</b><span>동그라미 안에 얼굴 전체가 들어오도록 서세요. 역광(뒤에 창문)이면 키오스크 위치를 바꾸세요. 계속 안 되면 <a href="#register">다시 등록</a>하면 본인 확인 후 얼굴 데이터가 보강됩니다.</span></div>
-        <div><b>다른 사람으로 인식됨</b><span>이름표를 받지 말고 <b>나 아닌데?</b>를 누르세요. 자주 그러면 운영자가 <a href="#kiosk-settings">인식 최소 유사도</a>를 조금 올립니다.</span></div>
+        <div><b>다른 사람으로 인식됨</b><span>이름표를 받지 말고 <b>나 아닌데?</b>를 누르세요. 빛이가 2초쯤 뒤 다시 알아봅니다. 자주 그러면 운영자가 <a href="#kiosk-settings">인식 최소 유사도</a>를 조금 올립니다.</span></div>
         <div><b>이름을 적을 때 “스마트 추천이 계속 중단됨” 창이 뜸</b><span>Samsung 키보드의 추천 기능 오류로, 앱과 상관없습니다. <b>앱 닫기</b>를 누르고 계속 입력하면 됩니다. 자주 뜨면 태블릿 설정에서 Samsung 앱을 업데이트하거나 키보드의 스마트 추천 기능을 끄세요.</span></div>
         <div><b>이름표가 안 나옴</b><span>출석은 이미 기록되었습니다. <a href="#printer">설정 › 인쇄</a>에서 프린터 종류와 Bluetooth 연결을 확인하세요. 개발자 화면의 출력 줄에 마지막 출력 결과가 나옵니다.</span></div>
         <div><b>설정 톱니가 안 보임</b><span>오른쪽 위 구석에 아주 흐리게 있습니다. 그 자리를 1초 넘게 누르고 있으면 열립니다.</span></div>

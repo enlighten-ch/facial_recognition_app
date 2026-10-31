@@ -39,6 +39,7 @@ class GuideCopy(
 
     private fun monitor(state: UiState): Line {
         if (!state.ready) return Line(state.message, state.detail)
+        if (state.retrying) return Line(line("retry"), line("retrySub"))
         state.registered?.let { return Line(line("registered", it.name), line("registeredSub", it.name)) }
         if (state.showRegisterChoice) return Line(line("unknown"), line("unknownSub"))
         if (state.candidates.size > 1) {
@@ -143,6 +144,8 @@ class GuideCopy(
             Entry("helloSub", "인식 성공 둘째 줄 (어린이)", "오늘도 와 줘서 고마워", "오늘도 와 주셔서 감사합니다"),
             Entry("twins", "닮은 얼굴", "어? 닮은 친구가 있네!", "비슷한 분이 여러 명 있습니다"),
             Entry("twinsSub", "닮은 얼굴 둘째 줄", "누구인지 알려 줄래? 내 이름을 눌러 줘", "본인의 이름을 선택해 주세요"),
+            Entry("retry", "다시 찾기 (나 아닌데?)", "이런, 다시 찾아볼게!", "다시 확인하겠습니다"),
+            Entry("retrySub", "다시 찾기 둘째 줄", "동그라미 안에서 잠깐만 기다려 줘", "잠시만 기다려 주세요"),
             Entry("unknown", "처음 보는 얼굴", "처음 보는 얼굴이네! 우리 친구 할까?", "처음 오셨나요?"),
             Entry("unknownSub", "처음 보는 얼굴 둘째 줄", "얼굴을 등록하면 다음부터 바로 이름표가 나와", "얼굴을 등록하면 다음부터 바로 출석됩니다"),
             Entry("fitNormal", "등록: 보통 동그라미 ({direction})", "{direction} 보면서 동그라미에 얼굴을 쏙 맞춰 줄래?", "고개를 {direction} 돌린 채 원 안에 얼굴을 맞춰 주세요"),

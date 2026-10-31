@@ -294,11 +294,11 @@ class OperationScreen(
                 state.candidates.filter { !it.selected }.forEach { c ->
                     addReply(candidateLabel(c.metadata?.name ?: c.label, c.metadata)) { actions.selectCandidate(c.personKey) }
                 }
-                if (selected == null) addReply(copy.noneOfThem(state.candidates.size), small = true) { actions.home() }
+                if (selected == null) addReply(copy.noneOfThem(state.candidates.size), small = true) { actions.notMe() }
             }
             state.candidates.size == 1 && state.printButtonEnabled -> {
                 addReply(copy.print, main = true, icon = R.drawable.ic_print) { actions.print() }
-                addReply(copy.notMe, small = true) { actions.home() }
+                addReply(copy.notMe, small = true) { actions.notMe() }
             }
         }
         val greeted = state.candidates.singleOrNull()?.personKey ?: state.candidates.firstOrNull { it.selected }?.personKey
@@ -368,6 +368,7 @@ class OperationScreen(
         return when (state.screen) {
             Screen.MONITOR -> when {
                 !state.ready -> GuideMoment.OFFLINE
+                state.retrying -> GuideMoment.RETRY
                 state.registered != null -> GuideMoment.SAVED
                 state.showRegisterChoice -> GuideMoment.UNKNOWN_FACE
                 state.candidates.size > 1 && state.candidates.none { it.selected } -> GuideMoment.LOOK_ALIKE

@@ -139,6 +139,23 @@ class KioskFlowTest {
     }
 
     @Test
+    fun `not me pauses recognition, then looks again`() {
+        val (flow, effects) = flow()
+        flow.onObservation(face("hong"))
+        assertTrue(flow.state.printButtonEnabled)
+        flow.notMe()
+        assertTrue(flow.state.retrying)
+        assertTrue(flow.state.candidates.isEmpty())
+        flow.onObservation(face("hong"))
+        assertTrue("frames are ignored while pausing", flow.state.retrying)
+        flow.resumeAfterRetry()
+        assertFalse(flow.state.retrying)
+        flow.onObservation(face("hong"))
+        assertTrue(flow.state.printButtonEnabled)
+        assertTrue(effects.checkIns.isEmpty())
+    }
+
+    @Test
     fun `a saved registration is announced once on the idle screen`() {
         val (flow, _) = flow()
         flow.startRegistration()

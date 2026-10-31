@@ -304,6 +304,10 @@ class MainActivity : AppCompatActivity() {
         override fun duplicateIsMe() = flow.confirmDuplicate()
         override fun duplicateNotMe() = flow.rejectDuplicate()
         override fun home() = flow.goHome()
+        override fun notMe() {
+            flow.notMe()
+            main.postDelayed({ flow.resumeAfterRetry() }, RETRY_PAUSE_MS)
+        }
         override fun openSettings() = showSettings()
         override fun openLog() = showLog()
         override fun syncNow() {
@@ -406,5 +410,10 @@ class MainActivity : AppCompatActivity() {
     private fun showError(message: String) {
         log.log("오류: $message")
         AlertDialog.Builder(this).setTitle("확인이 필요합니다").setMessage(message).setPositiveButton("확인", null).show()
+    }
+
+    private companion object {
+        /** How long 빛이 waits after "나 아닌데?" before looking again. */
+        const val RETRY_PAUSE_MS = 2_000L
     }
 }

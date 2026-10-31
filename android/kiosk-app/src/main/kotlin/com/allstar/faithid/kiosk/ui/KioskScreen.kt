@@ -39,6 +39,7 @@ class KioskScreen(activity: Activity, private val actions: Actions, people: () -
         fun duplicateIsMe()
         fun duplicateNotMe()
         fun home()
+        fun notMe()
         fun openSettings()
         fun openLog()
         fun syncNow()

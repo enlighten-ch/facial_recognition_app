@@ -107,6 +107,8 @@ data class UiState(
     val ready: Boolean = true,
     /** Set on the first screen after a registration was saved, so the screen can congratulate. */
     val registered: PersonMetadata? = null,
+    /** After "나 아닌데?": recognition pauses for a moment, then looks again. */
+    val retrying: Boolean = false,
 )
 
 /** A check-in, recorded when the print button is pressed (whether or not printing succeeds). */
