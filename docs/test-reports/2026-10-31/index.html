@@ -1,0 +1,177 @@
+<title>따뜻한 안내자 적용 보고서</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column; summary first, then what changed, test results as tables, open items last. */
+:root {
+  --bg: #fff8f3;
+  --surface: #ffffff;
+  --ink: #33263f;
+  --muted: #6e6078;
+  --line: #f0dfd4;
+  --accent: #5b3f8c;
+  --accent-soft: #f3ecfa;
+  --ok: #2c7a4b; --ok-soft: #e3f4ec;
+  --warn: #a8670f; --warn-soft: #fbefd9;
+  --bad: #b8322a; --bad-soft: #fbe3e1;
+  --font-display: "Jua", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1d1824; --surface: #251e2e; --ink: #f4ecf7; --muted: #bcaec6; --line: #3a3045;
+    --accent: #b49cf0; --accent-soft: #352a48; --ok: #6fd3a0; --ok-soft: #1c3a2c; --warn: #f0b45c; --warn-soft: #3b2c14; --bad: #ff9b90; --bad-soft: #43201d;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #1d1824; --surface: #251e2e; --ink: #f4ecf7; --muted: #bcaec6; --line: #3a3045;
+  --accent: #b49cf0; --accent-soft: #352a48; --ok: #6fd3a0; --ok-soft: #1c3a2c; --warn: #f0b45c; --warn-soft: #3b2c14; --bad: #ff9b90; --bad-soft: #43201d;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); line-height: 1.7; margin: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 36px 64px; }
+main { max-width: 900px; margin: 0 auto; display: grid; gap: 44px; }
+h1, h2 { font-family: var(--font-display); font-weight: 400; margin: 0; line-height: 1.25; text-wrap: balance; }
+h1 { font-size: 2.3rem; }
+h2 { font-size: 1.6rem; }
+h3 { font-size: 1.08rem; margin: 0; }
+p { margin: 0; max-width: 68ch; }
+a { color: var(--accent); }
+code { font-family: var(--font-mono); font-size: 0.86em; background: var(--accent-soft); padding: 1px 6px; border-radius: 4px; overflow-wrap: anywhere; }
+.eyebrow { font-size: 0.8rem; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
+header { display: grid; gap: 10px; }
+.lede { font-size: 1.1rem; color: var(--muted); }
+section { display: grid; gap: 14px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; display: grid; gap: 2px; }
+.card b { font-size: 1.6rem; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.card span { color: var(--muted); font-size: 0.9rem; }
+ul { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; max-width: 70ch; }
+.group { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 20px; display: grid; gap: 8px; }
+.table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+table { border-collapse: collapse; width: 100%; font-size: 0.94rem; }
+th { text-align: left; color: var(--muted); font-size: 0.84rem; font-weight: 600; padding: 9px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+td.n { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pill { display: inline-block; font-size: 0.8rem; font-weight: 700; padding: 1px 10px; border-radius: 999px; white-space: nowrap; }
+.pill.ok { background: var(--ok-soft); color: var(--ok); }
+.pill.warn { background: var(--warn-soft); color: var(--warn); }
+.pill.bad { background: var(--bad-soft); color: var(--bad); }
+.todo { display: grid; gap: 10px; }
+.todo > div { background: var(--surface); border: 1px solid var(--line); border-left: 5px solid var(--warn); border-radius: 10px; padding: 12px 16px; display: grid; gap: 4px; }
+.todo > div.urgent { border-left-color: var(--bad); }
+footer { color: var(--muted); font-size: 0.86rem; border-top: 1px solid var(--line); padding-top: 14px; }
+</style>
+
+<main>
+  <header>
+    <span class="eyebrow">FAITH ID · 변경 내역과 시험 보고 · 2026-10-31 ~ 11-01</span>
+    <h1>따뜻한 안내자 화면 적용</h1>
+    <p class="lede">UI 연구에서 고른 제안 B v9(따뜻한 안내자)를 키오스크와 서버 앱에 적용하고, 안내 캐릭터 빛이의 동작을 더했습니다. PC 에뮬레이터와 태블릿 두 대에서 시험했고, 사용 안내서를 새 화면으로 바꿨습니다.</p>
+  </header>
+
+  <section aria-labelledby="h-sum">
+    <h2 id="h-sum">요약</h2>
+    <div class="cards">
+      <div class="card"><b>145</b><span>단위 시험 통과 (실패 0, 건너뜀 1)</span></div>
+      <div class="card"><b>11 / 11</b><span>키오스크 종단 시험: 에뮬레이터, 태블릿 1</span></div>
+      <div class="card"><b>17 / 17</b><span>화면 따라가기 시험: 태블릿 2</span></div>
+      <div class="card"><b>266 / 266</b><span>키오스크 6대 모의 시험의 출석 건수 일치</span></div>
+    </div>
+    <p>모든 변경은 <code>improve/stability-attendance</code> 브랜치에 올렸고, 작업은 이슈 <a href="https://github.com/enlighten-ch/facial_recognition_app/issues/23">#23</a>에 정리했습니다. 두 태블릿에 최신 앱(디버그 빌드)을 설치했습니다. <b>태블릿 1이 잠겨 있어 서버를 다시 켜지 못했습니다</b>(아래 남은 일).</p>
+  </section>
+
+  <section aria-labelledby="h-changes">
+    <h2 id="h-changes">바뀐 점</h2>
+    <div class="group">
+      <h3>키오스크 (Faith ID)</h3>
+      <ul>
+        <li>카메라가 화면 전체에 나오고, 빛이가 위쪽 말풍선에서 안내합니다. 버튼은 아래쪽에 반투명하게 떠 있습니다.</li>
+        <li>안내 대상: 어린이(반말, 별·꽃가루)와 어른(같은 빛이, 정중한 말투). 설정 › 일반에서 고릅니다.</li>
+        <li>얼굴 등록 12가지 동작: 왼쪽·오른쪽·위·아래 방향마다 보통·큰·작은 동그라미에 얼굴을 맞춥니다. 큰 동그라미는 얼굴이 실제로 커져야(가까이), 작은 동그라미는 작아져야(멀리) 받아들입니다.</li>
+        <li>바라볼 쪽에 별, 같은 높이에 방향과 거리를 시범 보이는 3D 머리, 12개를 다 모으면 축하 화면.</li>
+        <li>이름 입력: 키오스크가 가진 명단에서 부서·학년 칩을 만들어 고르게 합니다(직접 입력도 가능). 이름표 카드 화면, 등록 완료 안내.</li>
+        <li>빛이의 동작: 몇 초마다 깜빡이고, 상황마다 점프·갸우뚱·끄덕 같은 동작을 합니다. 상황과 동작의 표는 코드 한 곳(<code>GuideGestures</code>)에서 관리합니다.</li>
+        <li>설정: 오른쪽 위 거의 보이지 않는 톱니를 1.2초 길게 눌러야 열립니다. 안내 문구 탭을 따로 두어 빛이의 말을 어린이·어른별로 바꿀 수 있습니다.</li>
+        <li>호환: 공장 기본값 그대로인 얼굴 동그라미는 새 화면에 맞게 조금 작고 낮아집니다. 직접 맞춘 값은 그대로 두고, 등록할 때만 화면에 맞도록 같은 비율로 줄입니다.</li>
+      </ul>
+    </div>
+    <div class="group">
+      <h3>서버 앱 (Faith DB Server)</h3>
+      <ul>
+        <li>탭: 오늘의 순서 / 명단 / 출석 / 키오스크. 오늘의 순서는 서버 켜기, 키오스크 허락, 명단, 출석부 저장을 차례로 보여 주고 부서별 출석 막대를 함께 보여 줍니다.</li>
+        <li>명단과 출석은 표입니다. 머리글을 누르면 정렬, 부서 필터와 검색, 명단은 줄을 눌러 그 자리에서 고치기, 출석은 온 사람/아직 안 온 사람으로 나눠 보기.</li>
+        <li>개발자 화면: 상태, 모든 서버 설정과 <code>config.yaml</code>(비밀번호 해시는 가림), 데이터 폴더의 파일과 관리 작업, 키오스크 표, 종류별로 거르고 찾는 전체 로그.</li>
+        <li>이전 화면에서 하던 일(CSV 반영·저장, DB 다시 읽기, 기간 내보내기, 비밀번호 변경, 로그아웃, 서버 종료)은 모두 그대로 할 수 있습니다.</li>
+      </ul>
+    </div>
+    <div class="group">
+      <h3>문서와 도구</h3>
+      <ul>
+        <li>사용 안내서를 새 화면과 스크린샷으로 다시 썼습니다: <a href="https://claude.ai/artifact/5zafDgoeuqXLQ8ipVTu2zk">사용 안내서</a> (<code>docs/user-guide/</code>).</li>
+        <li>UI 시안은 v1~v9를 모두 남겼습니다(<code>docs/ui-proposals/</code>).</li>
+        <li><code>tools/ui_walkthrough_kiosk.sh</code>: 가상 얼굴로 키오스크 화면을 처음부터 끝까지 따라가며 문구를 확인합니다. 실제 카메라가 있는 태블릿에서는 스크린샷을 흐리게 저장하고, 실제 프린터가 있으면 출력을 건너뜁니다.</li>
+        <li>종단 시험 스크립트를 새 화면에 맞추고, 데이터 폴더 지정(<code>DATA_DIR</code>), 다른 앱의 오류 창 닫기, 키보드가 있을 때만 뒤로 가기를 더했습니다.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-tests">
+    <h2 id="h-tests">시험 결과</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>기기</th><th>시험</th><th>결과</th><th>메모</th></tr></thead>
+        <tbody>
+          <tr><td>PC</td><td>단위 시험 (JVM, 전 모듈)</td><td class="n"><span class="pill ok">145 통과</span></td><td>등록 12가지 동작, 안내 문구, 부서 칩, 빛이 동작 표, 설정 저장·이전, 서버 표 정렬·필터·로그 분류 시험 추가. 건너뜀 1건은 기존 시험.</td></tr>
+          <tr><td>에뮬레이터</td><td>키오스크 종단 시험</td><td class="n"><span class="pill ok">11 / 11</span></td><td>등록 → 서버 반영 → 인식·출석 → 본인 확인 → 이름표만 → 서버에서 삭제. 빛이 동작과 키보드 수정 뒤 다시 시험.</td></tr>
+          <tr><td>에뮬레이터</td><td>화면 따라가기</td><td class="n"><span class="pill ok">16 / 17</span></td><td>나머지 1건(이름표 화면)은 시험 시점 문제로, 따로 확인해 정상.</td></tr>
+          <tr><td>에뮬레이터</td><td>뒤에서 동기화</td><td class="n"><span class="pill ok">6 / 6</span></td><td>서버 앱을 앞에 두고 개발자 화면에서 DB 다시 읽기 → 키오스크가 뒤에서 전체 수신.</td></tr>
+          <tr><td>에뮬레이터</td><td>키오스크 6대 모의</td><td class="n"><span class="pill ok">통과</span></td><td>새 키오스크 탭에서 허락, 등록 189명, 출석 266건이 출석부와 일치.</td></tr>
+          <tr><td>태블릿 1 (서버+키오스크)</td><td>키오스크 종단 시험</td><td class="n"><span class="pill ok">11 / 11</span></td><td>실제 명단을 건드리지 않도록 서버 데이터 폴더를 시험 폴더로 바꿔 시험.</td></tr>
+          <tr><td>태블릿 1</td><td>화면 따라가기</td><td class="n"><span class="pill ok">17 / 18</span></td><td>나머지 1건은 Android 기본 인쇄 창이 이름표 화면을 덮어서 생긴 것으로 정상 동작.</td></tr>
+          <tr><td>태블릿 1</td><td>서버 앱 화면</td><td class="n"><span class="pill ok">확인</span></td><td>오늘의 순서, 명단 표와 그 자리 고치기, 출석 표, 키오스크 탭, 개발자 화면 로그.</td></tr>
+          <tr><td>태블릿 2 (키오스크, Wi-Fi)</td><td>화면 따라가기</td><td class="n"><span class="pill ok">17 / 17</span></td><td>실제 Brother 프린터가 연결되어 있어 출력은 건너뜀. 직접 맞춘 큰 동그라미에서도 별과 말풍선이 겹치지 않음.</td></tr>
+          <tr><td>태블릿 2</td><td>빛이 동작</td><td class="n"><span class="pill ok">확인</span></td><td>깜빡임, 대기 중 두리번, 처음 보는 얼굴에 갸우뚱, 등록 시작에 끄덕. 저장하는 동작 없이 빛이 영역만 녹화해 확인.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>태블릿 화면 사진은 앞 카메라에 사람이 비칠 수 있어 아주 흐리게 처리한 사본만 남겼습니다. 안내서 사진은 가상 카메라를 쓰는 에뮬레이터에서 예시 이름으로 찍었습니다.</p>
+  </section>
+
+  <section aria-labelledby="h-found">
+    <h2 id="h-found">시험 중 찾아 고친 문제</h2>
+    <ul>
+      <li>큰 동그라미 단계에서 별이 동그라미에 붙거나 겹침 → 별 크기에 맞춰 간격을 둠.</li>
+      <li>직접 크게 맞춘 동그라미(태블릿 2)에서 위쪽 별이 말풍선에 가려짐 → 등록 때 세 동그라미를 같은 비율로 줄여 화면에 맞춤. 카메라 분석도 같은 크기를 씀.</li>
+      <li>태블릿에서 키보드가 “다 됐어요” 버튼을 가림 → 키보드 높이만큼 비켜 주고, 이름 뒤 완료·칩 선택 때 키보드를 닫고, 마지막 칸 완료로 저장.</li>
+      <li>저장·출력 뒤 다음 화면에 키보드가 남음 → 이름 입력을 벗어나면 닫음.</li>
+      <li>입력한 부서가 칩과 같아지면 키보드가 닫힘 → 사람이 누른 칩만 키보드를 닫음.</li>
+      <li>서버 오늘의 순서: 서버가 꺼져도 “모두 연결됨”으로 보임, 평일에도 “주일 아침” 문구, 부서 인원 숫자가 두 줄로 나뉨 → 고침.</li>
+      <li>서버 개발자 화면: 실행 중에도 시작 버튼이 보임, 긴 파일 목록 아래로 관리 버튼이 밀림, 대기 중 기기 거절 창이 “연결 끊기”로 보임 → 고침.</li>
+      <li>시험 도구: 화면 읽기에 실패하면 이전 화면을 돌려주던 문제 → 실패를 그대로 알림.</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="h-todo">
+    <h2 id="h-todo">남은 일과 확인할 것</h2>
+    <div class="todo">
+      <div class="urgent"><b>태블릿 1: 잠금 해제 후 서버 다시 켜기, 충전</b><span>앱을 업데이트하며 서버가 멈췄고, 태블릿이 PIN으로 잠겨 있어 로그인하지 못했습니다. 서버 데이터 폴더는 실제 폴더(<code>/sdcard/faceDB</code>, 80명)로 되돌려 두었으니 로그인 후 <b>서버 시작</b>만 누르면 됩니다. 배터리가 7%였습니다.</span></div>
+      <div><b>키오스크가 실제 명단을 다시 받는지 확인</b><span>시험 동안 두 키오스크는 시험 명단을 받았습니다. 서버를 켜면 새 명단으로 판단해 실제 명단 전체를 다시 받습니다. 태블릿 2에 보내지 않은 변경·출석은 0건임을 확인했습니다.</span></div>
+      <div><b>자동 보정 사진 2장</b><span>태블릿 2가 시험 전에 모아 둔 자동 보정 사진 2장(한 사람)이 시험 서버로 보내졌습니다. 실제 명단에는 들어가지 않았고, 평소처럼 인식될 때 다시 모입니다.</span></div>
+      <div><b>태블릿 1의 오래된 모의 키오스크 약 60대</b><span>이전 성능 시험에서 만든 “Sim perf-…” 키오스크가 허락된 채 남아 있어 오늘의 순서에 “키오스크 63대 중 1대 연결됨”으로 보입니다. 원하시면 정리하겠습니다.</span></div>
+      <div><b>Samsung 키보드 오류 창</b><span>두 태블릿 모두 키보드를 열면 “스마트 추천이 계속 중단됨” 창이 뜹니다(Samsung 시스템 앱 오류). 앱과 상관없이 <b>앱 닫기</b>로 넘어가면 되지만, Samsung 앱 업데이트나 스마트 추천 끄기를 권합니다.</span></div>
+      <div><b>서버 태블릿 절전</b><span>배터리가 부족한 채 화면이 꺼지면 키오스크가 서버에 닿지 못하는 일이 있었습니다(<a href="https://github.com/enlighten-ch/facial_recognition_app/issues/24">#24</a>). 서버 태블릿은 충전기에 꽂아 두세요. 원인 확인은 이어서 하겠습니다.</span></div>
+      <div><b>관리자 비밀번호</b><span>예전 비밀번호가 저장소 기록에 남아 있으니 실제 서버의 관리자 비밀번호를 바꿔 주세요.</span></div>
+    </div>
+  </section>
+
+  <footer>
+    앱 2.0 디버그 빌드 · 브랜치 improve/stability-attendance · 태블릿 SM-T970, SM-T975N (Android 13) · 에뮬레이터 Android 15 · 화면 속 이름은 예시입니다.
+  </footer>
+</main>
