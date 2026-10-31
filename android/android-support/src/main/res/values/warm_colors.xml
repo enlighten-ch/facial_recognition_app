@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- "따뜻한 안내자" palette shared by the kiosk and server apps: apricot morning, plum ink and action. -->
+<resources>
+    <color name="warm_sky">#FFF4EC</color>
+    <color name="warm_sky_2">#FFE6D6</color>
+    <color name="warm_card">#FFFDFB</color>
+    <color name="warm_ink">#33263F</color>
+    <color name="warm_ink_2">#6E6078</color>
+    <color name="warm_line">#F0DFD4</color>
+    <color name="warm_plum">#5B3F8C</color>
+    <color name="warm_plum_soft">#F3ECFA</color>
+    <color name="warm_apricot">#FF9A62</color>
+    <color name="warm_mint">#3F9D7A</color>
+    <color name="warm_mint_soft">#E3F4EC</color>
+    <color name="warm_gold">#FFC93C</color>
+    <color name="warm_danger">#C0461B</color>
+</resources>
