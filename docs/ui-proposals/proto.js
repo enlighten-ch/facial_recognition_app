@@ -152,6 +152,8 @@
     DEPTS, GRADES, DIRECTIONS, PER_DIRECTION, people, attendance, kiosks, state, hhmm, callName,
     dept: id => DEPTS.find(d => d.id === id) || { id, name: id, color: '#9aa3b5' },
     subscribe(fn) { listeners.push(fn); fn(state); },
+    refresh: () => emit(),
+    regDoneDelay: 0,             // pages may hold the finished registration screen longer, e.g. for a celebration
     t,
     setView(v) { state.view = v; emit(); },
     setAudience(a) { state.audience = a; emit(); },
@@ -215,7 +217,7 @@
           if (r.dir < DIRECTIONS.length) say(t('regTurn', DIRECTIONS[r.dir]));
         }
         if (r.dir >= DIRECTIONS.length) {
-          later(500, () => {
+          later(Proto.regDoneDelay || 500, () => {
             if (r.match) { go('confirmSelf', { person: r.match }); say(t('confirm', r.match)); }
             else { go('regName'); say(t('regName')); }
           });
