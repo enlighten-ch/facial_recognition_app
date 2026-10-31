@@ -106,9 +106,10 @@ adbs shell am start -n "$SERVER/com.allstar.faithid.serverapp.ui.MainActivity" >
 if ui_has "로그인"; then ui_tap loginIdInput; clear_field; ui_type admin; ui_tap loginPasswordInput; clear_field; ui_type "$ADMIN_PASSWORD"; ui_tap loginButton; sleep 2; fi
 ui_tap "명단"; sleep 1
 ui_tap peopleSearchInput; clear_field; ui_type "$NAME"; adbs shell input keyevent KEYCODE_BACK; sleep 1
+ui_tap personName; sleep 1 # opens the row for editing
 ui_tap personDeleteButton; sleep 1; ui_tap "삭제"; sleep 2
 check "서버 명단에서 삭제" 'wait_for 10 csv "! adbs shell grep -q \"$NAME\" /sdcard/faceDB/face_db.csv"'
-ui_tap "현황"
+ui_tap "키오스크"
 kiosk_front
 broadcast DEBUG_CAMERA --ez paused true
 broadcast DEBUG_NO_FACE; sleep 6

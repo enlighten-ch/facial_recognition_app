@@ -71,7 +71,7 @@ adbs shell am kill "$KIOSK"; sleep 3
 
 echo "=== 3. 키오스크가 뒤에 있는 동안 서버 변경 받기"
 T1=$(now_ms)
-ui_tap "명단"; sleep 1; ui_tap "DB 다시 읽기"; sleep 1; ui_tap "다시 읽기"; sleep 1; ui_tap "현황"
+ui_tap devScreenButton; sleep 1; ui_tap "데이터"; sleep 1; ui_tap "DB 다시 읽기"; sleep 1; ui_tap "다시 읽기"; sleep 1; ui_tap "서버 앱으로"; sleep 1; ui_tap "오늘의 순서"
 if T2=$(kiosk_log_after "서버 DB 전체 수신" "$T1" 40); then
   ok "뒤에 있는 동안 전체 DB 수신·적용 ($(( T2 - T1 )) ms, 버튼 조작 포함)"
 else

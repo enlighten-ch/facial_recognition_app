@@ -6,10 +6,7 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
-import com.allstar.faithid.core.model.Person
-import com.allstar.faithid.server.ServerSettings
 import com.allstar.faithid.server.auth.AdminCredentials
-import com.google.android.material.materialswitch.MaterialSwitch
 import java.time.LocalDate
 
 internal object Dialogs {
@@ -25,26 +22,6 @@ internal object Dialogs {
 
     fun info(context: Context, title: String, message: String) {
         AlertDialog.Builder(context).setTitle(title).setMessage(message).setPositiveButton("확인", null).show()
-    }
-
-    fun editPerson(context: Context, person: Person, onSave: (name: String, department: String, grade: String) -> Unit) {
-        val form = form(context)
-        val name = field(form, "이름", person.name)
-        val department = field(form, "부서", person.department)
-        val grade = field(form, "학년", person.grade)
-        AlertDialog.Builder(context)
-            .setTitle("명단 수정")
-            .setView(form)
-            .setNegativeButton("취소", null)
-            .setPositiveButton("저장") { _, _ ->
-                val newName = name.text.toString().trim()
-                if (newName.isEmpty()) {
-                    info(context, "저장하지 않았습니다", "이름은 비워 둘 수 없습니다.")
-                } else {
-                    onSave(newName, department.text.toString().trim(), grade.text.toString().trim())
-                }
-            }
-            .show()
     }
 
     /** Asks for a new administrator password. [forced] dialogs cannot be dismissed. */
@@ -80,51 +57,6 @@ internal object Dialogs {
             }
         }
         dialog.show()
-    }
-
-    fun settings(
-        context: Context,
-        current: ServerSettings,
-        onPickFolder: (onPicked: (String) -> Unit) -> Unit,
-        onChangePassword: () -> Unit,
-        onSave: (ServerSettings) -> Unit,
-    ) {
-        val form = form(context)
-        val adminId = field(form, "관리자 ID", current.credentials.adminId)
-        val port = field(form, "포트 (키오스크 설정과 같아야 합니다)", current.port.toString(), number = true)
-        val folder = field(form, "데이터 폴더 (얼굴 DB, 출석부)", current.dataDir)
-        val pick = com.google.android.material.button.MaterialButton(context).apply {
-            text = "폴더 선택"
-            setOnClickListener { onPickFolder { folder.setText(it) } }
-        }
-        form.addView(pick)
-        val maxSamples = field(form, "사람별 최대 얼굴 샘플 수", current.maxEmbeddingsPerPerson.toString(), number = true)
-        val autoStart = MaterialSwitch(context).apply {
-            text = "앱 실행 시 로그인 없이 서버 자동 시작"
-            isChecked = current.autoStart
-        }
-        form.addView(autoStart)
-        val password = com.google.android.material.button.MaterialButton(context).apply {
-            text = "관리자 비밀번호 변경"
-            setOnClickListener { onChangePassword() }
-        }
-        form.addView(password)
-        AlertDialog.Builder(context)
-            .setTitle("서버 설정")
-            .setView(android.widget.ScrollView(context).apply { addView(form) })
-            .setNegativeButton("취소", null)
-            .setPositiveButton("저장") { _, _ ->
-                onSave(
-                    current.copy(
-                        credentials = current.credentials.copy(adminId = adminId.text.toString().trim().ifBlank { AdminCredentials.DEFAULT_ID }),
-                        port = port.text.toString().toIntOrNull()?.coerceIn(1024, 65535) ?: current.port,
-                        dataDir = folder.text.toString().trim().ifBlank { ServerSettings.DEFAULT_DATA_DIR },
-                        maxEmbeddingsPerPerson = maxSamples.text.toString().toIntOrNull()?.coerceIn(10, 1000) ?: current.maxEmbeddingsPerPerson,
-                        autoStart = autoStart.isChecked,
-                    ),
-                )
-            }
-            .show()
     }
 
     fun pickRange(context: Context, endDate: LocalDate, onPick: (LocalDate, LocalDate) -> Unit) {

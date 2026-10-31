@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Runs RemoteServerScenarioTest (6 simulated kiosks) against the Faith DB Server app on a device.
 #
-# Preconditions: the server app is installed, logged in, on the "현황" tab, and the server is running.
+# Preconditions: the server app is installed, logged in, on the "키오스크" tab, and the server is running.
 # Usage: tools/e2e_server_scenario.sh <adb-serial> [server-url]
 #   server-url defaults to http://127.0.0.1:18080 through adb forward; pass the tablet's Wi-Fi
 #   address (http://192.168.x.y:18080) to test over the real network.
@@ -22,8 +22,8 @@ GRADLE_PID=$!
 
 # Act as the administrator: approve kiosks whenever some are waiting.
 while kill -0 "$GRADLE_PID" 2>/dev/null; do
-  if ui_has "승인 대기"; then
-    ui_tap "대기 중 전체 승인" && sleep 1 && ui_tap "승인" && echo "[e2e] approved waiting kiosks"
+  if ui_has "허락 대기"; then
+    ui_tap "허락하기" && echo "[e2e] approved a waiting kiosk"
   fi
   sleep 3
 done
