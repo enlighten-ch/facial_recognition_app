@@ -58,6 +58,9 @@ class PeopleRepository(
     val epoch: String get() = snapshot.epoch
     val revision: Long get() = snapshot.revision
 
+    /** Number of deletion records kept so offline kiosks cannot bring deleted people back. */
+    val deletedCount: Int get() = snapshot.tombstones.size
+
     /** Called after every committed change with the new revision. */
     @Volatile
     var onChanged: (Long) -> Unit = {}

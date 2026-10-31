@@ -1,10 +1,15 @@
 <resources>
     <style name="Theme.FaithServer" parent="Theme.Material3.Light.NoActionBar">
-        <item name="colorPrimary">#2346A6</item>
+        <item name="colorPrimary">@color/accent</item>
         <item name="colorOnPrimary">#FFFFFF</item>
-        <item name="colorSecondary">#D99410</item>
-        <item name="android:colorBackground">#F4F6FA</item>
+        <item name="colorPrimaryContainer">@color/accent_soft</item>
+        <item name="colorOnPrimaryContainer">@color/accent</item>
+        <item name="colorSecondary">@color/apricot</item>
+        <item name="colorSurface">@color/surface</item>
+        <item name="android:colorBackground">@color/paper</item>
+        <item name="android:windowBackground">@color/paper</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:windowLightNavigationBar">true</item>
+        <item name="materialButtonStyle">@style/Button.Primary</item>
     </style>
 </resources>

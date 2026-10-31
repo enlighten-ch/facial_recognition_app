@@ -56,6 +56,11 @@ class ServerService : Service() {
     var lastError: String? = null
         private set
 
+    /** When the server last started listening, for the developer screen; null while stopped. */
+    @Volatile
+    var startedAt: Long? = null
+        private set
+
     override fun onCreate() {
         super.onCreate()
         log = FileLog(File(filesDir, "logs/server.log"), "FaithServer")
@@ -107,6 +112,7 @@ class ServerService : Service() {
                 }
                 val started = server!!.start()
                 if (started) goForeground(settings.port)
+                startedAt = if (started) System.currentTimeMillis() else null
                 lastError = if (started) null else "포트 ${settings.port}에서 서버를 시작하지 못했습니다."
                 started
             }.getOrElse {
@@ -124,6 +130,7 @@ class ServerService : Service() {
         worker.execute {
             server?.close()
             server = null
+            startedAt = null
             ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
             wakeLock?.release()
             wakeLock = null

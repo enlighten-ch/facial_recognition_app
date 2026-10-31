@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Login, the dashboard (four tabs) and the developer screen, which covers the dashboard. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/paper">
 
-    <!-- Login -->
     <LinearLayout
         android:id="@+id/loginContainer"
         android:layout_width="@dimen/login_width"
@@ -30,24 +30,24 @@
 
         <EditText
             android:id="@+id/loginIdInput"
+            style="@style/Input"
             android:layout_width="match_parent"
-            android:layout_height="56dp"
+            android:layout_height="52dp"
             android:layout_marginTop="20dp"
             android:autofillHints="username"
             android:hint="@string/login_id"
-            android:inputType="text"
-            android:singleLine="true" />
+            android:inputType="text" />
 
         <EditText
             android:id="@+id/loginPasswordInput"
+            style="@style/Input"
             android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:layout_marginTop="8dp"
+            android:layout_height="52dp"
+            android:layout_marginTop="10dp"
             android:autofillHints="password"
             android:hint="@string/login_password"
             android:imeOptions="actionDone"
-            android:inputType="textPassword"
-            android:singleLine="true" />
+            android:inputType="textPassword" />
 
         <TextView
             android:id="@+id/loginMessageText"
@@ -58,13 +58,13 @@
 
         <Button
             android:id="@+id/loginButton"
+            style="@style/Button.Primary"
             android:layout_width="match_parent"
             android:layout_height="56dp"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="8dp"
             android:text="@string/login_button" />
     </LinearLayout>
 
-    <!-- Dashboard -->
     <LinearLayout
         android:id="@+id/dashboardContainer"
         android:layout_width="match_parent"
@@ -80,358 +80,135 @@
             android:orientation="horizontal">
 
             <TextView
-                style="@style/Text.Title"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="@string/app_name" />
+                android:fontFamily="@font/jua"
+                android:text="@string/brand"
+                android:textColor="@color/ink"
+                android:textSize="28sp" />
 
             <TextView
                 android:id="@+id/serverStateChip"
-                style="@style/Chip"
+                style="@style/Text.Muted"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="14dp"
+                android:layout_marginStart="10dp"
                 android:text="@string/state_stopped" />
+
+            <TextView
+                android:id="@+id/devScreenButton"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:layout_marginStart="12dp"
+                android:background="@drawable/bg_dashed_underline"
+                android:gravity="center"
+                android:paddingHorizontal="2dp"
+                android:text="@string/dev_screen"
+                android:textColor="#8A7B94"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/logoutButton"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:layout_marginStart="10dp"
+                android:background="?attr/selectableItemBackground"
+                android:gravity="center"
+                android:paddingHorizontal="4dp"
+                android:text="@string/logout"
+                android:textColor="#8A7B94"
+                android:textSize="14sp" />
 
             <View
                 android:layout_width="0dp"
                 android:layout_height="1dp"
                 android:layout_weight="1" />
 
-            <Button
-                android:id="@+id/settingsButton"
-                style="@style/Widget.Material3.Button.OutlinedButton"
+            <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="@string/settings" />
+                android:background="@drawable/bg_tabs"
+                android:orientation="horizontal"
+                android:padding="4dp">
+            <TextView
+                android:id="@+id/tabToday"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:background="@drawable/bg_tab"
+                android:gravity="center"
+                android:paddingHorizontal="20dp"
+                android:text="@string/tab_today"
+                android:textColor="@color/tab_text"
+                android:textSize="17sp"
+                android:textStyle="bold" />
+            <TextView
+                android:id="@+id/tabPeople"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:background="@drawable/bg_tab"
+                android:gravity="center"
+                android:paddingHorizontal="20dp"
+                android:text="@string/tab_people"
+                android:textColor="@color/tab_text"
+                android:textSize="17sp"
+                android:textStyle="bold" />
+            <TextView
+                android:id="@+id/tabAttendance"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:background="@drawable/bg_tab"
+                android:gravity="center"
+                android:paddingHorizontal="20dp"
+                android:text="@string/tab_attendance"
+                android:textColor="@color/tab_text"
+                android:textSize="17sp"
+                android:textStyle="bold" />
 
-            <Button
-                android:id="@+id/logoutButton"
-                style="@style/Widget.Material3.Button.OutlinedButton"
+                <FrameLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content">
+            <TextView
+                android:id="@+id/tabKiosks"
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:text="@string/logout" />
+                android:layout_height="48dp"
+                android:background="@drawable/bg_tab"
+                android:gravity="center"
+                android:paddingHorizontal="20dp"
+                android:text="@string/tab_kiosks"
+                android:textColor="@color/tab_text"
+                android:textSize="17sp"
+                android:textStyle="bold" />
 
-            <Button
-                android:id="@+id/quitButton"
-                style="@style/Widget.Material3.Button.OutlinedButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:text="@string/quit" />
+                    <View
+                        android:id="@+id/kioskBadge"
+                        android:layout_width="11dp"
+                        android:layout_height="11dp"
+                        android:layout_gravity="top|end"
+                        android:layout_marginTop="4dp"
+                        android:layout_marginEnd="6dp"
+                        android:background="@drawable/bg_dot"
+                        android:backgroundTint="@color/apricot"
+                        android:contentDescription="@string/kiosk_waiting_badge"
+                        android:visibility="gone" />
+                </FrameLayout>
+            </LinearLayout>
         </LinearLayout>
-
-        <com.google.android.material.tabs.TabLayout
-            android:id="@+id/tabs"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:background="@android:color/transparent" />
 
         <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_marginTop="10dp"
+            android:layout_marginTop="12dp"
             android:layout_weight="1">
 
-            <!-- Status: server control and kiosks -->
-            <ScrollView
-                android:id="@+id/statusPage"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent">
+            <include layout="@layout/page_today" />
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical">
+            <include layout="@layout/page_people" />
 
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:background="@drawable/bg_card"
-                        android:orientation="vertical"
-                        android:padding="18dp">
+            <include layout="@layout/page_attendance" />
 
-                        <TextView
-                            style="@style/Text.Section"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/section_server" />
-
-                        <TextView
-                            android:id="@+id/serverStatusText"
-                            style="@style/Text.Body"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="6dp" />
-
-                        <TextView
-                            android:id="@+id/endpointText"
-                            style="@style/Text.Mono"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
-                            android:textIsSelectable="true" />
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="12dp"
-                            android:orientation="horizontal">
-
-                            <Button
-                                android:id="@+id/startButton"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="@string/start_server" />
-
-                            <Button
-                                android:id="@+id/stopButton"
-                                style="@style/Widget.Material3.Button.OutlinedButton"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginStart="10dp"
-                                android:text="@string/stop_server" />
-                        </LinearLayout>
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="14dp"
-                        android:background="@drawable/bg_card"
-                        android:orientation="vertical"
-                        android:padding="18dp">
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:gravity="center_vertical"
-                            android:orientation="horizontal">
-
-                            <TextView
-                                style="@style/Text.Section"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:text="@string/section_kiosks" />
-
-                            <Button
-                                android:id="@+id/approveAllButton"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="@string/approve_all" />
-                        </LinearLayout>
-
-                        <TextView
-                            style="@style/Text.Muted"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
-                            android:text="@string/kiosks_help" />
-
-                        <androidx.recyclerview.widget.RecyclerView
-                            android:id="@+id/clientList"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
-                            android:nestedScrollingEnabled="false" />
-
-                        <TextView
-                            android:id="@+id/clientEmptyText"
-                            style="@style/Text.Muted"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:paddingVertical="12dp"
-                            android:text="@string/kiosks_empty" />
-                    </LinearLayout>
-                </LinearLayout>
-            </ScrollView>
-
-            <!-- People -->
-            <LinearLayout
-                android:id="@+id/peoplePage"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:orientation="vertical"
-                android:visibility="gone">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <EditText
-                        android:id="@+id/peopleSearchInput"
-                        android:layout_width="0dp"
-                        android:layout_height="52dp"
-                        android:layout_weight="1"
-                        android:hint="@string/people_search"
-                        android:importantForAutofill="no"
-                        android:inputType="text"
-                        android:singleLine="true" />
-
-                    <Button
-                        android:id="@+id/importCsvButton"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="10dp"
-                        android:text="@string/import_csv" />
-
-                    <Button
-                        android:id="@+id/exportCsvButton"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="8dp"
-                        android:text="@string/export_csv" />
-
-                    <Button
-                        android:id="@+id/reloadDbButton"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="8dp"
-                        android:text="@string/reload_db" />
-                </LinearLayout>
-
-                <TextView
-                    android:id="@+id/peopleSummaryText"
-                    style="@style/Text.Muted"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp" />
-
-                <include
-                    layout="@layout/item_person"
-                    android:id="@+id/peopleHeader" />
-
-                <androidx.recyclerview.widget.RecyclerView
-                    android:id="@+id/peopleList"
-                    android:layout_width="match_parent"
-                    android:layout_height="0dp"
-                    android:layout_weight="1"
-                    android:background="@drawable/bg_card"
-                    android:scrollbars="vertical" />
-            </LinearLayout>
-
-            <!-- Attendance -->
-            <LinearLayout
-                android:id="@+id/attendancePage"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:orientation="vertical"
-                android:visibility="gone">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <Button
-                        android:id="@+id/previousDayButton"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/previous_day" />
-
-                    <TextView
-                        android:id="@+id/attendanceDateText"
-                        style="@style/Text.Section"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginHorizontal="14dp" />
-
-                    <Button
-                        android:id="@+id/nextDayButton"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/next_day" />
-
-                    <Button
-                        android:id="@+id/todayButton"
-                        style="@style/Widget.Material3.Button.TextButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/today" />
-
-                    <View
-                        android:layout_width="0dp"
-                        android:layout_height="1dp"
-                        android:layout_weight="1" />
-
-                    <Button
-                        android:id="@+id/saveSheetButton"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/save_sheet" />
-
-                    <Button
-                        android:id="@+id/exportRangeButton"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="8dp"
-                        android:text="@string/export_range" />
-                </LinearLayout>
-
-                <TextView
-                    android:id="@+id/attendanceSummaryText"
-                    style="@style/Text.Body"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp" />
-
-                <include
-                    layout="@layout/item_attendance"
-                    android:id="@+id/attendanceHeader" />
-
-                <androidx.recyclerview.widget.RecyclerView
-                    android:id="@+id/attendanceList"
-                    android:layout_width="match_parent"
-                    android:layout_height="0dp"
-                    android:layout_weight="1"
-                    android:background="@drawable/bg_card"
-                    android:scrollbars="vertical" />
-            </LinearLayout>
-
-            <!-- Log -->
-            <LinearLayout
-                android:id="@+id/logPage"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:orientation="vertical"
-                android:visibility="gone">
-
-                <ScrollView
-                    android:id="@+id/logScroll"
-                    android:layout_width="match_parent"
-                    android:layout_height="0dp"
-                    android:layout_weight="1"
-                    android:background="@drawable/bg_card"
-                    android:padding="12dp">
-
-                    <TextView
-                        android:id="@+id/logText"
-                        style="@style/Text.Mono"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:textIsSelectable="true" />
-                </ScrollView>
-
-                <TextView
-                    android:id="@+id/logPathText"
-                    style="@style/Text.Muted"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp" />
-            </LinearLayout>
+            <include layout="@layout/page_kiosks" />
         </FrameLayout>
     </LinearLayout>
+
+    <include layout="@layout/page_dev" />
 </FrameLayout>

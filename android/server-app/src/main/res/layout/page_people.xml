@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 명단: search, department chips and the roster table; a tapped row opens for editing. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/peoplePage"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:visibility="gone">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="bottom"
+        android:orientation="horizontal">
+
+        <TextView
+            style="@style/Text.Title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/people_title" />
+
+        <TextView
+            android:id="@+id/peopleSummaryText"
+            style="@style/Text.Muted"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_marginBottom="6dp"
+            android:layout_weight="1" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <EditText
+            android:id="@+id/peopleSearchInput"
+            style="@style/Input"
+            android:layout_width="320dp"
+            android:layout_height="48dp"
+            android:hint="@string/people_search"
+            android:importantForAutofill="no"
+            android:inputType="text" />
+
+        <HorizontalScrollView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_weight="1"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:id="@+id/peopleDepartmentChips"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal" />
+        </HorizontalScrollView>
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:background="@drawable/bg_table_header"
+        android:orientation="horizontal"
+        android:paddingHorizontal="18dp">
+        <TextView
+            android:id="@+id/headPersonName"
+            style="@style/Text.HeaderCell"
+            android:layout_width="0dp"
+            android:layout_weight="2.2"
+            android:layout_height="wrap_content"
+            android:text="@string/col_name" />
+        <TextView
+            android:id="@+id/headPersonDepartment"
+            style="@style/Text.HeaderCell"
+            android:layout_width="0dp"
+            android:layout_weight="2"
+            android:layout_height="wrap_content"
+            android:text="@string/col_department" />
+        <TextView
+            android:id="@+id/headPersonGrade"
+            style="@style/Text.HeaderCell"
+            android:layout_width="0dp"
+            android:layout_weight="1.4"
+            android:layout_height="wrap_content"
+            android:text="@string/col_grade" />
+        <TextView
+            android:id="@+id/headPersonSamples"
+            style="@style/Text.HeaderCell"
+            android:layout_width="0dp"
+            android:layout_weight="1.2"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical|end"
+            android:text="@string/col_samples" />
+        <TextView
+            android:id="@+id/headPersonToday"
+            style="@style/Text.HeaderCell"
+            android:layout_width="0dp"
+            android:layout_weight="1.6"
+            android:layout_height="wrap_content"
+            android:text="@string/col_today" />
+
+        <View
+            android:layout_width="96dp"
+            android:layout_height="1dp" />
+    </LinearLayout>
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/peopleList"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="@drawable/bg_table_body"
+        android:scrollbars="vertical" />
+
+    <TextView
+        android:id="@+id/peopleFooterText"
+        style="@style/Text.Muted"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp" />
+</LinearLayout>
