@@ -9,7 +9,7 @@ import android.widget.LinearLayout
 import com.allstar.faithid.kiosk.print.LabelRenderer
 import com.google.android.material.tabs.TabLayout
 
-/** The kiosk settings dialog: six tabs, saved together. */
+/** The kiosk settings dialog: seven tabs, saved together. */
 object SettingsDialog {
 
     fun show(
@@ -26,6 +26,7 @@ object SettingsDialog {
         var template: TemplateTab? = null
 
         tabs += GeneralTab(context, current)
+        tabs += CopyTab(context, current)
         tabs += RecognitionTab(context, current)
         tabs += RegistrationTab(context, current)
         tabs += SyncTab(context, current, connectionSummary)

@@ -220,6 +220,35 @@ class RegistrationSessionTest {
     }
 
     @Test
+    fun `circle steps ask for a closer and then a further face in each direction`() {
+        val session = RegistrationSession(RegistrationConfig(samplesPerDirection = 3))
+        assertEquals(FaceCircle.NORMAL, session.nextCircle)
+        assertTrue(session.offer(HeadDirection.LEFT, faces.sample("me"), faceSize = 0.30f) is RegistrationSession.Outcome.Accepted)
+        assertEquals(FaceCircle.BIG, session.nextCircle)
+        val tooFar = session.offer(HeadDirection.LEFT, faces.sample("me"), faceSize = 0.31f)
+        assertEquals(FaceCircle.BIG, (tooFar as RegistrationSession.Outcome.WrongSize).expected)
+        assertTrue(session.offer(HeadDirection.LEFT, faces.sample("me"), faceSize = 0.36f) is RegistrationSession.Outcome.Accepted)
+        assertEquals(FaceCircle.SMALL, session.nextCircle)
+        assertTrue(session.offer(HeadDirection.LEFT, faces.sample("me"), faceSize = 0.29f) is RegistrationSession.Outcome.WrongSize)
+        assertTrue(session.offer(HeadDirection.LEFT, faces.sample("me"), faceSize = 0.24f) is RegistrationSession.Outcome.Accepted)
+        // The next direction starts again with the normal circle and its own baseline.
+        assertEquals(HeadDirection.RIGHT, session.nextDirection)
+        assertEquals(FaceCircle.NORMAL, session.nextCircle)
+        assertTrue(session.offer(HeadDirection.RIGHT, faces.sample("me"), faceSize = 0.20f) is RegistrationSession.Outcome.Accepted)
+        assertTrue(session.offer(HeadDirection.RIGHT, faces.sample("me"), faceSize = 0.23f) is RegistrationSession.Outcome.Accepted)
+    }
+
+    @Test
+    fun `without a face size or with circle steps off the size is not checked`() {
+        val unknown = RegistrationSession(RegistrationConfig(samplesPerDirection = 3))
+        repeat(3) { assertTrue(unknown.offer(HeadDirection.LEFT, faces.sample("me")) is RegistrationSession.Outcome.Accepted) }
+
+        val off = RegistrationSession(RegistrationConfig(samplesPerDirection = 3, circleSteps = false))
+        repeat(3) { assertTrue(off.offer(HeadDirection.LEFT, faces.sample("me"), faceSize = 0.3f) is RegistrationSession.Outcome.Accepted) }
+        assertEquals(FaceCircle.NORMAL, off.nextCircle)
+    }
+
+    @Test
     fun `detects that the face is already registered`() {
         val registered = faces.person("홍길동", key = "hong")
         val index = FaceIndex.of(listOf(registered, faces.person("다른사람", key = "other")))

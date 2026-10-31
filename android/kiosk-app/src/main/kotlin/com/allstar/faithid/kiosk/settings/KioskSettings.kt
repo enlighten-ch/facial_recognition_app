@@ -23,6 +23,13 @@ object PrinterModel {
     }
 }
 
+object GuideAudience {
+    const val KIDS = "kids"
+    const val ADULTS = "adults"
+
+    fun sanitize(value: String?): String = if (value == ADULTS) ADULTS else KIDS
+}
+
 /** One text line on the label ("속성"): which column, how big, and where. */
 data class LabelLine(
     val column: String,
@@ -36,6 +43,8 @@ data class KioskSettings(
     // Screen
     val developerViewEnabled: Boolean = false,
     val hideSystemBars: Boolean = true,
+    /** Who the operation screen talks to: [GuideAudience.KIDS] (빛이, stars, playful words) or [GuideAudience.ADULTS]. */
+    val guideAudience: String = GuideAudience.KIDS,
 
     // Recognition
     val authSimThreshold: Float = 0.40f,
@@ -47,13 +56,18 @@ data class KioskSettings(
     val cameraIndex: Int = 0,
     /** Aligns faces to the ArcFace template before embedding. Changes embeddings: re-register everyone after enabling. */
     val faceAlignmentEnabled: Boolean = false,
-    val registerEllipseAxisXRatio: Float = 0.22f,
-    val registerEllipseAxisYRatio: Float = 0.30f,
-    val registerEllipseCenterYOffsetRatio: Float = 0.00f,
-    val registerEllipseOutsideDimAlpha: Float = 0.60f,
+    /** Face circle (guide oval) half-widths relative to the screen, set below the guide's speech bubble. */
+    val registerEllipseAxisXRatio: Float = 0.17f,
+    val registerEllipseAxisYRatio: Float = 0.27f,
+    val registerEllipseCenterYOffsetRatio: Float = 0.06f,
+    val registerEllipseOutsideDimAlpha: Float = 0.35f,
 
     // Registration
     val registerSamplesPerDirection: Int = 3,
+    /** Normal, big and small face circle for the samples of each direction (closer, then further). */
+    val registerCircleSteps: Boolean = true,
+    val registerBigCircleScale: Float = 1.18f,
+    val registerSmallCircleScale: Float = 0.73f,
     val registerCaptureEveryNFrames: Int = 4,
     val registerSimilarityLowerBoundary: Float = 0.35f,
     val registerSimilarityHigherBoundary: Float = 0.85f,
@@ -113,6 +127,8 @@ data class KioskSettings(
     val printStatusErrorMessage: String = "출력에 문제가 있습니다. 오류로그를 확인해 주세요.",
     val outputReturnDelaySeconds: Int = 3,
     val messages: FlowMessages = FlowMessages(),
+    /** The guide's lines changed in "안내 문구", keyed "<audience>.<line>" (see GuideCopy.LINES); blank keys use the defaults. */
+    val guideLines: Map<String, String> = emptyMap(),
     val uiSavingMessage: String = "저장 중입니다. 잠시만 기다려주세요...",
     val uiOutputButtonText: String = "이름표 출력하기",
 
@@ -136,6 +152,9 @@ data class KioskSettings(
             minSimilarity = registerSimilarityLowerBoundary,
             maxSimilarity = registerSimilarityHigherBoundary,
             duplicateThreshold = duplicateThreshold,
+            circleSteps = registerCircleSteps,
+            bigCircleScale = registerBigCircleScale,
+            smallCircleScale = registerSmallCircleScale,
         ),
         candidateSwitchFrames = ambiguousCandidateSwitchFrames,
         selectedGraceFrames = selectedCandidateGraceFrames,

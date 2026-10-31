@@ -9,4 +9,9 @@
         <item name="android:shadowDy">2</item>
         <item name="android:shadowRadius">6</item>
     </style>
+    <style name="FormLabel" parent="">
+        <item name="android:textColor">#6E6078</item>
+        <item name="android:textSize">17sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
 </resources>

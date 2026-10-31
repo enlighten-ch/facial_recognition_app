@@ -8,7 +8,6 @@ import android.text.Spanned
 import android.text.style.ForegroundColorSpan
 import android.view.View
 import android.view.ViewGroup
-import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
@@ -16,18 +15,20 @@ import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.ViewFlipper
+import com.allstar.faithid.core.model.PersonMetadata
 import com.allstar.faithid.core.recognition.HeadDirection
 import com.allstar.faithid.kiosk.R
 import com.allstar.faithid.kiosk.flow.RegistrationView
 import com.allstar.faithid.kiosk.flow.Screen
 import com.allstar.faithid.kiosk.flow.UiState
+import com.allstar.faithid.kiosk.settings.KioskSettings
 import java.util.Locale
 
 /**
- * Renders [UiState] into the views of activity_main.xml, in either the developer layout or the
- * full-screen operation layout. Holds no state of its own beyond animations.
+ * Renders [UiState] into the views of activity_main.xml: the developer layout here, the full-screen
+ * operation layout through [OperationScreen]. Holds no state of its own beyond animations.
  */
-class KioskScreen(activity: Activity, private val actions: Actions) {
+class KioskScreen(activity: Activity, private val actions: Actions, people: () -> List<PersonMetadata>) {
 
     interface Actions {
         fun startRegistration()
@@ -50,8 +51,6 @@ class KioskScreen(activity: Activity, private val actions: Actions) {
     private val cameraPanel: View = activity.v(R.id.cameraPreviewPanel)
     private val operationCameraHost: FrameLayout = activity.v(R.id.operationCameraHost)
     private val developerPageHost: FrameLayout = activity.v(R.id.developerPageHost)
-    private val operationPageHost: FrameLayout = activity.v(R.id.operationPageHost)
-    private val operationActionPanel: View = activity.v(R.id.operationActionPanel)
     private val pageFlipper: ViewFlipper = activity.v(R.id.pageFlipper)
     private val headerTitle: TextView = activity.v(R.id.headerTitle)
     private val headerSubtitle: TextView = activity.v(R.id.headerSubtitle)
@@ -86,54 +85,51 @@ class KioskScreen(activity: Activity, private val actions: Actions) {
     private val outputGrade: TextView = activity.v(R.id.outputGradeText)
     private val outputStatus: TextView = activity.v(R.id.outputStatusText)
 
-    private val operationMessage: TextView = activity.v(R.id.operationMessageText)
-    private val operationDetail: TextView = activity.v(R.id.operationDetailText)
-    private val operationPrintButton: Button = activity.v(R.id.operationPrintButton)
-    private val motionHint: TextView = activity.v(R.id.operationMotionHint)
-    private val banner: TextView = activity.v(R.id.operationBanner)
+    private val operation = OperationScreen(activity, actions, people)
 
     private var developerMode = true
     private var lastScreen: Screen? = null
-    private var hintDirection: HeadDirection? = null
-    private var pulsing = false
+
+    /** Size of the face circle the camera analysis should use (registration steps). */
+    val guideScale: Float get() = if (developerMode) 1f else operation.guideScale
 
     init {
         registerButton.setOnClickListener { actions.startRegistration() }
         labelOnlyButton.setOnClickListener { actions.startLabelOnly() }
         printButton.setOnClickListener { actions.print() }
-        operationPrintButton.setOnClickListener { actions.print() }
         duplicateIsMe.setOnClickListener { actions.duplicateIsMe() }
         duplicateNotMe.setOnClickListener { actions.duplicateNotMe() }
         submitButton.setOnClickListener {
             actions.submitInfo(nameInput.text.toString(), departmentInput.text.toString(), gradeInput.text.toString())
         }
         backButton.setOnClickListener { actions.home() }
-        activity.v<Button>(R.id.operationHomeButton).setOnClickListener { actions.home() }
-        activity.v<Button>(R.id.operationSettingsButton).setOnClickListener { actions.openSettings() }
         activity.v<Button>(R.id.settingsButton).setOnClickListener { actions.openSettings() }
         activity.v<Button>(R.id.logButton).setOnClickListener { actions.openLog() }
         activity.v<Button>(R.id.syncNowButton).setOnClickListener { actions.syncNow() }
     }
 
-    fun setDeveloperMode(enabled: Boolean, printButtonText: String) {
-        developerMode = enabled
-        printButton.text = printButtonText
-        operationPrintButton.text = printButtonText
-        developerRoot.visibility = if (enabled) View.VISIBLE else View.GONE
-        operationRoot.visibility = if (enabled) View.GONE else View.VISIBLE
-        if (enabled) {
+    fun configure(settings: KioskSettings) {
+        developerMode = settings.developerViewEnabled
+        printButton.text = settings.uiOutputButtonText
+        developerRoot.visibility = if (developerMode) View.VISIBLE else View.GONE
+        operationRoot.visibility = if (developerMode) View.GONE else View.VISIBLE
+        if (developerMode) {
+            operation.reset()
             move(cameraPanel, (developerPageHost.parent as ViewGroup), 0, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f).apply { marginEnd = 20 })
             cameraPanel.setPadding(24, 24, 24, 24)
-            move(pageFlipper, developerPageHost, 0, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         } else {
             move(cameraPanel, operationCameraHost, 0, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
             cameraPanel.setPadding(0, 0, 0, 0)
-            move(pageFlipper, operationPageHost, 0, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            operation.configure(settings)
         }
         lastScreen = null
     }
 
     fun render(state: UiState, savingText: String) {
+        if (!developerMode) {
+            operation.render(state)
+            return
+        }
         if (state.screen != lastScreen) onScreenChanged(state)
         lastScreen = state.screen
         when (state.screen) {
@@ -142,7 +138,6 @@ class KioskScreen(activity: Activity, private val actions: Actions) {
             Screen.REGISTER_INFO -> renderInfo(state, savingText)
             Screen.OUTPUT -> renderOutput(state)
         }
-        renderOperationOverlay(state)
     }
 
     fun renderStatus(connection: String, database: String, print: String) {
@@ -215,42 +210,6 @@ class KioskScreen(activity: Activity, private val actions: Actions) {
         outputStatus.text = "${output.printStatus}\n${state.message}"
     }
 
-    private fun renderOperationOverlay(state: UiState) {
-        banner.text = state.banner
-        banner.visibility = if (!developerMode && state.banner.isNotEmpty()) View.VISIBLE else View.GONE
-        if (developerMode) {
-            listOf(monitorMessage, monitorDetail, registerMessage, registerDetail).forEach { it.visibility = View.VISIBLE }
-            stopPulse()
-            showHint(null)
-            return
-        }
-        val (message, detail) = when (state.screen) {
-            Screen.MONITOR -> state.message to state.detail
-            Screen.REGISTER_CAPTURE -> state.message to state.detail
-            Screen.REGISTER_INFO -> "" to ""
-            Screen.OUTPUT -> (state.output?.printStatus ?: "") to state.message
-        }
-        operationMessage.text = message
-        operationDetail.text = detail
-        operationMessage.visibility = if (message.isEmpty()) View.GONE else View.VISIBLE
-        operationDetail.visibility = if (detail.isEmpty()) View.GONE else View.VISIBLE
-
-        // The floating button replaces the panel when exactly one person is recognized.
-        val floatingPrint = state.screen == Screen.MONITOR && state.printButtonEnabled && state.candidates.size <= 1
-        val panelNeeded = when (state.screen) {
-            Screen.MONITOR -> state.showRegisterChoice || state.candidates.size > 1
-            Screen.REGISTER_CAPTURE -> state.duplicateOf != null
-            Screen.REGISTER_INFO, Screen.OUTPUT -> true
-        }
-        operationActionPanel.visibility = if (panelNeeded && !floatingPrint) View.VISIBLE else View.GONE
-        monitorMessage.visibility = if (state.screen == Screen.MONITOR) View.GONE else View.VISIBLE
-        monitorDetail.visibility = monitorMessage.visibility
-        registerMessage.visibility = View.GONE
-        registerDetail.visibility = View.GONE
-        if (floatingPrint) startPulse() else stopPulse()
-        showHint(if (state.screen == Screen.REGISTER_CAPTURE && state.duplicateOf == null) state.registration?.next else null)
-    }
-
     private fun progressText(r: RegistrationView): CharSequence {
         val builder = SpannableStringBuilder()
         append(builder, "전체 ${r.total} / ${r.target}", Color.rgb(17, 17, 17))
@@ -268,55 +227,6 @@ class KioskScreen(activity: Activity, private val actions: Actions) {
 
     private fun append(builder: SpannableStringBuilder, text: String, color: Int) {
         builder.append(SpannableString(text).apply { setSpan(ForegroundColorSpan(color), 0, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) })
-    }
-
-    private fun showHint(direction: HeadDirection?) {
-        if (direction == hintDirection) return
-        hintDirection = direction
-        motionHint.animate().cancel()
-        motionHint.translationX = 0f
-        motionHint.translationY = 0f
-        if (direction == null) {
-            motionHint.visibility = View.GONE
-            return
-        }
-        motionHint.text = direction.arrow
-        motionHint.visibility = View.VISIBLE
-        animateHint(direction)
-    }
-
-    private fun animateHint(direction: HeadDirection) {
-        if (hintDirection != direction) return
-        val distance = 90f
-        val dx = when (direction) { HeadDirection.LEFT -> -distance; HeadDirection.RIGHT -> distance; else -> 0f }
-        val dy = when (direction) { HeadDirection.UP -> -distance; HeadDirection.DOWN -> distance; else -> 0f }
-        motionHint.animate().translationX(dx).translationY(dy).alpha(0.45f).setDuration(560).setInterpolator(AccelerateDecelerateInterpolator())
-            .withEndAction {
-                motionHint.animate().translationX(0f).translationY(0f).alpha(0.9f).setDuration(560)
-                    .withEndAction { animateHint(direction) }.start()
-            }.start()
-    }
-
-    private fun startPulse() {
-        operationPrintButton.visibility = View.VISIBLE
-        if (pulsing) return
-        pulsing = true
-        pulse()
-    }
-
-    private fun pulse() {
-        if (!pulsing) return
-        operationPrintButton.animate().scaleX(1.06f).scaleY(1.06f).setDuration(520)
-            .withEndAction { operationPrintButton.animate().scaleX(1f).scaleY(1f).setDuration(520).withEndAction { pulse() }.start() }
-            .start()
-    }
-
-    private fun stopPulse() {
-        pulsing = false
-        operationPrintButton.animate().cancel()
-        operationPrintButton.scaleX = 1f
-        operationPrintButton.scaleY = 1f
-        operationPrintButton.visibility = View.GONE
     }
 
     private fun move(view: View, target: ViewGroup, index: Int, params: ViewGroup.LayoutParams) {

@@ -40,6 +40,9 @@ class FaceIndex private constructor(private val entries: List<Entry>) {
 
     fun metadataOf(personKey: String): PersonMetadata? = entries.firstOrNull { it.key == personKey }?.metadata
 
+    /** Everyone in the index, e.g. to offer the departments and grades already in use. */
+    fun allMetadata(): List<PersonMetadata> = entries.map { it.metadata }
+
     companion object {
         val EMPTY = FaceIndex(emptyList())
 

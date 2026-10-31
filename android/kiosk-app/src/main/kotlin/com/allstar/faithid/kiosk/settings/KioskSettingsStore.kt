@@ -24,12 +24,31 @@ class KioskSettingsStore(context: Context) {
     companion object {
         private const val KEY_JSON = "runtime_settings_json"
 
-        fun fromJson(o: JSONObject): KioskSettings = upgradeUntouchedLabelLayout(o, parse(o))
+        fun fromJson(o: JSONObject): KioskSettings = upgradeUntouchedGuideOval(o, upgradeUntouchedLabelLayout(o, parse(o)))
 
         /**
          * Kiosks that never changed the label layout get the new stacked layout: the old factory
          * values printed overlapping text (report issue I-11). Layouts someone tuned stay as they are.
          */
+        /**
+         * The 2026-11 screen puts the guide's speech bubble above a smaller, slightly lower face
+         * circle with a lighter dim. Kiosks still on the old factory oval move to the new one; an
+         * oval someone tuned stays as it is.
+         */
+        private fun upgradeUntouchedGuideOval(o: JSONObject, s: KioskSettings): KioskSettings {
+            if (o.has("REGISTER_CIRCLE_STEPS")) return s
+            val untouched = s.registerEllipseAxisXRatio == 0.22f && s.registerEllipseAxisYRatio == 0.30f &&
+                s.registerEllipseCenterYOffsetRatio == 0f && s.registerEllipseOutsideDimAlpha == 0.60f
+            if (!untouched) return s
+            val d = KioskSettings()
+            return s.copy(
+                registerEllipseAxisXRatio = d.registerEllipseAxisXRatio,
+                registerEllipseAxisYRatio = d.registerEllipseAxisYRatio,
+                registerEllipseCenterYOffsetRatio = d.registerEllipseCenterYOffsetRatio,
+                registerEllipseOutsideDimAlpha = d.registerEllipseOutsideDimAlpha,
+            )
+        }
+
         private fun upgradeUntouchedLabelLayout(o: JSONObject, s: KioskSettings): KioskSettings {
             if (o.has("PRINT_LAYOUT_STACKED")) return s
             val untouched = s.templateTextRegionOffsetX == 24 && s.templateTextRegionOffsetY == 24 &&
@@ -81,6 +100,7 @@ class KioskSettingsStore(context: Context) {
             return KioskSettings(
                 developerViewEnabled = bool("DEVELOPER_VIEW_ENABLED", d.developerViewEnabled),
                 hideSystemBars = bool("HIDE_SYSTEM_BARS", d.hideSystemBars),
+                guideAudience = GuideAudience.sanitize(str("GUIDE_AUDIENCE", d.guideAudience)),
                 authSimThreshold = float("AUTH_SIM_THRESHOLD", d.authSimThreshold),
                 authMarginThreshold = float("AUTH_MARGIN_THRESHOLD", d.authMarginThreshold),
                 topK = int("TOP_K", d.topK),
@@ -94,6 +114,9 @@ class KioskSettingsStore(context: Context) {
                 registerEllipseCenterYOffsetRatio = float("REGISTER_ELLIPSE_CENTER_Y_OFFSET_RATIO", d.registerEllipseCenterYOffsetRatio),
                 registerEllipseOutsideDimAlpha = float("REGISTER_ELLIPSE_OUTSIDE_DIM_ALPHA", d.registerEllipseOutsideDimAlpha),
                 registerSamplesPerDirection = int("REGISTER_SAMPLES_PER_DIRECTION", d.registerSamplesPerDirection),
+                registerCircleSteps = bool("REGISTER_CIRCLE_STEPS", d.registerCircleSteps),
+                registerBigCircleScale = float("REGISTER_BIG_CIRCLE_SCALE", d.registerBigCircleScale),
+                registerSmallCircleScale = float("REGISTER_SMALL_CIRCLE_SCALE", d.registerSmallCircleScale),
                 registerCaptureEveryNFrames = int("REGISTER_CAPTURE_EVERY_N_FRAMES", d.registerCaptureEveryNFrames),
                 registerSimilarityLowerBoundary = float("REGISTER_SIMILARITY_LOWER_BOUNDARY", d.registerSimilarityLowerBoundary),
                 registerSimilarityHigherBoundary = float("REGISTER_SIMILARITY_HIGHER_BOUNDARY", d.registerSimilarityHigherBoundary),
@@ -161,6 +184,9 @@ class KioskSettingsStore(context: Context) {
                     duplicateDetail = str("UI_DUPLICATE_DETAIL", dm.duplicateDetail),
                     returnCountdown = str("OUTPUT_RETURN_MESSAGE_TEMPLATE", dm.returnCountdown),
                 ),
+                guideLines = o.optJSONObject("GUIDE_LINES")?.let { lines ->
+                    lines.keys().asSequence().associateWith { lines.optString(it) }.filterValues { it.isNotBlank() }
+                } ?: emptyMap(),
                 uiSavingMessage = str("UI_SAVING_MESSAGE", d.uiSavingMessage),
                 uiOutputButtonText = str("UI_OUTPUT_BUTTON_TEXT", d.uiOutputButtonText),
                 legacyFaceDataDir = str("FACE_DATA_DIR", d.legacyFaceDataDir),
@@ -170,6 +196,7 @@ class KioskSettingsStore(context: Context) {
         fun toJson(s: KioskSettings): JSONObject = JSONObject().apply {
             put("DEVELOPER_VIEW_ENABLED", s.developerViewEnabled)
             put("HIDE_SYSTEM_BARS", s.hideSystemBars)
+            put("GUIDE_AUDIENCE", s.guideAudience)
             put("AUTH_SIM_THRESHOLD", s.authSimThreshold.toDouble())
             put("AUTH_MARGIN_THRESHOLD", s.authMarginThreshold.toDouble())
             put("TOP_K", s.topK)
@@ -183,6 +210,9 @@ class KioskSettingsStore(context: Context) {
             put("REGISTER_ELLIPSE_CENTER_Y_OFFSET_RATIO", s.registerEllipseCenterYOffsetRatio.toDouble())
             put("REGISTER_ELLIPSE_OUTSIDE_DIM_ALPHA", s.registerEllipseOutsideDimAlpha.toDouble())
             put("REGISTER_SAMPLES_PER_DIRECTION", s.registerSamplesPerDirection)
+            put("REGISTER_CIRCLE_STEPS", s.registerCircleSteps)
+            put("REGISTER_BIG_CIRCLE_SCALE", s.registerBigCircleScale.toDouble())
+            put("REGISTER_SMALL_CIRCLE_SCALE", s.registerSmallCircleScale.toDouble())
             put("REGISTER_CAPTURE_EVERY_N_FRAMES", s.registerCaptureEveryNFrames)
             put("REGISTER_SIMILARITY_LOWER_BOUNDARY", s.registerSimilarityLowerBoundary.toDouble())
             put("REGISTER_SIMILARITY_HIGHER_BOUNDARY", s.registerSimilarityHigherBoundary.toDouble())
@@ -261,6 +291,7 @@ class KioskSettingsStore(context: Context) {
             put("UI_DUPLICATE_FOUND_MESSAGE", m.duplicateFound)
             put("UI_DUPLICATE_DETAIL", m.duplicateDetail)
             put("OUTPUT_RETURN_MESSAGE_TEMPLATE", m.returnCountdown)
+            put("GUIDE_LINES", JSONObject(s.guideLines.filterValues { it.isNotBlank() }))
             put("UI_SAVING_MESSAGE", s.uiSavingMessage)
             put("UI_OUTPUT_BUTTON_TEXT", s.uiOutputButtonText)
             put("FACE_DATA_DIR", s.legacyFaceDataDir)

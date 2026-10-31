@@ -44,8 +44,25 @@ class KioskSettingsStoreTest {
     }
 
     @Test
+    fun `untouched factory oval moves below the guide's bubble, a tuned one is kept`() {
+        val old = mapOf("REGISTER_ELLIPSE_AXIS_X_RATIO" to 0.22, "REGISTER_ELLIPSE_AXIS_Y_RATIO" to 0.30, "REGISTER_ELLIPSE_CENTER_Y_OFFSET_RATIO" to 0.0, "REGISTER_ELLIPSE_OUTSIDE_DIM_ALPHA" to 0.60)
+        val upgraded = KioskSettingsStore.fromJson(legacy(old))
+        assertEquals(0.17f, upgraded.registerEllipseAxisXRatio)
+        assertEquals(0.06f, upgraded.registerEllipseCenterYOffsetRatio)
+        assertTrue(upgraded.registerCircleSteps)
+
+        val tuned = KioskSettingsStore.fromJson(legacy(old + ("REGISTER_ELLIPSE_AXIS_X_RATIO" to 0.25)))
+        assertEquals(0.25f, tuned.registerEllipseAxisXRatio)
+        assertEquals(0.30f, tuned.registerEllipseAxisYRatio)
+    }
+
+    @Test
     fun `save and load round trip`() {
-        val original = KioskSettings(dbClientId = "k1", dbClientSecret = "s".repeat(32), printLayoutStacked = false, topK = 4)
+        val original = KioskSettings(
+            dbClientId = "k1", dbClientSecret = "s".repeat(32), printLayoutStacked = false, topK = 4,
+            guideAudience = GuideAudience.ADULTS, registerCircleSteps = false, registerBigCircleScale = 1.3f,
+            guideLines = mapOf("kids.idle" to "어서 와!", "adults.print" to "출력"),
+        )
         val back = KioskSettingsStore.fromJson(KioskSettingsStore.toJson(original))
         assertEquals(original, back)
     }

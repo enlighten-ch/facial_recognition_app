@@ -2,6 +2,7 @@ package com.allstar.faithid.kiosk.flow
 
 import com.allstar.faithid.core.attendance.CheckInSource
 import com.allstar.faithid.core.model.PersonMetadata
+import com.allstar.faithid.core.recognition.FaceCircle
 import com.allstar.faithid.core.recognition.HeadDirection
 import com.allstar.faithid.core.recognition.RecognitionThresholds
 import com.allstar.faithid.core.recognition.RegistrationConfig
@@ -56,11 +57,20 @@ sealed class Readiness {
 sealed class Observation {
     data object NoFace : Observation()
 
-    /** A face inside the guide ellipse; [direction] is null for a frontal face. */
-    class Face(val embedding: FloatArray, val direction: HeadDirection?) : Observation()
+    /**
+     * A face inside the guide ellipse; [direction] is null for a frontal face. [size] is the face
+     * width relative to the camera frame, if known.
+     */
+    class Face(val embedding: FloatArray, val direction: HeadDirection?, val size: Float? = null) : Observation()
 }
 
-data class CandidateView(val personKey: String, val label: String, val score: Float, val selected: Boolean)
+data class CandidateView(
+    val personKey: String,
+    val label: String,
+    val score: Float,
+    val selected: Boolean,
+    val metadata: PersonMetadata? = null,
+)
 
 data class RegistrationView(
     val collected: Map<HeadDirection, Int>,
@@ -68,7 +78,13 @@ data class RegistrationView(
     val total: Int,
     val target: Int,
     val next: HeadDirection?,
-)
+    /** The face circle for the next sample (null when complete). */
+    val circle: FaceCircle? = null,
+    /** Several frames in a row were not accepted; the screen suggests moving closer or further away. */
+    val stalled: Boolean = false,
+) {
+    val complete: Boolean get() = total >= target
+}
 
 data class OutputView(val metadata: PersonMetadata, val secondsLeft: Int, val printStatus: String)
 
@@ -87,6 +103,10 @@ data class UiState(
     val saving: Boolean = false,
     val output: OutputView? = null,
     val banner: String = "",
+    /** False while the kiosk waits for the server (no database yet, or not approved). */
+    val ready: Boolean = true,
+    /** Set on the first screen after a registration was saved, so the screen can congratulate. */
+    val registered: PersonMetadata? = null,
 )
 
 /** A check-in, recorded when the print button is pressed (whether or not printing succeeds). */

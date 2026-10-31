@@ -3,6 +3,7 @@ package com.allstar.faithid.kiosk.flow
 import com.allstar.faithid.core.attendance.CheckInSource
 import com.allstar.faithid.core.model.Person
 import com.allstar.faithid.core.model.PersonMetadata
+import com.allstar.faithid.core.recognition.FaceCircle
 import com.allstar.faithid.core.recognition.FaceIndex
 import com.allstar.faithid.core.recognition.HeadDirection
 import com.allstar.faithid.core.recognition.RegistrationConfig
@@ -117,6 +118,35 @@ class KioskFlowTest {
         assertEquals("새가족", effects.registered.single().first.name)
         assertEquals(4, effects.registered.single().second)
         assertEquals(Screen.MONITOR, flow.state.screen)
+    }
+
+    @Test
+    fun `with circle steps each direction asks for a closer then a further face`() {
+        val config = FlowConfig(candidateSwitchFrames = 1, selectedGraceFrames = 1, registration = RegistrationConfig(samplesPerDirection = 3))
+        val (flow, _) = flow(config = config)
+        flow.startRegistration()
+        assertEquals(FaceCircle.NORMAL, flow.state.registration!!.circle)
+        flow.onObservation(Observation.Face(faces.sample("newcomer"), HeadDirection.LEFT, 0.30f))
+        assertEquals(FaceCircle.BIG, flow.state.registration!!.circle)
+        flow.onObservation(Observation.Face(faces.sample("newcomer"), HeadDirection.LEFT, 0.30f))
+        assertEquals(1, flow.state.registration!!.total)
+        assertTrue(flow.state.detail.contains("가까이"))
+        flow.onObservation(Observation.Face(faces.sample("newcomer"), HeadDirection.LEFT, 0.37f))
+        assertEquals(FaceCircle.SMALL, flow.state.registration!!.circle)
+        flow.onObservation(Observation.Face(faces.sample("newcomer"), HeadDirection.LEFT, 0.24f))
+        assertEquals(HeadDirection.RIGHT, flow.state.registration!!.next)
+        assertEquals(FaceCircle.NORMAL, flow.state.registration!!.circle)
+    }
+
+    @Test
+    fun `a saved registration is announced once on the idle screen`() {
+        val (flow, _) = flow()
+        flow.startRegistration()
+        HeadDirection.entries.forEach { flow.onObservation(face("newcomer", it)) }
+        flow.submitInfo("새가족", "청년부", "1학년")
+        assertEquals("새가족", flow.state.registered?.name)
+        flow.onObservation(Observation.NoFace)
+        assertNull(flow.state.registered)
     }
 
     @Test

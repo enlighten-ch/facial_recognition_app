@@ -1,6 +1,7 @@
 <resources>
     <style name="Theme.FaithKiosk" parent="Theme.Material3.Light.NoActionBar">
-        <item name="colorPrimary">#2346A6</item>
+        <item name="colorPrimary">#5B3F8C</item>
+        <item name="colorSecondary">#FF9A62</item>
         <item name="colorOnPrimary">#FFFFFF</item>
         <item name="android:windowLightStatusBar">true</item>
     </style>

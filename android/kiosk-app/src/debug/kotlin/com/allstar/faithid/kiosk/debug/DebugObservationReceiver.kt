@@ -13,13 +13,14 @@ import kotlin.random.Random
  * Debug builds only. Lets E2E scripts drive the kiosk without a camera:
  *
  *   adb shell am broadcast -n com.example.facetestbed/com.allstar.faithid.kiosk.debug.DebugObservationReceiver \
- *     -a com.allstar.faithid.kiosk.DEBUG_FACE --es identity alice --es direction LEFT --ei count 3
+ *     -a com.allstar.faithid.kiosk.DEBUG_FACE --es identity alice --es direction LEFT --ei count 3 [--ef size 0.3]
  *   ... -a com.allstar.faithid.kiosk.DEBUG_NO_FACE
  *   ... -a com.allstar.faithid.kiosk.DEBUG_CAMERA --ez paused true
  *   ... -a com.allstar.faithid.kiosk.DEBUG_FINISH   (closes the kiosk screen; syncing goes on)
  *   ... -a com.allstar.faithid.kiosk.DEBUG_TYPE --es text 김하은   (into the focused field)
  *
- * The same identity always yields samples of the same synthetic face (512-d, ~0.74 apart).
+ * The same identity always yields samples of the same synthetic face (512-d, ~0.74 apart). `size`
+ * is the face width relative to the frame (registration circle steps); without it size is not checked.
  */
 class DebugObservationReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -38,8 +39,9 @@ class DebugObservationReceiver : BroadcastReceiver() {
             ACTION_FACE -> {
                 val identity = intent.getStringExtra("identity") ?: "anonymous"
                 val direction = intent.getStringExtra("direction")?.let { name -> HeadDirection.entries.firstOrNull { it.name == name } }
+                val size = if (intent.hasExtra("size")) intent.getFloatExtra("size", 0f) else null
                 repeat(intent.getIntExtra("count", 1).coerceIn(1, 50)) {
-                    observe(Observation.Face(sample(identity), direction))
+                    observe(Observation.Face(sample(identity), direction, size))
                 }
             }
         }

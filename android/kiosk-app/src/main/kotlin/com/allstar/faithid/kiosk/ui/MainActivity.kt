@@ -149,8 +149,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         SystemBars.padForSystemBars(findViewById(R.id.developerRoot))
-        SystemBars.padForSystemBars(findViewById(R.id.operationCorner))
-        SystemBars.padForSystemBars(findViewById(R.id.operationMessagePanel))
+        SystemBars.padForSystemBars(findViewById(R.id.operationOverlay))
 
         log = KioskLog.get(this)
         store = KioskSettingsStore(this)
@@ -171,7 +170,7 @@ class MainActivity : AppCompatActivity() {
             },
             log = log::log,
         )
-        screen = KioskScreen(this, screenActions)
+        screen = KioskScreen(this, screenActions) { data?.index?.allMetadata().orEmpty() }
         flow = KioskFlow(settings.flowConfig(), effects) { state ->
             currentScreen = state.screen
             screen.render(state, settings.uiSavingMessage)
@@ -243,6 +242,7 @@ class MainActivity : AppCompatActivity() {
                 settings = { settings },
                 screen = { currentScreen },
                 mirrored = { camera.mirrored },
+                guideScale = { screen.guideScale },
                 deliver = { observation -> main.post { flow.onObservation(observation) } },
                 log = log::log,
             )
@@ -348,7 +348,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun applyScreenMode() {
-        screen.setDeveloperMode(settings.developerViewEnabled, settings.uiOutputButtonText)
+        screen.configure(settings)
         SystemBars.hideForKiosk(this, !settings.developerViewEnabled && settings.hideSystemBars)
         screen.render(flow.state, settings.uiSavingMessage)
     }

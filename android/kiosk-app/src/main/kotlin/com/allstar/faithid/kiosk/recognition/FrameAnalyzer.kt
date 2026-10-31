@@ -24,6 +24,8 @@ class FrameAnalyzer(
     private val settings: () -> KioskSettings,
     private val screen: () -> Screen,
     private val mirrored: () -> Boolean,
+    /** Size of the face circle on screen relative to the configured one (registration steps). */
+    private val guideScale: () -> Float,
     private val deliver: (Observation) -> Unit,
     private val log: (String) -> Unit,
 ) {
@@ -41,7 +43,8 @@ class FrameAnalyzer(
             val stride = (if (current == Screen.MONITOR) s.analyzeEveryNFrames else s.registerCaptureEveryNFrames).coerceAtLeast(1)
             if (tick++ % stride != 0L) return
             if (!engine.isReady) return
-            val ellipse = GuideEllipse.forFrame(frame.width, frame.height, s.registerEllipseAxisXRatio, s.registerEllipseAxisYRatio, s.registerEllipseCenterYOffsetRatio)
+            val scale = if (current == Screen.REGISTER_CAPTURE) guideScale().coerceIn(0.4f, 1.6f) else 1f
+            val ellipse = GuideEllipse.forFrame(frame.width, frame.height, s.registerEllipseAxisXRatio * scale, s.registerEllipseAxisYRatio * scale, s.registerEllipseCenterYOffsetRatio)
             val face = runCatching { engine.detect(frame) }
                 .onFailure { log("얼굴 검출 실패: ${it.javaClass.simpleName}") }
                 .getOrNull()
@@ -58,7 +61,7 @@ class FrameAnalyzer(
             } finally {
                 masked.recycle()
             } ?: return
-            deliver(Observation.Face(embedding, direction(face)))
+            deliver(Observation.Face(embedding, direction(face), face.boundingBox.width().toFloat() / frame.width))
         } finally {
             frame.recycle()
         }

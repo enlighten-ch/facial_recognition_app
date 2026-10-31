@@ -5,6 +5,7 @@ import com.allstar.faithid.core.model.PersonMetadata
 import com.allstar.faithid.core.recognition.AdaptiveSampler
 import com.allstar.faithid.core.recognition.CandidateStabilizer
 import com.allstar.faithid.core.recognition.Decision
+import com.allstar.faithid.core.recognition.FaceCircle
 import com.allstar.faithid.core.recognition.FaceIndex
 import com.allstar.faithid.core.recognition.HeadDirection
 import com.allstar.faithid.core.recognition.Match
@@ -126,7 +127,7 @@ class KioskFlow(
                 stallCount++
                 "얼굴을 찾지 못했습니다. 화면 중앙의 타원 안으로 와주세요."
             }
-            is Observation.Face -> when (val outcome = session.offer(observation.direction, observation.embedding)) {
+            is Observation.Face -> when (val outcome = session.offer(observation.direction, observation.embedding, observation.size)) {
                 is RegistrationSession.Outcome.Accepted -> {
                     stallCount = 0
                     if (session.isComplete) {
@@ -143,6 +144,10 @@ class KioskFlow(
                     stallCount++
                     "조금 더 다른 각도로 움직여 주세요."
                 }
+                is RegistrationSession.Outcome.WrongSize -> {
+                    stallCount++
+                    if (outcome.expected == FaceCircle.BIG) "큰 동그라미를 채우도록 조금 더 가까이 와 주세요." else "작은 동그라미에 들어가도록 조금 뒤로 물러나 주세요."
+                }
                 is RegistrationSession.Outcome.TooDifferent -> {
                     stallCount++
                     "같은 분이 계속 카메라 앞에 있어야 합니다."
@@ -151,7 +156,7 @@ class KioskFlow(
             }
         }
         val next = session.nextDirection ?: expected
-        val hint = if (stallCount >= 5) "\n잘 안되면 카메라에 조금 더 가까이 오거나 멀어져 보세요." else ""
+        val hint = if (stallCount >= STALL_HINT_FRAMES) "\n잘 안되면 카메라에 조금 더 가까이 오거나 멀어져 보세요." else ""
         publish(
             state.copy(
                 message = "${next.prompt}$hint",
@@ -171,7 +176,7 @@ class KioskFlow(
                     message = messages.duplicateFound.fill("label" to match.label, "name" to match.name),
                     detail = messages.duplicateDetail,
                     registration = registrationView(),
-                    duplicateOf = CandidateView(match.personKey, match.label, match.score, true),
+                    duplicateOf = CandidateView(match.personKey, match.label, match.score, true, match.metadata),
                 ),
             )
         } else {
@@ -275,6 +280,7 @@ class KioskFlow(
         }
         effects.log("새 등록: ${metadata.label()} (샘플 ${samples.size}개)")
         goHome()
+        publish(state.copy(registered = metadata))
     }
 
     /** "본인이 맞아요" after the duplicate warning: the new samples improve the existing person. */
@@ -326,10 +332,11 @@ class KioskFlow(
             when (val r = readiness) {
                 Readiness.Ready -> base.copy(message = messages.welcome)
                 is Readiness.WaitingForApproval -> base.copy(
+                    ready = false,
                     message = messages.awaitingApproval.fill("clientId" to r.clientId),
                     detail = messages.awaitingApprovalDetail,
                 )
-                is Readiness.NoServer -> base.copy(message = messages.serverDisconnected, detail = "${messages.serverDisconnectedDetail}\n${r.reason}")
+                is Readiness.NoServer -> base.copy(ready = false, message = messages.serverDisconnected, detail = "${messages.serverDisconnectedDetail}\n${r.reason}")
             },
         )
     }
@@ -343,7 +350,7 @@ class KioskFlow(
             UiState(
                 screen = Screen.MONITOR,
                 message = messages.recognized.fill("name" to match.name, "label" to match.label, "department" to match.metadata.department, "grade" to match.metadata.grade),
-                candidates = listOf(CandidateView(match.personKey, match.label, match.score, true)),
+                candidates = listOf(CandidateView(match.personKey, match.label, match.score, true, match.metadata)),
                 printButtonVisible = true,
                 printButtonEnabled = true,
                 banner = banner,
@@ -358,7 +365,7 @@ class KioskFlow(
                 screen = Screen.MONITOR,
                 message = messages.ambiguous,
                 detail = selected?.let { key -> messages.selectedCandidate.fill("label" to candidates.first { it.personKey == key }.label) } ?: messages.ambiguousDetail,
-                candidates = candidates.map { CandidateView(it.personKey, it.label, it.score, it.personKey == selected) },
+                candidates = candidates.map { CandidateView(it.personKey, it.label, it.score, it.personKey == selected, it.metadata) },
                 printButtonVisible = true,
                 printButtonEnabled = selected != null,
                 banner = banner,
@@ -396,6 +403,8 @@ class KioskFlow(
         total = session.totalCollected,
         target = session.totalTarget,
         next = session.nextDirection,
+        circle = session.nextCircle,
+        stalled = stallCount >= STALL_HINT_FRAMES,
     )
 
     private fun publish(next: UiState) {
@@ -405,4 +414,8 @@ class KioskFlow(
     }
 
     private fun score(value: Float) = String.format(Locale.US, "%.3f", value)
+
+    private companion object {
+        const val STALL_HINT_FRAMES = 5
+    }
 }

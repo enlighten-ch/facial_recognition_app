@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Apricot morning behind the name form and the name tag. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <gradient android:angle="300" android:startColor="#FFF6EF" android:endColor="#FFE7D8" />
+</shape>

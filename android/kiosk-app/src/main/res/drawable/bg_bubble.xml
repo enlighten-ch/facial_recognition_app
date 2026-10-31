@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The guide's speech bubble: the corner next to the guide is sharp. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="#D9FFFFFF" />
+    <stroke android:width="1.5dp" android:color="#E6FFFFFF" />
+    <corners android:topLeftRadius="8dp" android:topRightRadius="30dp" android:bottomLeftRadius="30dp" android:bottomRightRadius="30dp" />
+</shape>

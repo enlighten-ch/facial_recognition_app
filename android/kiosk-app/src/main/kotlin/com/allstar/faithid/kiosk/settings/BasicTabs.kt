@@ -10,61 +10,75 @@ private fun scroll(form: SettingsForm) = ScrollView(form.context).apply {
     addView(form.root)
 }
 
-/** "일반": screen mode and the texts shown to people at the kiosk. */
+/** "일반": who the kiosk talks to and the screen mode. */
 class GeneralTab(context: Context, s: KioskSettings) : SettingsTab {
     override val title = "일반"
     private val form = SettingsForm(context)
     override val view = scroll(form)
 
+    init { form.section("화면") }
+    private val audience = form.choice(
+        "안내 대상 (어린이: 빛이의 반말·별·꽃가루 / 어른: 같은 빛이, 정중한 말투)",
+        listOf("어린이", "어른"),
+        if (s.guideAudience == GuideAudience.ADULTS) 1 else 0,
+    )
     private val developerView = form.switch("개발자 화면 보기 (연결 상태, 수동 동기화 버튼)", s.developerViewEnabled)
     private val hideBars = form.switch("운영 화면에서 상단·하단 시스템 바 숨기기", s.hideSystemBars)
 
-    private val m = s.messages
-    private val welcome: android.widget.EditText
-    private val disconnected: android.widget.EditText
-    private val disconnectedDetail: android.widget.EditText
-    private val approval: android.widget.EditText
-    private val approvalDetail: android.widget.EditText
-    private val unregistered: android.widget.EditText
-    private val unregisteredDetail: android.widget.EditText
-    private val recognized: android.widget.EditText
-    private val ambiguous: android.widget.EditText
-    private val ambiguousDetail: android.widget.EditText
-    private val selected: android.widget.EditText
-    private val registerComplete: android.widget.EditText
-    private val labelOnly: android.widget.EditText
-    private val duplicateFound: android.widget.EditText
-    private val duplicateDetail: android.widget.EditText
-    private val saving: android.widget.EditText
-    private val outputButton: android.widget.EditText
+    override fun applyTo(settings: KioskSettings): KioskSettings = settings.copy(
+        guideAudience = if (audience.selectedItemPosition == 1) GuideAudience.ADULTS else GuideAudience.KIDS,
+        developerViewEnabled = developerView.isChecked,
+        hideSystemBars = hideBars.isChecked,
+    )
+}
+
+/**
+ * "안내 문구": the guide's lines for children and adults (blank = default), then the messages of
+ * the developer screen and of the server connection.
+ */
+class CopyTab(context: Context, s: KioskSettings) : SettingsTab {
+    override val title = "안내 문구"
+    private val form = SettingsForm(context)
+    override val view = scroll(form)
+
+    private val lines = mutableMapOf<String, android.widget.EditText>()
 
     init {
-        form.section("안내 문구")
-        form.note("{name}, {label}, {clientId}는 실제 값으로 바뀝니다.")
-        welcome = form.text("기본 안내", m.welcome)
-        disconnected = form.text("서버 미연결", m.serverDisconnected)
-        disconnectedDetail = form.text("서버 미연결 상세", m.serverDisconnectedDetail)
-        approval = form.text("서버 승인 대기 ({clientId})", m.awaitingApproval)
-        approvalDetail = form.text("서버 승인 대기 상세", m.awaitingApprovalDetail)
-        unregistered = form.text("미등록 안내", m.unregistered)
-        unregisteredDetail = form.text("미등록 상세", m.unregisteredDetail)
-        recognized = form.text("인식 성공 ({name})", m.recognized)
-        ambiguous = form.text("후보 선택", m.ambiguous)
-        ambiguousDetail = form.text("후보 선택 상세", m.ambiguousDetail)
-        selected = form.text("후보 선택 완료 ({label})", m.selectedCandidate)
-        registerComplete = form.text("등록 완료", m.registerComplete)
-        labelOnly = form.text("이름표만 출력 입력", m.labelOnlyInput)
-        duplicateFound = form.text("이미 등록된 얼굴 ({label})", m.duplicateFound)
-        duplicateDetail = form.text("이미 등록된 얼굴 상세", m.duplicateDetail)
-        saving = form.text("저장 중", s.uiSavingMessage)
-        outputButton = form.text("출력 버튼", s.uiOutputButtonText)
+        form.note("빈칸으로 두면 빛이의 기본 문구를 씁니다(회색 글씨). {name}은 이름으로, {direction}은 \"왼쪽을\"(어린이)·\"왼쪽으로\"(어른)처럼 바뀝니다.")
+        listOf(true to "빛이가 하는 말 · 어린이", false to "빛이가 하는 말 · 어른").forEach { (kids, title) ->
+            form.section(title)
+            com.allstar.faithid.kiosk.ui.GuideCopy.LINES.forEach { entry ->
+                val key = "${com.allstar.faithid.kiosk.ui.GuideCopy.audienceKey(kids)}.${entry.key}"
+                lines[key] = form.text(entry.label, s.guideLines[key].orEmpty()).apply { hint = if (kids) entry.kids else entry.adults }
+            }
+        }
+        form.section("개발자 화면 · 서버 연결 문구")
+        form.note("서버 미연결과 승인 대기 문구는 운영 화면에도 그대로 나옵니다. {name}, {label}, {clientId}는 실제 값으로 바뀝니다.")
     }
+
+    private val m = s.messages
+    private val welcome = form.text("기본 안내", m.welcome)
+    private val disconnected = form.text("서버 미연결", m.serverDisconnected)
+    private val disconnectedDetail = form.text("서버 미연결 상세", m.serverDisconnectedDetail)
+    private val approval = form.text("서버 승인 대기 ({clientId})", m.awaitingApproval)
+    private val approvalDetail = form.text("서버 승인 대기 상세", m.awaitingApprovalDetail)
+    private val unregistered = form.text("미등록 안내", m.unregistered)
+    private val unregisteredDetail = form.text("미등록 상세", m.unregisteredDetail)
+    private val recognized = form.text("인식 성공 ({name})", m.recognized)
+    private val ambiguous = form.text("후보 선택", m.ambiguous)
+    private val ambiguousDetail = form.text("후보 선택 상세", m.ambiguousDetail)
+    private val selected = form.text("후보 선택 완료 ({label})", m.selectedCandidate)
+    private val registerComplete = form.text("등록 완료", m.registerComplete)
+    private val labelOnly = form.text("이름표만 출력 입력", m.labelOnlyInput)
+    private val duplicateFound = form.text("이미 등록된 얼굴 ({label})", m.duplicateFound)
+    private val duplicateDetail = form.text("이미 등록된 얼굴 상세", m.duplicateDetail)
+    private val saving = form.text("저장 중", s.uiSavingMessage)
+    private val outputButton = form.text("출력 버튼", s.uiOutputButtonText)
 
     override fun applyTo(settings: KioskSettings): KioskSettings {
         val d = FlowMessages()
         return settings.copy(
-            developerViewEnabled = developerView.isChecked,
-            hideSystemBars = hideBars.isChecked,
+            guideLines = lines.mapValues { it.value.text.toString().trim() }.filterValues { it.isNotEmpty() },
             uiSavingMessage = saving.textOr(settings.uiSavingMessage),
             uiOutputButtonText = outputButton.textOr(settings.uiOutputButtonText),
             messages = settings.messages.copy(
@@ -104,8 +118,8 @@ class RecognitionTab(context: Context, s: KioskSettings) : SettingsTab {
     private val camera = form.choice("카메라", listOf("후면 카메라 우선", "전면 카메라 우선"), s.cameraIndex.coerceIn(0, 1))
     private val alignment = form.switch("얼굴 정렬 사용 (켜면 모든 사람을 다시 등록해야 합니다)", s.faceAlignmentEnabled)
 
-    init { form.section("가이드 타원") }
-    private val ellipse = form.pair("타원 너비 비율", s.registerEllipseAxisXRatio, "타원 높이 비율", s.registerEllipseAxisYRatio)
+    init { form.section("얼굴 동그라미") }
+    private val ellipse = form.pair("동그라미 너비 비율", s.registerEllipseAxisXRatio, "동그라미 높이 비율", s.registerEllipseAxisYRatio)
     private val ellipse2 = form.pair("중심 세로 오프셋 비율", s.registerEllipseCenterYOffsetRatio, "바깥 어둡게 (0~1)", s.registerEllipseOutsideDimAlpha)
 
     override fun applyTo(settings: KioskSettings) = settings.copy(
@@ -131,7 +145,9 @@ class RegistrationTab(context: Context, s: KioskSettings) : SettingsTab {
     override val view = scroll(form)
 
     init { form.section("등록") }
-    private val perDirection = form.number("방향별 수집 장수", s.registerSamplesPerDirection)
+    private val circleSteps = form.switch("방향마다 동그라미 3단계 (보통 → 큰 → 작은 동그라미에 얼굴 맞추기)", s.registerCircleSteps)
+    private val circleScales = form.pair("큰 동그라미 배율", s.registerBigCircleScale, "작은 동그라미 배율", s.registerSmallCircleScale)
+    private val perDirection = form.number("방향별 수집 장수 (동그라미 3단계를 쓰면 3)", s.registerSamplesPerDirection)
     private val every = form.number("몇 프레임마다 샘플 수집", s.registerCaptureEveryNFrames)
     private val band = form.pair("샘플 유사도 하한", s.registerSimilarityLowerBoundary, "상한 (너무 비슷하면 제외)", s.registerSimilarityHigherBoundary)
     private val duplicate = form.number("이미 등록된 얼굴로 볼 유사도", s.duplicateThreshold)
@@ -146,6 +162,9 @@ class RegistrationTab(context: Context, s: KioskSettings) : SettingsTab {
 
     override fun applyTo(settings: KioskSettings) = settings.copy(
         registerSamplesPerDirection = perDirection.intValue(settings.registerSamplesPerDirection).coerceIn(1, 10),
+        registerCircleSteps = circleSteps.isChecked,
+        registerBigCircleScale = circleScales.first.floatValue(settings.registerBigCircleScale).coerceIn(1.05f, 1.6f),
+        registerSmallCircleScale = circleScales.second.floatValue(settings.registerSmallCircleScale).coerceIn(0.5f, 0.95f),
         registerCaptureEveryNFrames = every.intValue(settings.registerCaptureEveryNFrames).coerceIn(1, 30),
         registerSimilarityLowerBoundary = band.first.floatValue(settings.registerSimilarityLowerBoundary).coerceIn(0f, 0.9f),
         registerSimilarityHigherBoundary = band.second.floatValue(settings.registerSimilarityHigherBoundary).coerceIn(0.1f, 1f),
