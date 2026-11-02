@@ -110,6 +110,10 @@ data class RegistrationView(
     val holdingOther: Boolean = false,
     /** The sample just kept was not the suggested one. */
     val bonus: Boolean = false,
+    /** The empty cell the face is held in right now (may differ from the suggestion); the screen shows it. */
+    val held: RegistrationCell? = null,
+    /** The last face size relative to the normal circle (1 = fits it), for the screen's size hint. */
+    val faceSize: Float? = null,
 ) {
     val complete: Boolean get() = total >= target
 

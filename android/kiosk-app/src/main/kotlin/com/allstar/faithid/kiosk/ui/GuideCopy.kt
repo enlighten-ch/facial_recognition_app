@@ -141,20 +141,9 @@ class GuideCopy(
     val save: String get() = if (kids) "다 됐어요" else "저장"
     val home: String get() = "처음으로"
     val privacy: String get() = if (kids) "사진은 저장하지 않아요" else "사진은 저장하지 않습니다"
-    val followTitle: String get() = if (kids) "이렇게 따라 해 봐!" else "이렇게 돌려 주세요"
     fun celebration(count: Int): String = line("celebration", count = count)
 
     fun count(got: Int, target: Int): String = if (kids) "★ 별 $got / $target" else "$got / $target 동작"
-
-    fun followCaption(d: HeadDirection?, circle: FaceCircle?): String {
-        if (d == null) return if (kids) "최고야!" else "정면"
-        val size = when (circle) {
-            FaceCircle.BIG -> "큰 동그라미"
-            FaceCircle.SMALL -> "작은 동그라미"
-            else -> "보통 동그라미"
-        }
-        return "${directionWord(d)} · $size"
-    }
 
     /** "하은아" / "준호야" for children, "김하은 님" for adults. */
     fun callName(name: String): String {

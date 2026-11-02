@@ -151,7 +151,7 @@ class RegistrationTab(context: Context, s: KioskSettings) : SettingsTab {
     private val includeFront = form.switch("정면도 모으기 (정면·왼쪽·오른쪽·위·아래)", s.registerIncludeFront)
     private val circleSteps = form.switch("동그라미 3단계 (보통 → 가까이 → 멀리, 방향마다 하나씩)", s.registerCircleSteps)
     private val circleScales = form.pair("큰 동그라미 배율", s.registerBigCircleScale, "작은 동그라미 배율", s.registerSmallCircleScale)
-    private val fill = form.pair("원에 맞는 얼굴 높이 (원 높이 대비)", s.registerFaceFill, "크기 허용 범위 (±)", s.registerSizeTolerance)
+    private val fill = form.pair("원에 맞는 얼굴 높이 (원 너비 대비)", s.registerFaceFill, "크기 허용 범위 (±)", s.registerSizeTolerance)
     private val hold = form.number("저장 전 머무는 프레임 수", s.registerHoldFrames)
     private val perDirection = form.number("방향별 수집 장수 (동그라미 3단계를 끄면 사용)", s.registerSamplesPerDirection)
     private val every = form.number("몇 프레임마다 샘플 수집", s.registerCaptureEveryNFrames)
@@ -170,7 +170,7 @@ class RegistrationTab(context: Context, s: KioskSettings) : SettingsTab {
         registerSamplesPerDirection = perDirection.intValue(settings.registerSamplesPerDirection).coerceIn(1, 10),
         registerIncludeFront = includeFront.isChecked,
         registerCircleSteps = circleSteps.isChecked,
-        registerFaceFill = fill.first.floatValue(settings.registerFaceFill).coerceIn(0.4f, 1.2f),
+        registerFaceFill = fill.first.floatValue(settings.registerFaceFill).coerceIn(0.4f, 1.6f),
         registerSizeTolerance = fill.second.floatValue(settings.registerSizeTolerance).coerceIn(0.04f, 0.3f),
         registerHoldFrames = hold.intValue(settings.registerHoldFrames).coerceIn(1, 10),
         registerBigCircleScale = circleScales.first.floatValue(settings.registerBigCircleScale).coerceIn(1.05f, 1.6f),

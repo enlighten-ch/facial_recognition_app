@@ -450,8 +450,8 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent" />
 
-        <com.allstar.faithid.kiosk.ui.guide.StarFieldView
-            android:id="@+id/opStars"
+        <com.allstar.faithid.kiosk.ui.guide.GhostFaceView
+            android:id="@+id/opGhost"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:visibility="gone" />
@@ -470,46 +470,6 @@
                 android:layout_marginBottom="14dp"
                 android:text="사진은 저장하지 않아요"
                 android:textSize="15sp" />
-
-            <!-- The 3D head that shows the move; OperationScreen lines its centre up with the circle. -->
-            <LinearLayout
-                android:id="@+id/opHeadCard"
-                android:layout_width="250dp"
-                android:layout_height="wrap_content"
-                android:layout_gravity="top|end"
-                android:layout_marginEnd="24dp"
-                android:background="@drawable/bg_glass"
-                android:gravity="center_horizontal"
-                android:orientation="vertical"
-                android:paddingHorizontal="14dp"
-                android:paddingTop="12dp"
-                android:paddingBottom="14dp"
-                android:visibility="gone">
-
-                <TextView
-                    android:id="@+id/opHeadTitle"
-                    android:layout_width="wrap_content"
-                    android:layout_height="32dp"
-                    android:gravity="center"
-                    android:textColor="#33263F"
-                    android:textSize="22sp" />
-
-                <com.allstar.faithid.kiosk.ui.guide.HeadView
-                    android:id="@+id/opHead"
-                    android:layout_width="210dp"
-                    android:layout_height="210dp"
-                    android:layout_marginTop="4dp"
-                    android:background="@drawable/bg_card" />
-
-                <TextView
-                    android:id="@+id/opHeadCaption"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:textColor="#6E6078"
-                    android:textSize="16sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
 
             <TextView
                 android:id="@+id/opCount"

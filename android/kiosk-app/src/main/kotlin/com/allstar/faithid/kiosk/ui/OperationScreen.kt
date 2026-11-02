@@ -31,6 +31,7 @@ import androidx.core.widget.doAfterTextChanged
 import com.allstar.faithid.core.model.PersonMetadata
 import com.allstar.faithid.core.recognition.FaceCircle
 import com.allstar.faithid.core.recognition.HeadDirection
+import com.allstar.faithid.core.recognition.RegistrationCell
 import com.allstar.faithid.kiosk.R
 import com.allstar.faithid.kiosk.camera.GuideOverlayView
 import com.allstar.faithid.kiosk.flow.CaptureProblem
@@ -40,19 +41,19 @@ import com.allstar.faithid.kiosk.flow.UiState
 import com.allstar.faithid.kiosk.settings.GuideAudience
 import com.allstar.faithid.kiosk.settings.KioskSettings
 import com.allstar.faithid.kiosk.ui.guide.CelebrationView
+import com.allstar.faithid.kiosk.ui.guide.GhostFaceView
 import com.allstar.faithid.kiosk.ui.guide.GuideAvatarView
 import com.allstar.faithid.kiosk.ui.guide.GuideGestures
 import com.allstar.faithid.kiosk.ui.guide.GuideMoment
-import com.allstar.faithid.kiosk.ui.guide.HeadView
-import com.allstar.faithid.kiosk.ui.guide.StarFieldView
 import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
 import com.allstar.faithid.androidsupport.R as SupportR
 
 /**
  * The operation screen (따뜻한 안내자): the camera fills the screen, 빛이 talks from the top and the
- * replies float at the bottom. Registration shows stars where the person looks, the face circle in
- * three sizes and a head that shows the move. Draws [UiState]; holds only presentation state.
+ * replies float at the bottom. Registration shows a white face over the camera that turns and grows
+ * to what to copy, 빛이 turning the same way, and the star count. Draws [UiState]; holds only
+ * presentation state.
  */
 class OperationScreen(
     private val activity: Activity,
@@ -69,7 +70,7 @@ class OperationScreen(
     private val root: View = v(R.id.operationRoot)
     private val overlay: View = v(R.id.operationOverlay)
     private val guideOverlay: GuideOverlayView = v(R.id.guideOverlay)
-    private val stars: StarFieldView = v(R.id.opStars)
+    private val ghost: GhostFaceView = v(R.id.opGhost)
     private val celebration: CelebrationView = v(R.id.opCelebration)
     private val guide: View = v(R.id.opGuide)
     private val title: TextView = v(R.id.opTitle)
@@ -77,10 +78,6 @@ class OperationScreen(
     private val banner: TextView = v(R.id.opBanner)
     private val replies: LinearLayout = v(R.id.opReplies)
     private val privacy: TextView = v(R.id.opPrivacy)
-    private val headCard: View = v(R.id.opHeadCard)
-    private val head: HeadView = v(R.id.opHead)
-    private val headTitle: TextView = v(R.id.opHeadTitle)
-    private val headCaption: TextView = v(R.id.opHeadCaption)
     private val count: TextView = v(R.id.opCount)
     private val home: ImageButton = v(R.id.opHomeButton)
     private val gear: ImageButton = v(R.id.opSettingsButton)
@@ -145,7 +142,7 @@ class OperationScreen(
     }
 
     init {
-        listOf(title, formTitle, outputTitle, headTitle, tagName).forEach { it.typeface = jua }
+        listOf(title, formTitle, outputTitle, tagName).forEach { it.typeface = jua }
         celebration.typeface = jua
         home.setOnClickListener { actions.home() }
         v<Button>(R.id.opOutputHome).setOnClickListener { actions.home() }
@@ -181,9 +178,10 @@ class OperationScreen(
         guideOverlay.axisYRatio = settings.registerEllipseAxisYRatio
         guideOverlay.centerYOffsetRatio = settings.registerEllipseCenterYOffsetRatio
         guideOverlay.outsideDimAlpha = settings.registerEllipseOutsideDimAlpha
-        head.kids = kids
+        ghost.bigScale = bigScale
+        ghost.smallScale = smallScale
         val titleFace = if (kids) jua else Typeface.DEFAULT_BOLD
-        listOf(title, formTitle, outputTitle, headTitle).forEach { it.typeface = titleFace }
+        listOf(title, formTitle, outputTitle).forEach { it.typeface = titleFace }
         shown = null
         placeAroundOval()
     }
@@ -191,6 +189,8 @@ class OperationScreen(
     /** Called when the operation screen is hidden (developer view). */
     fun reset() {
         celebration.stop()
+        ghost.hide()
+        main.removeCallbacks(captureTick)
         pending = null
         shown = null
         guideOverlay.animateScale(1f)
@@ -220,11 +220,9 @@ class OperationScreen(
     /** Plays the celebration over the finished registration, then shows what came next. */
     private fun celebrate(capture: UiState, next: UiState) {
         pending = next
-        capture.registration?.let { r ->
-            stars.show(Array(HeadDirection.entries.size) { BooleanArray(3) { true } }, -1, -1, kids)
-        }
-        head.done = true
-        headCaption.text = copy.followCaption(null, null)
+        ghost.collected()
+        ghost.hide()
+        lookStraight()
         title.text = copy.celebration(capture.registration?.target ?: 0)
         sub.visibility = View.GONE
         count.text = capture.registration?.let { copy.count(it.target, it.target) } ?: ""
@@ -258,7 +256,13 @@ class OperationScreen(
         gear.visibility = if (camera) View.VISIBLE else View.GONE
         privacy.visibility = if (camera && !capture) View.VISIBLE else View.GONE
         privacy.text = copy.privacy
-        listOf(stars, headCard, count).forEach { it.visibility = if (capture) View.VISIBLE else View.GONE }
+        count.visibility = if (capture) View.VISIBLE else View.GONE
+        if (!capture) {
+            ghost.hide()
+            lookStraight()
+            main.removeCallbacks(captureTick)
+            lastTotal = -1
+        }
         banner.visibility = if (camera && state.banner.isNotEmpty()) View.VISIBLE else View.GONE
         banner.text = "● ${state.banner}"
         banner.setTextColor(Color.parseColor("#33263F"))
@@ -266,8 +270,9 @@ class OperationScreen(
         momentFor(previous, state)?.let { react(it) }
 
         val found = screen == Screen.REGISTER_CAPTURE || state.showRegisterChoice || state.candidates.isNotEmpty()
-        guideOverlay.outlineColor = if (found) APRICOT else Color.WHITE
-        val scale = if (capture) circleScale(state.registration?.circle) else 1f
+        // While registering, the white face shows the target; the circle stays only as a faint line.
+        guideOverlay.outlineColor = if (capture) FAINT_WHITE else if (found) APRICOT else Color.WHITE
+        val scale = if (capture) circleScale(state.registration?.let { it.held?.circle ?: it.circle }) else 1f
         guideScale = scale
         guideOverlay.animateScale(scale)
 
@@ -311,35 +316,86 @@ class OperationScreen(
     /** "그것도 좋아!" stays a moment after a sample other than the suggested one was kept. */
     private var bonusUntil = 0L
 
+    private var lastTotal = -1
+
+    /** The last time a sample was held or kept; after a while without, the white face shows the turn. */
+    private var progressAt = 0L
+
+    /** Since when the distance has been wrong; after a while, footprints show the step. */
+    private var sizeOffSince = 0L
+
+    /** Redraws the registration now and then, so the turn demo and the footprints start on time. */
+    private val captureTick = object : Runnable {
+        override fun run() {
+            val s = shown
+            if (s == null || s.screen != Screen.REGISTER_CAPTURE || s.duplicateOf != null || celebration.isPlaying) return
+            drawCapture(s)
+            main.postDelayed(this, CAPTURE_TICK_MS)
+        }
+    }
+
     private fun drawCapture(state: UiState) {
         val r = state.registration ?: return
         val now = SystemClock.uptimeMillis()
+        if (lastTotal < 0) {
+            progressAt = now
+            main.removeCallbacks(captureTick)
+            main.postDelayed(captureTick, CAPTURE_TICK_MS)
+        }
         if (r.bonus) bonusUntil = now + BONUS_MS
         setBubble(if (now < bonusUntil && r.next != null) copy.bonus() else copy.bubble(state))
         replies.removeAllViews()
-        stars.show(starFlags(r), r.next?.ordinal ?: -1, starStep(r), kids)
-        head.done = r.next == null
-        head.direction = r.next
-        head.circle = r.circle
-        headTitle.text = copy.followTitle
-        headCaption.text = copy.followCaption(r.next, r.circle)
         count.text = copy.count(r.total, r.target)
-    }
+        if (lastTotal in 0 until r.total) ghost.collected()
+        if (r.total != lastTotal || r.holding > 0f) progressAt = now
+        lastTotal = r.total
 
-    /** Collected flags per direction and star (normal, big, small; repeats when the circle steps are off). */
-    private fun starFlags(r: RegistrationView): Array<BooleanArray> {
-        val flags = Array(HeadDirection.entries.size) { BooleanArray(3) }
-        val steps = r.cells.any { it.first.circle != FaceCircle.NORMAL }
-        r.cells.forEach { (cell, has) ->
-            val k = if (steps) cell.circle.ordinal else cell.slot
-            if (k < 3) flags[cell.direction.ordinal][k] = has
+        // The face shows the cell being held, else the suggested one.
+        val cell = r.held ?: r.next?.let { RegistrationCell(it, r.circle ?: FaceCircle.NORMAL) } ?: return ghost.hide()
+        val sizeProblem = r.problem == CaptureProblem.COME_CLOSER || r.problem == CaptureProblem.STEP_BACK
+        if (!sizeProblem) sizeOffSince = 0L else if (sizeOffSince == 0L) sizeOffSince = now
+        val steps = when {
+            !sizeProblem || now - sizeOffSince < HINT_AFTER_MS -> 0
+            r.problem == CaptureProblem.COME_CLOSER -> 1
+            else -> -1
         }
-        return flags
+        val stuck = r.held == null && now - progressAt > HINT_AFTER_MS &&
+            (r.problem == null || r.problem == CaptureProblem.DIRECTION || r.problem == CaptureProblem.TOO_SIMILAR)
+        val hint = if (sizeProblem) r.faceSize?.let { it / circleSize(cell.circle) } else null
+        ghost.show(cell.direction, cell.circle, r.holding, stuck, hint, steps, dim = r.problem == CaptureProblem.SEVERAL)
+        // 빛이 turns the same way and grows or shrinks with the circle.
+        if (avatar.maxScale != AVATAR_MAX) {
+            avatar.maxScale = AVATAR_MAX
+            avatar.layoutParams = avatar.layoutParams.apply { width = (AVATAR_DP * AVATAR_MAX * density).toInt(); height = width }
+        }
+        avatar.turnTo(yawOf(cell.direction), pitchOf(cell.direction), circleSize(cell.circle))
     }
 
-    private fun starStep(r: RegistrationView): Int {
-        val next = r.cells.firstOrNull { !it.second }?.first ?: return -1
-        return if (r.cells.any { it.first.circle != FaceCircle.NORMAL }) next.circle.ordinal else next.slot
+    private fun circleSize(circle: FaceCircle) = when (circle) {
+        FaceCircle.BIG -> bigScale
+        FaceCircle.SMALL -> smallScale
+        else -> 1f
+    }
+
+    private fun yawOf(d: HeadDirection) = when (d) {
+        HeadDirection.LEFT -> -AVATAR_TURN
+        HeadDirection.RIGHT -> AVATAR_TURN
+        else -> 0f
+    }
+
+    private fun pitchOf(d: HeadDirection) = when (d) {
+        HeadDirection.UP -> -AVATAR_NOD
+        HeadDirection.DOWN -> AVATAR_NOD
+        else -> 0f
+    }
+
+    /** 빛이 back to its usual size, looking straight ahead. */
+    private fun lookStraight() {
+        avatar.turnTo(0f, 0f, 1f)
+        if (avatar.maxScale != 1f) {
+            avatar.maxScale = 1f
+            avatar.layoutParams = avatar.layoutParams.apply { width = (AVATAR_DP * density).toInt(); height = width }
+        }
     }
 
     private fun drawDuplicate(state: UiState) {
@@ -582,7 +638,7 @@ class OperationScreen(
         }
         val radius = base.height() / 2
         val margin = 12 * density
-        val reach = stars.reach()
+        val reach = RING_REACH_DP * density
         val room = minOf(centerY - guideBottom - margin - reach, root.height - margin - reach - centerY)
         fit = (room / radius / maxOf(bigScale, 1f)).coerceIn(0.5f, 1f)
     }
@@ -595,20 +651,15 @@ class OperationScreen(
         return floatArrayOf(rect.centerX() + from[0] - to[0], rect.centerY() + from[1] - to[1])
     }
 
-    /** Stars hug the biggest circle; the head's centre sits level with the circle's centre. */
+    /** The white face is centred on the normal circle. */
     private fun placeAroundOval() {
         if (guideOverlay.width == 0 || root.width == 0) return
         updateFit()
-        val big = guideOverlay.ovalRect(fit * maxOf(bigScale, 1f))
+        val normal = guideOverlay.ovalRect(fit)
         val from = IntArray(2).also { guideOverlay.getLocationInWindow(it) }
-        val to = IntArray(2).also { stars.getLocationInWindow(it) }
-        big.offset((from[0] - to[0]).toFloat(), (from[1] - to[1]).toFloat())
-        stars.circle = big
-        val centerY = ovalIn(overlay, 1f)[1] - overlay.paddingTop
-        val headCenter = headCard.top - overlay.paddingTop + head.top + head.height * HeadView.HEAD_CENTER_FRACTION
-        val wanted = centerY - headCenter
-        val max = (overlay.height - overlay.paddingBottom - headCard.bottom).toFloat()
-        headCard.translationY = wanted.coerceIn(0f, maxOf(0f, max))
+        val to = IntArray(2).also { ghost.getLocationInWindow(it) }
+        normal.offset((from[0] - to[0]).toFloat(), (from[1] - to[1]).toFloat())
+        ghost.normalOval = normal
     }
 
     // ----- settings gear --------------------------------------------------------------------
@@ -648,6 +699,18 @@ class OperationScreen(
         private const val APRICOT = 0xFFFFB183.toInt()
         private const val SETTINGS_HOLD_MS = 1_200L
         private const val BONUS_MS = 1_700L
+        private const val CAPTURE_TICK_MS = 500L
+
+        /** After this long without progress the face shows the turn; with the wrong distance, footprints. */
+        private const val HINT_AFTER_MS = 3_000L
+
+        /** Room the hold ring takes around the biggest circle. */
+        private const val RING_REACH_DP = 28f
+        private const val FAINT_WHITE = 0x66FFFFFF
+        private const val AVATAR_DP = 76f
+        private const val AVATAR_MAX = 1.25f
+        private const val AVATAR_TURN = 0.6f
+        private const val AVATAR_NOD = 0.55f
         private const val REGISTERED_NOTICE_MS = 3_000L
     }
 }

@@ -73,8 +73,8 @@ data class KioskSettings(
     val registerCircleSteps: Boolean = true,
     val registerBigCircleScale: Float = 1.18f,
     val registerSmallCircleScale: Float = 0.73f,
-    /** Height of a face that fits a circle, relative to the circle's height. */
-    val registerFaceFill: Float = 0.75f,
+    /** Height of a face that fits a circle, relative to the circle's width. */
+    val registerFaceFill: Float = 0.95f,
     /** A face fits a circle when its size is within this fraction of the circle's. */
     val registerSizeTolerance: Float = 0.12f,
     /** Analyzed frames the face must stay in the same place before a sample is kept. */

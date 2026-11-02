@@ -109,12 +109,14 @@ class FrameAnalyzer(
     fun idleFor(seconds: Int): Boolean = System.currentTimeMillis() - lastFaceAt >= seconds.coerceAtLeast(1) * 1000L
 
     /**
-     * The face height relative to the height a face has when it fills the normal circle as drawn
-     * (1 = fits it). Height changes less than width when the head turns left or right.
+     * The face height relative to the height of a face that fits the normal circle as drawn
+     * (1 = fits it). A fitting face is as wide as the circle, so its height is measured against the
+     * circle's width ([KioskSettings.registerFaceFill]); the circle's height depends on the screen's
+     * shape. Height changes less than width when the head turns left or right.
      */
     private fun sizeAgainstNormalCircle(face: Face, frame: Bitmap, s: KioskSettings): Float? {
-        val circleHeight = 2f * frame.height * s.registerEllipseAxisYRatio * normalScale().coerceIn(0.4f, 1.6f)
-        val fitted = circleHeight * s.registerFaceFill
+        val circleWidth = 2f * frame.width * s.registerEllipseAxisXRatio * normalScale().coerceIn(0.4f, 1.6f)
+        val fitted = circleWidth * s.registerFaceFill
         return if (fitted > 0f) face.boundingBox.height() / fitted else null
     }
 

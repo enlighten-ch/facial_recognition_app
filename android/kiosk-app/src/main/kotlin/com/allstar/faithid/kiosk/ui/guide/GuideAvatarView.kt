@@ -10,6 +10,7 @@ import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.RadialGradient
 import android.graphics.RectF
 import android.graphics.Shader
@@ -17,13 +18,20 @@ import android.os.Handler
 import android.os.Looper
 import android.util.AttributeSet
 import android.view.View
+import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.exp
+import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.sin
+import kotlin.math.sqrt
 import kotlin.random.Random
 
 /**
  * 빛이, the guide: a warm round face with two eyes and a smile. It blinks on its own every few
  * seconds and plays [Gesture]s on request, one after another (see [GuideGestures]). Children and
- * adults meet the same 빛이.
+ * adults meet the same 빛이. The face is a ball: [turnTo] turns it like the registration's white
+ * face, and [faceScale] makes it bigger or smaller with the distance to keep.
  */
 class GuideAvatarView @JvmOverloads constructor(
     context: Context,
@@ -37,6 +45,8 @@ class GuideAvatarView @JvmOverloads constructor(
         strokeCap = Paint.Cap.ROUND
     }
     private val rect = RectF()
+    private val smilePath = Path()
+    private val point = FloatArray(3)
     private val density = resources.displayMetrics.density
     private val main = Handler(Looper.getMainLooper())
 
@@ -44,6 +54,32 @@ class GuideAvatarView @JvmOverloads constructor(
     private var eyeOpen = 1f
     /** -1 looks left, 1 looks right. */
     private var eyeShift = 0f
+
+    // The head turn (radians) and size, eased toward the targets.
+    private var yaw = 0f
+    private var pitch = 0f
+    private var scaleNow = 1f
+    private var targetYaw = 0f
+    private var targetPitch = 0f
+    private var targetScale = 1f
+    private var lastDrawNanos = 0L
+    private var shaderRadius = 0f
+
+    /** The size [faceScale] 1 is drawn at relative to the view: the view leaves room up to [maxScale]. */
+    var maxScale = 1f
+        set(value) {
+            field = value
+            invalidate()
+        }
+
+    /** Turns the face toward [yaw] (right positive) and [pitch] (down positive) and sizes it, smoothly. */
+    fun turnTo(yaw: Float, pitch: Float, faceScale: Float = 1f) {
+        if (targetYaw == yaw && targetPitch == pitch && targetScale == faceScale) return
+        targetYaw = yaw
+        targetPitch = pitch
+        targetScale = faceScale
+        invalidate()
+    }
 
     private val queue = ArrayDeque<Gesture>()
     private var playing: Animator? = null
@@ -157,25 +193,64 @@ class GuideAvatarView @JvmOverloads constructor(
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-        val r = min(w, h) / 2f
-        face.shader = RadialGradient(w / 2f - r * 0.3f, h / 2f - r * 0.4f, r * 1.4f, 0xFFFFD2B4.toInt(), 0xFFFF9A62.toInt(), Shader.TileMode.CLAMP)
+        shaderRadius = 0f
+    }
+
+    private fun shade(cx: Float, cy: Float, r: Float) {
+        if (abs(r - shaderRadius) < 0.5f) return
+        shaderRadius = r
+        face.shader = RadialGradient(cx - r * 0.3f, cy - r * 0.4f, r * 1.4f, 0xFFFFD2B4.toInt(), 0xFFFF9A62.toInt(), Shader.TileMode.CLAMP)
     }
 
     override fun onDraw(canvas: Canvas) {
-        val s = min(width, height).toFloat()
+        val now = System.nanoTime()
+        val dt = if (lastDrawNanos == 0L) 0f else min(0.1f, (now - lastDrawNanos) / 1e9f)
+        lastDrawNanos = now
+        val k = 1 - exp(-dt * 6f)
+        yaw += (targetYaw - yaw) * k
+        pitch += (targetPitch - pitch) * k
+        scaleNow += (targetScale - scaleNow) * k
+        val settling = abs(targetYaw - yaw) > 0.002f || abs(targetPitch - pitch) > 0.002f || abs(targetScale - scaleNow) > 0.002f
+
         val cx = width / 2f
         val cy = height / 2f
-        canvas.drawCircle(cx, cy, s / 2, face)
-        // Eyes and smile, in a 96-unit face.
-        val u = s / 96f
-        val dx = eyeShift * 4 * u
-        val half = 7 * u * eyeOpen.coerceIn(0.08f, 1f)
-        rect.set(cx - 18 * u + dx, cy - 1 * u - half, cx - 8 * u + dx, cy - 1 * u + half)
-        canvas.drawRoundRect(rect, 5 * u, 5 * u, ink)
-        rect.set(cx + 8 * u + dx, cy - 1 * u - half, cx + 18 * u + dx, cy - 1 * u + half)
-        canvas.drawRoundRect(rect, 5 * u, 5 * u, ink)
-        smile.strokeWidth = 4 * u
-        rect.set(cx - 13 * u, cy + 4 * u, cx + 13 * u, cy + 20 * u)
-        canvas.drawArc(rect, 20f, 140f, false, smile)
+        val r = min(width, height) / 2f * scaleNow / maxScale
+        shade(cx, cy, r)
+        canvas.drawCircle(cx, cy, r, face)
+        // Eyes and smile live on the ball's surface and turn with it; a glance moves only the eyes.
+        val eyeYaw = yaw + eyeShift * 0.35f
+        for (sx in floatArrayOf(-0.27f, 0.27f)) {
+            val p = turn(sx, -0.02f, sqrt(1 - sx * sx - 0.0004f), eyeYaw, pitch)
+            if (p[2] < 0.2f) continue
+            val hw = 0.104f * r * sqrt(max(0f, 1 - p[0] * p[0]))
+            val hh = 0.146f * r * eyeOpen.coerceIn(0.08f, 1f) * sqrt(max(0f, 1 - p[1] * p[1]))
+            rect.set(cx + p[0] * r - hw, cy + p[1] * r - hh, cx + p[0] * r + hw, cy + p[1] * r + hh)
+            canvas.drawRoundRect(rect, hw, hw, ink)
+        }
+        smile.strokeWidth = r / 12f
+        smilePath.reset()
+        var started = false
+        for (i in 0..16) {
+            val x = -0.27f + 0.54f * i / 16
+            val y = 0.26f + 0.14f * (1 - (x / 0.27f) * (x / 0.27f))
+            val p = turn(x, y, sqrt(max(0f, 1 - x * x - y * y)), yaw, pitch)
+            if (p[2] < 0.05f) {
+                started = false
+                continue
+            }
+            if (started) smilePath.lineTo(cx + p[0] * r, cy + p[1] * r) else smilePath.moveTo(cx + p[0] * r, cy + p[1] * r)
+            started = true
+        }
+        canvas.drawPath(smilePath, smile)
+        if (settling) postInvalidateOnAnimation() else lastDrawNanos = 0L
+    }
+
+    /** A point on the unit ball turned by yaw, then pitch (the same turn as the white face). */
+    private fun turn(x: Float, y: Float, z: Float, yaw: Float, pitch: Float): FloatArray {
+        val z0 = -x * sin(yaw) + z * cos(yaw)
+        point[0] = x * cos(yaw) + z * sin(yaw)
+        point[1] = y * cos(pitch) + z0 * sin(pitch)
+        point[2] = -y * sin(pitch) + z0 * cos(pitch)
+        return point
     }
 }

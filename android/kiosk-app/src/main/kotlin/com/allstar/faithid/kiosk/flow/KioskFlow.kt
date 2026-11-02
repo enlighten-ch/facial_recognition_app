@@ -9,6 +9,7 @@ import com.allstar.faithid.core.recognition.FaceIndex
 import com.allstar.faithid.core.recognition.HeadDirection
 import com.allstar.faithid.core.recognition.Match
 import com.allstar.faithid.core.recognition.RecognitionPolicy
+import com.allstar.faithid.core.recognition.RegistrationCell
 import com.allstar.faithid.core.recognition.RegistrationFrame
 import com.allstar.faithid.core.recognition.RegistrationSession
 import com.allstar.faithid.core.recognition.RegistrationSession.Outcome
@@ -132,6 +133,7 @@ class KioskFlow(
         var holding = 0f
         var other = false
         var bonus = false
+        var held: RegistrationCell? = null
         val problem: CaptureProblem? = when (observation) {
             Observation.NoFace -> CaptureProblem.NO_FACE.also { session.interrupt() }
             is Observation.Outside -> (if (observation.screenDx < 0) CaptureProblem.OUTSIDE_LEFT else CaptureProblem.OUTSIDE_RIGHT).also { session.interrupt() }
@@ -152,6 +154,7 @@ class KioskFlow(
                     is Outcome.Holding -> {
                         holding = outcome.frames / outcome.needed.toFloat()
                         other = outcome.cell != suggested
+                        held = outcome.cell
                         null
                     }
                     is Outcome.WrongDirection -> CaptureProblem.DIRECTION
@@ -170,7 +173,12 @@ class KioskFlow(
             state.copy(
                 message = next.direction.prompt,
                 detail = problemText(problem, observation),
-                registration = registrationView(holding, problem).copy(holdingOther = other, bonus = bonus),
+                registration = registrationView(holding, problem).copy(
+                    holdingOther = other,
+                    bonus = bonus,
+                    held = held,
+                    faceSize = (observation as? Observation.Face)?.size ?: state.registration?.faceSize,
+                ),
             ),
         )
     }
