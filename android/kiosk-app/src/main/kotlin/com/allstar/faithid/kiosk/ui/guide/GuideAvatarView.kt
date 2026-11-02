@@ -52,8 +52,8 @@ class GuideAvatarView @JvmOverloads constructor(
 
     /** 1 = eyes open, 0 = closed. */
     private var eyeOpen = 1f
-    /** -1 looks left, 1 looks right. */
-    private var eyeShift = 0f
+    /** A glance: -1 looks left, 1 looks right. The whole face turns, eyes and smile together. */
+    private var glance = 0f
 
     // The head turn (radians) and size, eased toward the targets.
     private var yaw = 0f
@@ -130,7 +130,7 @@ class GuideAvatarView @JvmOverloads constructor(
         scaleX = 1f
         scaleY = 1f
         eyeOpen = 1f
-        eyeShift = 0f
+        glance = 0f
         invalidate()
     }
 
@@ -141,7 +141,7 @@ class GuideAvatarView @JvmOverloads constructor(
 
     private fun look(duration: Long, vararg shift: Float) = ValueAnimator.ofFloat(*shift).apply {
         this.duration = duration
-        addUpdateListener { eyeShift = it.animatedValue as Float; invalidate() }
+        addUpdateListener { glance = it.animatedValue as Float; invalidate() }
     }
 
     /** A property animation through evenly spaced key values. */
@@ -217,10 +217,10 @@ class GuideAvatarView @JvmOverloads constructor(
         val r = min(width, height) / 2f * scaleNow / maxScale
         shade(cx, cy, r)
         canvas.drawCircle(cx, cy, r, face)
-        // Eyes and smile live on the ball's surface and turn with it; a glance moves only the eyes.
-        val eyeYaw = yaw + eyeShift * 0.35f
+        // Eyes and smile live on the ball's surface and turn with it as one face, glances included.
+        val faceYaw = yaw + glance * 0.35f
         for (sx in floatArrayOf(-0.27f, 0.27f)) {
-            val p = turn(sx, -0.02f, sqrt(1 - sx * sx - 0.0004f), eyeYaw, pitch)
+            val p = turn(sx, -0.02f, sqrt(1 - sx * sx - 0.0004f), faceYaw, pitch)
             if (p[2] < 0.2f) continue
             val hw = 0.104f * r * sqrt(max(0f, 1 - p[0] * p[0]))
             val hh = 0.146f * r * eyeOpen.coerceIn(0.08f, 1f) * sqrt(max(0f, 1 - p[1] * p[1]))
@@ -233,7 +233,7 @@ class GuideAvatarView @JvmOverloads constructor(
         for (i in 0..16) {
             val x = -0.27f + 0.54f * i / 16
             val y = 0.26f + 0.14f * (1 - (x / 0.27f) * (x / 0.27f))
-            val p = turn(x, y, sqrt(max(0f, 1 - x * x - y * y)), yaw, pitch)
+            val p = turn(x, y, sqrt(max(0f, 1 - x * x - y * y)), faceYaw, pitch)
             if (p[2] < 0.05f) {
                 started = false
                 continue
