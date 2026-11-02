@@ -15,6 +15,8 @@ import com.allstar.faithid.kiosk.flow.UiState
 class GuideCopy(
     private val kids: Boolean,
     private val overrides: Map<String, String> = emptyMap(),
+    /** The guide character's name from the settings; "{guide}" in a line becomes it. */
+    private val guideName: String = "빛이",
 ) {
     data class Line(val title: String, val sub: String = "")
 
@@ -25,6 +27,8 @@ class GuideCopy(
         val entry = LINES.first { it.key == key }
         val text = overrides["${audienceKey(kids)}.$key"]?.takeIf { it.isNotBlank() } ?: if (kids) entry.kids else entry.adults
         return text
+            .replace("{guide}야", introduce(guideName))
+            .replace("{guide}", guideName)
             .replace("{name}", name?.let { if (kids) callName(it) else it } ?: "")
             .replace("{direction}", direction?.let { directionPhrase(it) } ?: "")
             .replace("{side}", side ?: "")
@@ -161,7 +165,7 @@ class GuideCopy(
 
         /** Every line the settings can change. {name} is the person, {direction} the way to look. */
         val LINES = listOf(
-            Entry("idle", "기본 안내", "안녕! 나는 빛이야. 동그라미 안에 얼굴을 보여 줄래?", "안녕하세요. 화면을 바라봐 주세요"),
+            Entry("idle", "기본 안내 ({guide})", "안녕! 나는 {guide}야. 동그라미 안에 얼굴을 보여 줄래?", "안녕하세요. 화면을 바라봐 주세요"),
             Entry("idleSub", "기본 안내 둘째 줄", "내가 이름을 찾아 줄게", "얼굴로 출석을 확인합니다"),
             Entry("hello", "인식 성공 ({name})", "반가워, {name}!", "{name} 님, 환영합니다"),
             Entry("helloSub", "인식 성공 둘째 줄 (어린이)", "오늘도 와 줘서 고마워", "오늘도 와 주셔서 감사합니다"),
@@ -202,6 +206,18 @@ class GuideCopy(
             Entry("done", "이름표가 나온 뒤 ({name})", "잘 왔어, {name}! 이름표를 가져가요", "출석되었습니다. 이름표를 가져가세요"),
             Entry("print", "이름표 버튼", "이름표 받기", "이름표 출력"),
         )
+
+        /** "빛이야", "드림이야", "별이야": the guide's name with the right ending for "I am …". */
+        fun introduce(name: String): String {
+            val last = name.lastOrNull() ?: return name
+            return name + if (hasFinalConsonant(last)) "이야" else "야"
+        }
+
+        /** "빛이가", "별이": the name as the subject of a sentence. */
+        fun subject(name: String): String {
+            val last = name.lastOrNull() ?: return name
+            return name + if (hasFinalConsonant(last)) "이" else "가"
+        }
 
         /** The given name of a Korean name of 2-4 syllables ("김하은" → "하은"); null for other names. */
         fun givenName(name: String): String? {

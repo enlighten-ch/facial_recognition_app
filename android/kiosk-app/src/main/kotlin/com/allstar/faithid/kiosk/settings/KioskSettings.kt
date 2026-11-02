@@ -45,6 +45,8 @@ data class KioskSettings(
     val hideSystemBars: Boolean = true,
     /** Who the operation screen talks to: [GuideAudience.KIDS] (빛이, stars, playful words) or [GuideAudience.ADULTS]. */
     val guideAudience: String = GuideAudience.KIDS,
+    /** The guide character's name ("빛이", "별이", "드림이" …), used where the guide introduces itself. */
+    val guideName: String = DEFAULT_GUIDE_NAME,
 
     // Recognition
     val authSimThreshold: Float = 0.40f,
@@ -179,6 +181,7 @@ data class KioskSettings(
 
     companion object {
         const val DEFAULT_PAPER_ID = "nemonic_72x50"
+        const val DEFAULT_GUIDE_NAME = "빛이"
         val DEFAULT_PAPER_PROFILES = listOf(PaperProfile(DEFAULT_PAPER_ID, "Nemonic 72x50", 72f, 50f))
         val DEFAULT_LABEL_LINES = listOf(
             LabelLine("name", 44, 0, 0),

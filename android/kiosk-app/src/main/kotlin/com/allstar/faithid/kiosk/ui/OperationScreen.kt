@@ -174,7 +174,7 @@ class OperationScreen(
 
     fun configure(settings: KioskSettings) {
         kids = settings.guideAudience != GuideAudience.ADULTS
-        copy = GuideCopy(kids, settings.guideLines)
+        copy = GuideCopy(kids, settings.guideLines, settings.guideName)
         bigScale = settings.registerBigCircleScale
         smallScale = settings.registerSmallCircleScale
         guideOverlay.axisXRatio = settings.registerEllipseAxisXRatio

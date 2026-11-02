@@ -3,6 +3,7 @@ package com.allstar.faithid.kiosk.settings
 import android.content.Context
 import android.widget.ScrollView
 import com.allstar.faithid.kiosk.flow.FlowMessages
+import com.allstar.faithid.kiosk.ui.GuideCopy
 
 private fun scroll(form: SettingsForm) = ScrollView(form.context).apply {
     val pad = form.dp(8)
@@ -17,8 +18,9 @@ class GeneralTab(context: Context, s: KioskSettings) : SettingsTab {
     override val view = scroll(form)
 
     init { form.section("화면") }
+    private val guideName = form.text("안내 캐릭터 이름 (예: 빛이, 별이, 드림이)", s.guideName)
     private val audience = form.choice(
-        "안내 대상 (어린이: 빛이의 반말·별·꽃가루 / 어른: 같은 빛이, 정중한 말투)",
+        "안내 대상 (어린이: ${s.guideName}의 반말·별·꽃가루 / 어른: 같은 ${s.guideName}, 정중한 말투)",
         listOf("어린이", "어른"),
         if (s.guideAudience == GuideAudience.ADULTS) 1 else 0,
     )
@@ -27,6 +29,7 @@ class GeneralTab(context: Context, s: KioskSettings) : SettingsTab {
 
     override fun applyTo(settings: KioskSettings): KioskSettings = settings.copy(
         guideAudience = if (audience.selectedItemPosition == 1) GuideAudience.ADULTS else GuideAudience.KIDS,
+        guideName = guideName.text.toString().trim().take(10).ifEmpty { KioskSettings.DEFAULT_GUIDE_NAME },
         developerViewEnabled = developerView.isChecked,
         hideSystemBars = hideBars.isChecked,
     )
@@ -44,11 +47,11 @@ class CopyTab(context: Context, s: KioskSettings) : SettingsTab {
     private val lines = mutableMapOf<String, android.widget.EditText>()
 
     init {
-        form.note("빈칸으로 두면 빛이의 기본 문구를 씁니다(회색 글씨). {name}은 이름으로, {direction}은 \"왼쪽을\"(어린이)·\"왼쪽으로\"(어른)처럼 바뀝니다.")
-        listOf(true to "빛이가 하는 말 · 어린이", false to "빛이가 하는 말 · 어른").forEach { (kids, title) ->
+        form.note("빈칸으로 두면 ${s.guideName}의 기본 문구를 씁니다(회색 글씨). {name}은 이름으로, {direction}은 \"왼쪽을\"(어린이)·\"왼쪽으로\"(어른)처럼, {guide}는 캐릭터 이름으로 바뀝니다(\"{guide}야\" → \"${GuideCopy.introduce(s.guideName)}\").")
+        listOf(true to "${GuideCopy.subject(s.guideName)} 하는 말 · 어린이", false to "${GuideCopy.subject(s.guideName)} 하는 말 · 어른").forEach { (kids, title) ->
             form.section(title)
-            com.allstar.faithid.kiosk.ui.GuideCopy.LINES.forEach { entry ->
-                val key = "${com.allstar.faithid.kiosk.ui.GuideCopy.audienceKey(kids)}.${entry.key}"
+            GuideCopy.LINES.forEach { entry ->
+                val key = "${GuideCopy.audienceKey(kids)}.${entry.key}"
                 lines[key] = form.text(entry.label, s.guideLines[key].orEmpty()).apply { hint = if (kids) entry.kids else entry.adults }
             }
         }

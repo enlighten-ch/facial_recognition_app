@@ -66,6 +66,15 @@ class GuideCopyTest {
     }
 
     @Test
+    fun `the guide introduces itself by the name set in the settings`() {
+        assertEquals("안녕! 나는 빛이야. 동그라미 안에 얼굴을 보여 줄래?", kids.bubble(UiState()).title)
+        assertEquals("안녕! 나는 드림이야. 동그라미 안에 얼굴을 보여 줄래?", GuideCopy(kids = true, guideName = "드림이").bubble(UiState()).title)
+        assertEquals("안녕! 나는 별이야. 동그라미 안에 얼굴을 보여 줄래?", GuideCopy(kids = true, guideName = "별").bubble(UiState()).title)
+        assertEquals("별이", GuideCopy.subject("별"))
+        assertEquals("빛이가", GuideCopy.subject("빛이"))
+    }
+
+    @Test
     fun `the celebration counts the stars of this registration`() {
         val done = UiState(screen = Screen.REGISTER_CAPTURE, registration = RegistrationView(emptyList(), 15, 15, null))
         assertEquals("별 15개 다 모았다!", kids.bubble(done).title)

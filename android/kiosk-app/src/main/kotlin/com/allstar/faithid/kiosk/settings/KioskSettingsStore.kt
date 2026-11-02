@@ -108,6 +108,7 @@ class KioskSettingsStore(context: Context) {
                 developerViewEnabled = bool("DEVELOPER_VIEW_ENABLED", d.developerViewEnabled),
                 hideSystemBars = bool("HIDE_SYSTEM_BARS", d.hideSystemBars),
                 guideAudience = GuideAudience.sanitize(str("GUIDE_AUDIENCE", d.guideAudience)),
+                guideName = str("GUIDE_NAME", d.guideName).trim().ifEmpty { d.guideName },
                 authSimThreshold = float("AUTH_SIM_THRESHOLD", d.authSimThreshold),
                 authMarginThreshold = float("AUTH_MARGIN_THRESHOLD", d.authMarginThreshold),
                 topK = int("TOP_K", d.topK),
@@ -208,6 +209,7 @@ class KioskSettingsStore(context: Context) {
             put("DEVELOPER_VIEW_ENABLED", s.developerViewEnabled)
             put("HIDE_SYSTEM_BARS", s.hideSystemBars)
             put("GUIDE_AUDIENCE", s.guideAudience)
+            put("GUIDE_NAME", s.guideName)
             put("AUTH_SIM_THRESHOLD", s.authSimThreshold.toDouble())
             put("AUTH_MARGIN_THRESHOLD", s.authMarginThreshold.toDouble())
             put("TOP_K", s.topK)
