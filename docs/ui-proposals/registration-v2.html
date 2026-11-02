@@ -1,0 +1,513 @@
+<title>하얀 얼굴 등록 v2</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&family=Gothic+A1:wght@400;600;700;800&display=swap">
+<style>
+/* Layout: option A (the white head) developed. A lab bar picks the audience, auto demo or
+   hands-on, and a situation; the 1280x800 kiosk screen runs a simulated camera whose person is
+   ray-cast in 3D so hair, ears and face turn together; notes on each behaviour close the page. */
+:root {
+  --sky: #fff4ec;
+  --card: #fffdfb;
+  --ink: #33263f;
+  --ink-2: #6e6078;
+  --line: #f0dfd4;
+  --plum: #5b3f8c;
+  --plum-soft: #ece4f7;
+  --apricot: #ff9a62;
+  --font-kids: "Jua", "Gowun Dodum", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font: "Gowun Dodum", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+  --font-ui: "Gothic A1", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --sky: #1d1824; --card: #251e2e; --ink: #f4ecf7; --ink-2: #bcaec6; --line: #3a3045; --plum: #b49cf0; --plum-soft: #352a48; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --sky: #1d1824; --card: #251e2e; --ink: #f4ecf7; --ink-2: #bcaec6; --line: #3a3045; --plum: #b49cf0; --plum-soft: #352a48; color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--sky); color: var(--ink); font-family: var(--font-ui); line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 56px; }
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 22px; }
+.intro { display: grid; gap: 10px; max-width: 840px; }
+.eyebrow { font-size: .78rem; font-weight: 700; letter-spacing: .1em; color: var(--ink-2); }
+h1 { font-family: var(--font-kids); font-weight: 400; font-size: 2.5rem; margin: 0; line-height: 1.2; text-wrap: balance; }
+h2 { font-family: var(--font-kids); font-weight: 400; font-size: 1.6rem; margin: 0; }
+.intro p, section p { margin: 0; color: var(--ink-2); max-width: 70ch; }
+a { color: var(--plum); }
+code { font-size: .86em; background: var(--plum-soft); padding: 1px 6px; border-radius: 4px; }
+
+.lab { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 12px 14px; display: grid; gap: 8px; font-size: .9rem; }
+.lab-row { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; }
+.lab-label { color: var(--ink-2); font-weight: 700; font-size: .8rem; min-width: 52px; }
+.lab button { font: inherit; border: 1px solid var(--line); background: var(--sky); color: var(--ink); border-radius: 999px; padding: 4px 12px; cursor: pointer; }
+.lab .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 2px; background: var(--sky); flex-wrap: wrap; }
+.lab .seg button { border: 0; background: transparent; }
+.lab [aria-pressed="true"] { background: var(--plum); color: #fff; border-color: var(--plum); }
+.lab input[type="range"] { width: 160px; accent-color: var(--plum); }
+.lab .hint { color: var(--ink-2); font-size: .84rem; }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--apricot); outline-offset: 2px; }
+
+.device { position: relative; border-radius: 30px; overflow: hidden; box-shadow: 0 0 0 10px #2a2230, 0 22px 50px rgba(91,63,140,.22); margin: 10px; aspect-ratio: 1280 / 800; touch-action: none; }
+.stage { position: absolute; top: 0; left: 0; width: 1280px; height: 800px; transform-origin: 0 0; overflow: hidden; color: #33263f; font-family: var(--font-ui); }
+.stage canvas { position: absolute; inset: 0; width: 1280px; height: 800px; }
+
+.guide { position: absolute; top: 26px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 16px; max-width: 1100px; }
+.avatar { flex: none; width: 88px; height: 88px; border-radius: 50%; position: relative; background: radial-gradient(circle at 35% 30%, #ffd2b4, #ff9a62 72%); box-shadow: 0 6px 16px rgba(0,0,0,.18); }
+.avatar i { position: absolute; top: 40%; width: 10px; height: 15px; border-radius: 6px; background: #33263f; animation: blink 4.2s infinite; }
+.avatar i:first-child { left: 30%; } .avatar i:nth-child(2) { right: 30%; }
+.avatar b { position: absolute; left: 50%; top: 56%; width: 26px; height: 13px; margin-left: -13px; border: 4px solid #33263f; border-top: 0; border-radius: 0 0 20px 20px; }
+.avatar.hop { animation: hop .42s ease-out; }
+.avatar.tilt { animation: tilt 1.1s ease-in-out; }
+@keyframes blink { 0%, 94%, 100% { transform: scaleY(1); } 96% { transform: scaleY(.1); } }
+@keyframes hop { 30% { transform: translateY(-16px); } 75% { transform: translateY(0) scale(1.06, .92); } }
+@keyframes tilt { 25%, 75% { transform: rotate(14deg); } }
+.bubble { background: rgba(255,253,251,.86); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-radius: 28px; padding: 14px 26px; box-shadow: 0 8px 24px rgba(0,0,0,.14); display: grid; gap: 2px; }
+.bubble .say { font-family: var(--font-kids); font-size: 34px; line-height: 1.25; }
+.bubble .sub { font-family: var(--font); font-size: 22px; color: #6e6078; min-height: 1.3em; }
+.stage[data-aud="adults"] .avatar { width: 70px; height: 70px; }
+.stage[data-aud="adults"] .bubble .say { font-family: var(--font); font-weight: 700; font-size: 30px; }
+.bubble.alert { background: rgba(255,240,224,.93); box-shadow: 0 0 0 3px #ff9a62, 0 8px 24px rgba(0,0,0,.14); }
+
+.glass { background: rgba(255,255,255,.28); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.45); color: #fff; }
+.home { position: absolute; left: 28px; bottom: 26px; border-radius: 999px; padding: 12px 24px; font: 700 22px var(--font-ui); text-shadow: 0 1px 3px rgba(0,0,0,.35); }
+.count { position: absolute; right: 28px; bottom: 26px; border-radius: 999px; padding: 8px 20px; font: 400 26px var(--font-kids); text-shadow: 0 1px 3px rgba(0,0,0,.35); font-variant-numeric: tabular-nums; }
+.rounds { position: absolute; left: 50%; bottom: 30px; transform: translateX(-50%); display: flex; gap: 10px; }
+.rounds span { border-radius: 999px; padding: 6px 14px 6px 16px; font: 700 18px var(--font-ui); text-shadow: 0 1px 3px rgba(0,0,0,.35); display: inline-flex; gap: 8px; align-items: center; opacity: .7; }
+.rounds span.now { opacity: 1; background: rgba(91,63,140,.72); }
+.rounds span.done { opacity: 1; background: rgba(63,157,122,.7); }
+.rounds i { width: 9px; height: 9px; border-radius: 50%; background: rgba(255,255,255,.45); display: inline-block; }
+.rounds i.on { background: #ffc93c; }
+.flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+.flash.go { animation: flash .35s ease-out; }
+@keyframes flash { 0% { opacity: .35; } 100% { opacity: 0; } }
+
+section.notes { display: grid; gap: 12px; }
+.note-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
+.note-grid div { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 12px 16px; font-size: .93rem; display: grid; gap: 4px; }
+.note-grid b { font-size: 1rem; }
+.note-grid button { justify-self: start; font: inherit; font-size: .84rem; border: 1px solid var(--line); background: var(--sky); color: var(--ink); border-radius: 999px; padding: 2px 10px; cursor: pointer; }
+@media (prefers-reduced-motion: reduce) { .avatar i, .avatar.hop, .avatar.tilt, .flash.go { animation: none; } }
+</style>
+
+<div class="wrap">
+  <div class="intro">
+    <span class="eyebrow">FAITH ID · 얼굴 등록 UI · A안 v2 · 2026-11-02</span>
+    <h1>하얀 얼굴 따라 하기</h1>
+    <p>고른 A안을 다듬었습니다. 화면 속 사람을 3D로 다시 그려 <b>머리카락·귀·얼굴이 함께 돌아갑니다</b>. 하얀 얼굴은 목표가 바뀔 때 부드럽게 돌아가고, 잘 안 따라 하면 직접 고개를 돌려 보이며, 거리가 안 맞으면 물결로 앞뒤 방향을 알려 줍니다. 정면을 포함한 15칸을 모읍니다. <b>직접 해보기</b>에서는 마우스(태블릿은 손가락)로 고개를, 휠이나 거리 막대로 거리를 바꿉니다. 이전 세 가지 안은 <a href="https://claude.ai/artifact/FnYbP626EZJsThLNvT8vUj">v1</a>, 로직과 검증은 <a href="https://claude.ai/artifact/PyiDV98UrDg5qJVSDas66P">얼굴 등록 과정 문서</a>에 있습니다.</p>
+  </div>
+
+  <div class="lab" role="group" aria-label="미리보기 조정">
+    <div class="lab-row"><span class="lab-label">대상</span>
+      <div class="seg" id="audSeg"><button data-aud="kids" aria-pressed="true">어린이</button><button data-aud="adults" aria-pressed="false">어른</button></div>
+      <span class="lab-label" style="margin-left:12px">진행</span>
+      <div class="seg" id="modeSeg"><button data-mode="auto" aria-pressed="true">자동 시연</button><button data-mode="manual" aria-pressed="false">직접 해보기</button></div>
+      <label class="hint" id="distWrap" hidden>거리 <input type="range" id="dist" min="140" max="340" value="240" aria-label="카메라와의 거리 (얼굴 크기)"></label>
+    </div>
+    <div class="lab-row"><span class="lab-label">상황</span>
+      <button data-sc="two">두 사람이 함께 섬</button>
+      <button data-sc="off">동그라미 밖으로 비켜남</button>
+      <button data-sc="over">고개를 너무 많이 돌림</button>
+      <button data-sc="stuck">따라 하지 못함</button>
+      <button data-sc="away">화면 밖으로 나감</button>
+      <button data-sc="reset">처음부터</button>
+    </div>
+  </div>
+
+  <div class="device" id="device">
+    <div class="stage" id="stage" data-aud="kids">
+      <canvas id="cam" width="1280" height="800" aria-label="시뮬레이션 카메라 화면"></canvas>
+      <div class="flash" id="flash"></div>
+      <div class="guide"><div class="avatar" id="avatar" aria-hidden="true"><i></i><i></i><b></b></div>
+        <div class="bubble" id="bubble" aria-live="polite"><span class="say" id="say"></span><span class="sub" id="sub"></span></div></div>
+      <div class="rounds" id="rounds"></div>
+      <button class="home glass" tabindex="-1">처음으로</button>
+      <div class="count glass" id="count"></div>
+    </div>
+  </div>
+
+  <section class="notes" aria-labelledby="h-notes">
+    <h2 id="h-notes">하얀 얼굴이 하는 일</h2>
+    <div class="note-grid">
+      <div><b>목표를 그대로 보여 줌</b>하얀 얼굴의 크기가 맞춰야 할 거리, 돌아간 방향이 맞춰야 할 각도입니다. 얼굴 쪽의 밝은 부분이 “여기가 얼굴 앞”을 알려 줍니다. 목표가 바뀌면 0.6초 동안 부드럽게 돌아갑니다.</div>
+      <div><b>얼마나 가까운지 밝기로</b>내 고개가 목표에 가까워질수록 하얀 얼굴이 밝아지고, 크기와 방향이 모두 맞으면 금색이 되어 둘레가 0.5초 동안 차오릅니다. 다 차면 찰칵 빛나고 별이 오른쪽 아래로 날아갑니다.</div>
+      <div><b>못 따라 하면 시범</b>3초 동안 맞추지 못하면 하얀 얼굴이 정면에서 목표 방향으로 천천히 고개를 돌려 보이기를 되풀이합니다. 빛이도 “나처럼 해 봐”라고 말합니다. <button data-sc="stuck">보기</button></div>
+      <div><b>거리는 물결로</b>더 가까이 와야 하면 하얀 얼굴 둘레에서 물결이 바깥으로, 물러나야 하면 안쪽으로 퍼집니다. 화살표나 숫자 없이 앞뒤를 알 수 있습니다.</div>
+      <div><b>한 번에 한 명</b>다른 얼굴이 보이면 하얀 얼굴이 흐려지고 모으기를 멈춥니다. 다른 얼굴 위에는 “잠깐 기다려 줘” 표시가 붙습니다. 한 명이 되면 이어서 모읍니다. <button data-sc="two">보기</button></div>
+      <div><b>크기별 세 판</b>아래 가운데의 보통·가까이·멀리 판에 다섯 칸씩 금색 점이 찹니다. 한 판을 끝내야 거리가 바뀌어 앞뒤로 두 번만 움직입니다. 순서와 상관없이 비어 있는 칸이면 바로 모읍니다.</div>
+    </div>
+  </section>
+</div>
+
+<script>
+'use strict';
+const W = 1280, H = 800, CX = 640, CY = 455;
+const DIRS = ['F', 'L', 'R', 'U', 'D'];
+const SIZES = ['N', 'B', 'S'];
+const FACE_W = { N: 240, B: 300, S: 178 };
+const POSE = { F: [0, 0], L: [-0.55, 0], R: [0.55, 0], U: [0, -0.5], D: [0, 0.5] };
+const HOLD_S = 0.5, STUCK_S = 3;
+const DIR_NAME = { F: '정면', L: '왼쪽', R: '오른쪽', U: '위', D: '아래' };
+const DIR_KIDS = { F: '앞을 보면서', L: '왼쪽을 보면서', R: '오른쪽을 보면서', U: '위를 보면서', D: '아래를 보면서' };
+const DIR_ADULT = { F: '정면을 보고', L: '고개를 왼쪽으로 돌려', R: '고개를 오른쪽으로 돌려', U: '고개를 살짝 들어', D: '고개를 살짝 숙여' };
+const ROUND_KIDS = { N: '', B: '이번엔 가까이 와서 ', S: '이번엔 한 걸음 뒤로 가서 ' };
+const ROUND_ADULT = { N: '', B: '조금 가까이 와서 ', S: '한 걸음 물러나서 ' };
+const ROUND_NAME = { N: '보통', B: '가까이', S: '멀리' };
+
+const ui = { aud: 'kids', mode: 'auto' };
+const $ = id => document.getElementById(id);
+const cv = $('cam'), g = cv.getContext('2d');
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const me = { x: CX, y: CY, fw: 230, yaw: 0, pitch: 0, look: 0 };
+const other = { x: 1060, y: 480, fw: 150, yaw: -0.25, pitch: 0.05, on: 0 };
+const pointer = { yaw: 0, pitch: 0, fw: 240 };
+const ghost = { yaw: 0, pitch: 0, fw: 240 };    // the shown white head, eased toward the target
+let scenario = null, scenarioUntil = 0;
+let got = new Set(), hold = 0, holdKey = null, pauseUntil = 0, doneAt = 0, aimSince = 0, lastTarget = '';
+const sparks = [];
+
+const key = (d, s) => d + s;
+function round() { return SIZES.find(s => DIRS.some(d => !got.has(key(d, s)))) || null; }
+function suggestion() { const s = round(); return s ? { d: DIRS.find(d => !got.has(key(d, s))), s } : null; }
+function classifyDir(p) {
+  if (Math.abs(p.yaw) > 0.85 || Math.abs(p.pitch) > 0.8) return 'over';
+  if (p.yaw <= -0.35) return 'L'; if (p.yaw >= 0.35) return 'R';
+  if (p.pitch <= -0.33) return 'U'; if (p.pitch >= 0.33) return 'D';
+  if (Math.abs(p.yaw) < 0.18 && Math.abs(p.pitch) < 0.18) return 'F';
+  return null;
+}
+function classifySize(fw) {
+  if (fw < 130) return null;
+  if (fw <= 202) return 'S'; if (fw >= 216 && fw <= 266) return 'N'; if (fw >= 280) return 'B';
+  return null;
+}
+function inCircle(p) { return Math.hypot((p.x - CX) / 150, (p.y - CY) / 190) < 1; }
+
+// ---------- words ----------
+function words(state, sg, stuck) {
+  const k = ui.aud === 'kids';
+  if (state === 'done') return [k ? '별 15개 다 모았다!' : '얼굴 등록이 끝났습니다', k ? '이제 이름을 알려 줄래?' : '이름을 입력해 주세요'];
+  if (state === 'away') return [k ? '어디 갔어? 다시 화면 앞에 와 줄래?' : '화면 앞에 서 주세요', ''];
+  if (state === 'two') return [k ? '한 번에 한 친구만 등록할게!' : '한 번에 한 분씩 등록합니다', k ? '다른 친구는 뒤에서 잠깐 기다려 줄래?' : '다른 분은 잠시 화면 밖으로 비켜 주세요'];
+  if (state === 'off') {
+    const side = me.x > CX ? (k ? '왼쪽' : '왼쪽') : '오른쪽';
+    return [k ? '동그라미 쪽으로 조금만 와 줄래?' : '화면 가운데로 와 주세요', k ? `${side}으로 한 걸음!` : `${side}으로 조금 옮겨 주세요`];
+  }
+  if (state === 'over') return [k ? '우와, 너무 많이 돌렸어!' : '조금만 덜 돌려 주세요', k ? '하얀 얼굴만큼만 돌려 볼까?' : '하얀 얼굴과 같은 만큼만 돌려 주세요'];
+  const say = stuck && sg.d !== 'F'
+    ? (k ? '나처럼 해 봐! 하얀 얼굴이 고개를 돌리고 있어' : '하얀 얼굴이 돌리는 방향을 따라 해 주세요')
+    : (k ? `${ROUND_KIDS[sg.s]}${DIR_KIDS[sg.d]} 하얀 얼굴이랑 똑같이 해 볼까?` : `${ROUND_ADULT[sg.s]}${DIR_ADULT[sg.d]} 하얀 얼굴에 맞춰 주세요`);
+  const want = FACE_W[sg.s];
+  let sub;
+  if (state === 'hold') sub = k ? '좋아, 그대로! 하나, 둘…' : '좋습니다. 잠시 그대로 계세요';
+  else if (me.fw < want * 0.88) sub = k ? '조금 더 가까이 와 볼까?' : '조금 더 가까이 와 주세요';
+  else if (me.fw > want * 1.12) sub = k ? '조금만 뒤로 가 볼까?' : '조금 뒤로 물러나 주세요';
+  else sub = k ? '크기는 딱 좋아! 이제 고개만' : '거리는 알맞습니다. 고개 방향을 맞춰 주세요';
+  return [say, sub];
+}
+
+// ---------- update ----------
+let last = performance.now(), lastSay = '', lastSub = '', lastAlert = false;
+function step(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  const t = now / 1000;
+  if (scenario && now > scenarioUntil) scenario = null;
+  const sg = suggestion();
+  const tKey = sg ? key(sg.d, sg.s) : '';
+  if (tKey !== lastTarget) { lastTarget = tKey; aimSince = now; }
+
+  // Where the person tries to be.
+  let ty = 0, tp = 0, tfw = 240, tx = CX;
+  if (ui.mode === 'manual') { ty = pointer.yaw; tp = pointer.pitch; tfw = pointer.fw; }
+  else if (sg && now > pauseUntil) { [ty, tp] = POSE[sg.d]; tfw = FACE_W[sg.s]; }
+  else if (sg) { ty = me.yaw * 0.5; tp = me.pitch * 0.5; tfw = me.fw; }
+  if (scenario === 'stuck' && sg) { ty = sg.d === 'F' ? 0.25 : -POSE[sg.d][0] * 0.3; tp = -POSE[sg.d][1] * 0.3; }
+  if (scenario === 'off') tx = CX + 300;
+  if (scenario === 'over') ty = (sg && sg.d === 'L' ? -1 : 1) * 1.0;
+  if (scenario === 'away') tx = CX + 900;
+  if (scenario === 'two' && ui.mode === 'auto') { ty = 0.1; tp = 0; }
+  const kTurn = ui.mode === 'manual' ? 10 : 2.4, kMove = ui.mode === 'manual' ? 8 : 1.6;
+  const wob = ui.mode === 'auto' && !reduced ? 0.03 : 0;
+  me.yaw += (ty + Math.sin(t * 2.1) * wob - me.yaw) * Math.min(1, kTurn * dt);
+  me.pitch += (tp + Math.sin(t * 1.7 + 1) * wob - me.pitch) * Math.min(1, kTurn * dt);
+  me.fw += (tfw - me.fw) * Math.min(1, kMove * dt);
+  me.x += (tx - me.x) * Math.min(1, 2.2 * dt);
+  other.on += ((scenario === 'two' ? 1 : 0) - other.on) * Math.min(1, 3 * dt);
+
+  // What the kiosk sees.
+  let state;
+  if (!sg) state = 'done';
+  else if (me.x > W - 60) state = 'away';
+  else if (other.on > 0.5) state = 'two';
+  else if (!inCircle(me)) state = 'off';
+  else {
+    const d = classifyDir(me), s = classifySize(me.fw);
+    if (d === 'over') state = 'over';
+    else if (d && s && !got.has(key(d, s))) {
+      state = 'hold';
+      const k = key(d, s);
+      if (holdKey !== k) { holdKey = k; hold = 0; }
+      hold += dt / HOLD_S;
+      if (hold >= 1) collect(k);
+    } else state = 'aim';
+  }
+  if (state !== 'hold') { hold = Math.max(0, hold - dt * 3); if (hold === 0) holdKey = null; }
+  if (state === 'hold') aimSince = now;
+  const stuck = state === 'aim' && now - aimSince > STUCK_S * 1000;
+  if (state === 'done' && !doneAt) { doneAt = now; celebrate(); }
+  if (doneAt && ui.mode === 'auto' && now - doneAt > 4500) restart();
+
+  // The white head eases toward the target; when stuck it demonstrates the turn from the front.
+  if (sg) {
+    let [gy, gp] = POSE[sg.d];
+    if (stuck && sg.d !== 'F' && !reduced) {
+      const ph = ((now - aimSince - STUCK_S * 1000) / 2400) % 1;       // 0..1 per demo
+      const e = ph < 0.15 ? 0 : ph < 0.65 ? 0.5 - 0.5 * Math.cos((ph - 0.15) / 0.5 * Math.PI) : 1;
+      gy *= e; gp *= e;
+    }
+    const kg = Math.min(1, (stuck ? 12 : 5) * dt);
+    ghost.yaw += (gy - ghost.yaw) * kg; ghost.pitch += (gp - ghost.pitch) * kg;
+    ghost.fw += (FACE_W[sg.s] - ghost.fw) * Math.min(1, 4 * dt);
+  }
+
+  const [say, sub] = words(state, sg, stuck);
+  if (say !== lastSay) { $('say').textContent = say; lastSay = say; }
+  if (sub !== lastSub) { $('sub').textContent = sub; lastSub = sub; }
+  const alert = ['two', 'off', 'over', 'away'].includes(state);
+  if (alert !== lastAlert) { $('bubble').classList.toggle('alert', alert); if (alert) gesture('tilt'); lastAlert = alert; }
+
+  draw(state, sg, now);
+  for (let i = sparks.length - 1; i >= 0; i--) { const p = sparks[i]; p.t += dt; if (p.t > p.life) sparks.splice(i, 1); }
+  requestAnimationFrame(step);
+}
+
+function collect(k) {
+  got.add(k); hold = 0; holdKey = null;
+  pauseUntil = performance.now() + 450;
+  const f = $('flash'); f.classList.remove('go'); void f.offsetWidth; f.classList.add('go');
+  const from = facePoint(me);
+  sparks.push({ kind: 'fly', x0: from[0], y0: from[1], x1: 1180, y1: 760, t: 0, life: 0.7 });
+  for (let i = 0; i < (reduced ? 0 : 8); i++) sparks.push({ kind: 'burst', x0: from[0], y0: from[1], a: i / 8 * Math.PI * 2, t: 0, life: 0.6 });
+  gesture('hop');
+  renderChrome();
+}
+function celebrate() {
+  if (reduced) return;
+  for (let i = 0; i < 40; i++) sparks.push({ kind: 'confetti', x0: CX, y0: CY - 40, a: Math.random() * Math.PI * 2, v: 200 + Math.random() * 380, t: 0, life: 2.4, c: ['#ffc93c', '#ff9a62', '#b49cf0', '#7fd3b0'][i % 4] });
+  gesture('hop');
+}
+function restart() { got = new Set(); hold = 0; holdKey = null; doneAt = 0; pauseUntil = performance.now() + 600; me.fw = 230; renderChrome(); }
+function gesture(name) { const a = $('avatar'); a.classList.remove('hop', 'tilt'); void a.offsetWidth; a.classList.add(name); }
+
+// ---------- 3D ----------
+// Head-local axes: x right, y down, z toward the camera. Turning applies yaw, then pitch.
+function rot(v, yaw, pitch) {
+  const x = v[0] * Math.cos(yaw) + v[2] * Math.sin(yaw), z0 = -v[0] * Math.sin(yaw) + v[2] * Math.cos(yaw);
+  return [x, v[1] * Math.cos(pitch) + z0 * Math.sin(pitch), -v[1] * Math.sin(pitch) + z0 * Math.cos(pitch)];
+}
+function unrot(v, yaw, pitch) {
+  const y = v[1] * Math.cos(pitch) - v[2] * Math.sin(pitch), z0 = v[1] * Math.sin(pitch) + v[2] * Math.cos(pitch);
+  return [v[0] * Math.cos(yaw) - z0 * Math.sin(yaw), y, v[0] * Math.sin(yaw) + z0 * Math.cos(yaw)];
+}
+const YAW_RAD = 1.0, PITCH_RAD = 0.8;
+const L = (() => { const l = [-0.45, -0.55, 0.7], n = Math.hypot(...l); return l.map(c => c / n); })();
+
+// The person's head, ray-cast at half resolution: skin, hair, ears, eyes, brows, nose and mouth
+// all live on the head surface, so everything turns together.
+const headCanvas = document.createElement('canvas'), hg = headCanvas.getContext('2d');
+function renderHead(p, hair) {
+  const a = p.fw / 2, b = p.fw * 0.62, c = p.fw * 0.55;
+  const half = 2, wpx = Math.ceil(a * 2.3 / half), hpx = Math.ceil(b * 2.3 / half);
+  if (headCanvas.width !== wpx || headCanvas.height !== hpx) { headCanvas.width = wpx; headCanvas.height = hpx; }
+  const img = hg.createImageData(wpx, hpx), px = img.data;
+  const ya = p.yaw * YAW_RAD, pa = p.pitch * PITCH_RAD;
+  const ex = unrot([1, 0, 0], ya, pa), ey = unrot([0, 1, 0], ya, pa), d = unrot([0, 0, -1], ya, pa);
+  const ia = 1 / (a * a), ib = 1 / (b * b), ic = 1 / (c * c);
+  const A = d[0] * d[0] * ia + d[1] * d[1] * ib + d[2] * d[2] * ic;
+  for (let j = 0; j < hpx; j++) {
+    const v = (j + 0.5) * half - hpx * half / 2;
+    for (let i = 0; i < wpx; i++) {
+      const u = (i + 0.5) * half - wpx * half / 2;
+      const o0 = u * ex[0] + v * ey[0], o1 = u * ex[1] + v * ey[1], o2 = u * ex[2] + v * ey[2];
+      const B = 2 * (o0 * d[0] * ia + o1 * d[1] * ib + o2 * d[2] * ic);
+      const C = o0 * o0 * ia + o1 * o1 * ib + o2 * o2 * ic - 1;
+      const disc = B * B - 4 * A * C;
+      if (disc <= 0) continue;
+      const tt = (-B - Math.sqrt(disc)) / (2 * A);
+      const hx = o0 + tt * d[0], hy = o1 + tt * d[1], hz = o2 + tt * d[2];
+      const X = hx / a, Y = hy / b, Z = hz / c;
+      const n = rot([hx * ia, hy * ib, hz * ic], ya, pa), nl = Math.hypot(n[0], n[1], n[2]);
+      const lit = Math.max(0, (n[0] * L[0] + n[1] * L[1] + n[2] * L[2]) / nl);
+      let r = 246, gg = 207, bb = 178, shade = 0.55 + 0.5 * lit;
+      const ex2 = (X - 0.34), ex1 = (X + 0.34);
+      if (Math.abs(X) > 0.88 && ((Y - 0.08) / 0.2) ** 2 + ((Z + 0.02) / 0.3) ** 2 < 1) { r = 222; gg = 162; bb = 130; }   // ears
+      else if (Z < 0.02 || Y < -0.34 - 0.06 * Math.cos(X * 9) + 0.12 * X * X || (Math.abs(X) > 0.84 && Y < 0.12)) { [r, gg, bb] = hair; shade = 0.6 + 0.6 * lit; }   // hair
+      else if (Z > 0) {
+        if ((ex1 / 0.085) ** 2 + ((Y + 0.06) / 0.065) ** 2 < 1 || (ex2 / 0.085) ** 2 + ((Y + 0.06) / 0.065) ** 2 < 1) { r = 43; gg = 29; bb = 24; shade = 1; }   // eyes
+        else if ((Math.abs(ex1) < 0.13 || Math.abs(ex2) < 0.13) && Y > -0.25 - 0.08 * (Math.abs(X) - 0.34) ** 2 && Y < -0.2) { r = 70; gg = 46; bb = 34; shade = 1; }   // brows
+        else if (Math.abs(X) < 0.2 && Math.abs(Y - (0.4 + 0.07 * (1 - (X / 0.2) ** 2))) < 0.03) { r = 168; gg = 84; bb = 74; }   // smile
+        else if (Math.abs(X) < 0.08 && Y > 0.22 && Y < 0.27) { r = 196; gg = 140; bb = 112; }   // nose tip shadow
+        else if (X > 0.03 && X < 0.07 && Y > -0.02 && Y < 0.24) { shade *= 0.9; }                // nose ridge
+        else if (Math.abs(X) > 0.42 && Math.abs(X) < 0.66 && Y > 0.12 && Y < 0.3) { r = 250; gg = 190; bb = 170; }   // cheeks
+      }
+      const k = (j * wpx + i) * 4;
+      px[k] = Math.min(255, r * shade); px[k + 1] = Math.min(255, gg * shade); px[k + 2] = Math.min(255, bb * shade);
+      px[k + 3] = Math.min(255, Math.sqrt(disc) / (2 * A) / 4 * 255);   // soft edge: fades over the last few px of chord
+    }
+  }
+  hg.putImageData(img, 0, 0);
+  g.imageSmoothingEnabled = true;
+  g.drawImage(headCanvas, p.x - wpx * half / 2, p.y - hpx * half / 2, wpx * half, hpx * half);
+}
+function drawPerson(p, sweater, hair, alpha = 1) {
+  g.save(); g.globalAlpha = alpha;
+  const sh = p.yaw * p.fw * 0.12;
+  g.fillStyle = sweater;
+  g.beginPath(); g.ellipse(p.x - sh * 0.4, p.y + p.fw * 1.34, p.fw * 1.25, p.fw * 0.62, 0, Math.PI, 0); g.lineTo(p.x + p.fw * 1.25, H + 10); g.lineTo(p.x - p.fw * 1.25, H + 10); g.fill();
+  g.fillStyle = '#d9a383'; g.fillRect(p.x - p.fw * 0.2, p.y + p.fw * 0.3, p.fw * 0.4, p.fw * 0.62);
+  renderHead(p, hair);
+  g.restore();
+}
+function facePoint(p) { const f = rot([0, 0.05, 1], p.yaw * YAW_RAD, p.pitch * PITCH_RAD); return [p.x + f[0] * p.fw * 0.42, p.y + f[1] * p.fw * 0.5]; }
+
+// ---------- drawing ----------
+const bg = document.createElement('canvas'); bg.width = W; bg.height = H;
+(function paintRoom() {
+  const b = bg.getContext('2d');
+  const sky = b.createLinearGradient(0, 0, 0, H); sky.addColorStop(0, '#d9cbbd'); sky.addColorStop(1, '#a8968a');
+  b.fillStyle = sky; b.fillRect(0, 0, W, H);
+  b.filter = 'blur(18px)';
+  b.fillStyle = '#efe6d8'; b.fillRect(80, 60, 300, 380);
+  b.fillStyle = '#8a6f5c'; b.fillRect(900, 120, 320, 30); b.fillRect(900, 230, 320, 30);
+  b.fillStyle = '#6f8f7a'; b.beginPath(); b.ellipse(1010, 105, 40, 30, 0, 0, 7); b.fill();
+  b.fillStyle = '#c7a98f'; b.fillRect(0, 610, W, 190);
+  b.filter = 'none';
+})();
+
+function dimOutside(rx, ry, alpha) {
+  g.save(); g.fillStyle = `rgba(28,20,36,${alpha})`;
+  g.beginPath(); g.rect(0, 0, W, H); g.ellipse(CX, CY, rx, ry, 0, 0, 7); g.fill('evenodd'); g.restore();
+}
+function star(x, y, r, fill, stroke, lw = 3) {
+  g.beginPath();
+  for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? r * 0.5 : r; g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); }
+  g.closePath(); g.lineJoin = 'round';
+  if (fill) { g.fillStyle = fill; g.fill(); }
+  if (stroke) { g.strokeStyle = stroke; g.lineWidth = lw; g.stroke(); }
+}
+
+// The white head: outline, the bright face side and two lines through the face.
+function whiteHead(cx, cy, R, yaw, pitch, rgb, alpha, glowAlpha) {
+  const a = yaw * 1.1, b = pitch * 1.1, Ry = R * 1.24;
+  const col = o => `rgba(${rgb},${o * alpha})`;
+  g.save();
+  g.fillStyle = col(0.14); g.strokeStyle = col(0.9); g.lineWidth = 5;
+  g.beginPath(); g.ellipse(cx, cy, R, Ry, 0, 0, 7); g.fill(); g.stroke();
+  const f = rot([0, 0.05, 1], a, b);
+  const sx = cx + f[0] * R * 0.78, sy = cy + f[1] * Ry * 0.78;
+  const glow = g.createRadialGradient(sx, sy, 2, sx, sy, R * 0.6);
+  glow.addColorStop(0, col(glowAlpha)); glow.addColorStop(1, col(0));
+  g.fillStyle = glow; g.beginPath(); g.ellipse(sx, sy, R * 0.6, R * 0.68, 0, 0, 7); g.fill();
+  g.lineWidth = 3.5; g.strokeStyle = col(0.85);
+  for (const ring of [t => [0, Math.sin(t), Math.cos(t)], t => [Math.sin(t) * 0.99, -0.12, Math.cos(t) * 0.99]]) {
+    g.beginPath(); let pen = false;
+    for (let i = 0; i <= 96; i++) {
+      const v = rot(ring(i / 96 * Math.PI * 2), a, b);
+      const px = cx + v[0] * R, py = cy + v[1] * Ry;
+      if (v[2] > 0.02) { pen ? g.lineTo(px, py) : g.moveTo(px, py); pen = true; } else pen = false;
+    }
+    g.stroke();
+  }
+  g.restore();
+}
+
+function draw(state, sg, now) {
+  g.drawImage(bg, 0, 0);
+  if (other.on > 0.02) drawPerson(other, '#8c6f9e', [92, 60, 40], other.on);
+  drawPerson(me, '#5d7fae', [52, 37, 30]);
+  if (other.on > 0.3) {
+    g.save(); g.globalAlpha = other.on; g.strokeStyle = 'rgba(255,255,255,.85)'; g.lineWidth = 3; g.setLineDash([8, 8]);
+    const bx = other.x - other.fw * 0.62, by = other.y - other.fw * 0.8;
+    g.strokeRect(bx, by, other.fw * 1.24, other.fw * 1.6); g.setLineDash([]);
+    g.fillStyle = 'rgba(51,38,63,.72)'; const label = ui.aud === 'kids' ? '잠깐 기다려 줘' : '잠시만 기다려 주세요';
+    g.font = '700 20px "Gothic A1", sans-serif'; const tw = g.measureText(label).width;
+    g.beginPath(); g.roundRect(other.x - tw / 2 - 14, by - 46, tw + 28, 36, 18); g.fill();
+    g.fillStyle = '#fff'; g.textAlign = 'center'; g.fillText(label, other.x, by - 21); g.restore();
+  }
+  if (sg) {
+    const R = ghost.fw * 0.52;
+    dimOutside(R * 1.55, R * 1.6, 0.22);
+    const busy = state === 'two' || state === 'away';
+    const ok = state === 'hold';
+    // Closeness of my pose to the target, 0..1, brightens the face side.
+    const [ty, tp] = POSE[sg.d];
+    const near = Math.max(0, 1 - Math.hypot(me.yaw - ty, me.pitch - tp) / 0.7);
+    const alpha = busy ? 0.35 : 1;
+    whiteHead(CX, CY, R, ghost.yaw, ghost.pitch, ok ? '255,214,102' : '255,255,255', alpha, 0.25 + 0.5 * near);
+    if (!busy) {
+      // Distance ripples: outward when I should come closer, inward when I should step back.
+      const want = FACE_W[sg.s], ratio = me.fw / want;
+      if (Math.abs(ratio - 1) > 0.12 && !reduced) {
+        const out = ratio < 1;
+        for (let i = 0; i < 3; i++) {
+          const ph = ((now / 1300) + i / 3) % 1, s = out ? 1 + ph * 0.35 : 1.35 - ph * 0.35;
+          g.save(); g.strokeStyle = `rgba(255,255,255,${0.55 * (out ? 1 - ph : ph)})`; g.lineWidth = 3;
+          g.beginPath(); g.ellipse(CX, CY, R * s, R * 1.24 * s, 0, 0, 7); g.stroke(); g.restore();
+        }
+      }
+      if (hold > 0) {
+        g.save(); g.strokeStyle = '#ffc93c'; g.lineWidth = 9; g.lineCap = 'round';
+        g.beginPath(); g.ellipse(CX, CY, R + 14, R * 1.24 + 14, 0, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, hold)); g.stroke(); g.restore();
+      }
+    }
+  } else dimOutside(170, 220, 0.25);
+  for (const p of sparks) {
+    const k = p.t / p.life;
+    if (p.kind === 'fly') { const e = 1 - Math.pow(1 - k, 3); star(p.x0 + (p.x1 - p.x0) * e, p.y0 + (p.y1 - p.y0) * e - Math.sin(k * Math.PI) * 120, 26 * (1 - k * 0.4), '#ffc93c', '#f4a81d'); }
+    if (p.kind === 'burst') { const dd = 30 + k * 90; g.globalAlpha = 1 - k; star(p.x0 + Math.cos(p.a) * dd, p.y0 + Math.sin(p.a) * dd, 10, '#ffe08a'); g.globalAlpha = 1; }
+    if (p.kind === 'confetti') { g.globalAlpha = Math.max(0, 1 - k * 0.8); star(p.x0 + Math.cos(p.a) * p.v * p.t, p.y0 + Math.sin(p.a) * p.v * p.t + 160 * p.t * p.t, 14, p.c); g.globalAlpha = 1; }
+  }
+}
+
+// ---------- page chrome ----------
+function renderChrome() {
+  const k = ui.aud === 'kids', r = round();
+  $('count').textContent = k ? `★ ${got.size} / 15` : `${got.size} / 15`;
+  $('rounds').innerHTML = SIZES.map(s => {
+    const n = DIRS.filter(d => got.has(key(d, s))).length;
+    const cls = n === 5 ? 'done' : s === r ? 'now' : '';
+    return `<span class="glass ${cls}">${ROUND_NAME[s]} ${DIRS.map(d => `<i class="${got.has(key(d, s)) ? 'on' : ''}"></i>`).join('')}</span>`;
+  }).join('');
+}
+function fit() { $('stage').style.transform = `scale(${$('device').clientWidth / W})`; }
+new ResizeObserver(fit).observe($('device'));
+
+function press(segId, attr, value) { document.querySelectorAll(`#${segId} button`).forEach(b => b.setAttribute('aria-pressed', String(b.dataset[attr] === value))); }
+$('audSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; ui.aud = b.dataset.aud; press('audSeg', 'aud', ui.aud); $('stage').dataset.aud = ui.aud; lastSay = ''; renderChrome(); });
+$('modeSeg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return; ui.mode = b.dataset.mode; press('modeSeg', 'mode', ui.mode);
+  $('distWrap').hidden = ui.mode !== 'manual'; pointer.fw = +$('dist').value; restart();
+});
+document.querySelectorAll('[data-sc]').forEach(b => b.addEventListener('click', () => {
+  if (b.dataset.sc === 'reset') { scenario = null; restart(); return; }
+  scenario = b.dataset.sc; scenarioUntil = performance.now() + ({ two: 4200, stuck: 9000 })[scenario] || 3200;
+  if (b.closest('.notes')) $('device').scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center' });
+}));
+$('dist').addEventListener('input', e => { pointer.fw = +e.target.value; });
+const dev = $('device');
+function aim(e) {
+  if (ui.mode !== 'manual') return;
+  const r = dev.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * W, y = (e.clientY - r.top) / r.height * H;
+  pointer.yaw = Math.max(-1, Math.min(1, (x - CX) / 380));
+  pointer.pitch = Math.max(-1, Math.min(1, (y - CY) / 280));
+}
+dev.addEventListener('pointermove', aim);
+dev.addEventListener('pointerdown', aim);
+dev.addEventListener('wheel', e => {
+  if (ui.mode !== 'manual') return; e.preventDefault();
+  pointer.fw = Math.max(140, Math.min(340, pointer.fw - Math.sign(e.deltaY) * 12)); $('dist').value = pointer.fw;
+}, { passive: false });
+
+renderChrome(); fit(); requestAnimationFrame(step);
+</script>
