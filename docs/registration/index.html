@@ -181,7 +181,7 @@ footer { color: var(--muted); font-size: 0.86rem; border-top: 1px solid var(--li
       <thead><tr><th>항목</th><th>지금</th><th>바꾼 뒤</th><th>해결</th></tr></thead>
       <tbody>
         <tr><td>모을 칸</td><td>4방향 × 3크기 = 12</td><td>정면 포함 5방향 × 보통·가까이·멀리 = 15 (설정으로 12도 가능)</td><td>R4</td></tr>
-        <tr><td>순서</td><td>한 칸씩 정해진 순서</td><td>빈칸이면 어느 것이든 바로 모음. 빛이는 가장 가까운 빈칸을 권함</td><td>R1</td></tr>
+        <tr><td>순서</td><td>한 칸씩 정해진 순서</td><td>크기는 판 순서(보통 → 가까이 → 멀리)를 지키고, 그 판 안에서는 비어 있는 방향이면 어느 것이든 바로 모음. 빛이는 다음 빈칸을 권함. 다른 판의 크기는 받지 않음(11-02 화면 검토에서 바꿈: 다른 크기를 먼저 모으면 테두리가 크기와 맞지 않게 차올라 헷갈림)</td><td>R1</td></tr>
         <tr><td>크기 순서</td><td>방향마다 보통→큰→작은</td><td>크기별 한 판: 보통 다섯 방향 → 가까이 → 멀리</td><td>R2</td></tr>
         <tr><td>크기 판정</td><td>그 방향 첫 샘플 대비 비율</td><td>화면의 원과 같은 기준: 얼굴 폭 ÷ 프레임 폭이 원별 목표의 ±12% 안. 목표 = 보통 원 폭 × 0.8 × 원 배율</td><td>R3</td></tr>
         <tr><td>여러 얼굴</td><td>가장 큰 얼굴만, 알림 없음</td><td>프레임 전체에서 큰 얼굴(가장 큰 얼굴의 40% 이상)을 셈. 둘 이상이면 모으기를 멈추고 “한 번에 한 친구만” 안내</td><td>R5</td></tr>
@@ -230,8 +230,8 @@ footer { color: var(--muted); font-size: 0.86rem; border-top: 1px solid var(--li
   <section aria-labelledby="h-decide">
     <h2 id="h-decide">정한 것 (11-02)</h2>
     <div class="decide">
-      <div><b>화면 안: 최종안</b><span>귀 달린 반투명 둥근 얼굴과 두 얼굴 선(가운데 세로선, 눈 높이 가로선), 같은 방향으로 3D로 돌고 거리에 따라 커지거나 작아지는 안내 캐릭터. 거리는 먼저 얼굴 크기로, 3초 동안 못 맞추면 구두 밑창 발자국으로 알려 줍니다. 보통·가까이·멀리 진행 표시는 넣지 않습니다. <a href="https://claude.ai/artifact/CtupGk88pnyBrpPZnTvsJq">얼굴 등록 화면 최종안 (v8)</a></span></div>
-      <div><b>구현할 때 지킬 것</b><span>비어 있는 칸이면 어느 것이든 모으므로, 사람이 권하지 않은 다른 칸을 맞추고 있는 동안에는 하얀 얼굴·캐릭터·문구가 그 칸(크기와 방향)으로 바뀌어야 합니다. 노란 테두리는 하얀 얼굴이 그 칸을 보여 준 뒤에만 차오릅니다. 그러려면 <code>RegistrationView</code>가 권하는 칸과 함께 머무는 중인 칸을 알려 줘야 합니다.</span></div>
+      <div><b>화면 안: 최종안</b><span>귀 달린 반투명 둥근 얼굴과 두 얼굴 선(가운데 세로선, 눈 높이 가로선), 같은 방향으로 3D로 돌고 거리에 따라 커지거나 작아지는 안내 캐릭터. 거리는 먼저 얼굴 크기로, 3초 동안 못 맞추면 구두 밑창 발자국으로 알려 줍니다. 보통·가까이·멀리 진행 표시는 넣지 않습니다. <a href="https://claude.ai/artifact/CtupGk88pnyBrpPZnTvsJq">얼굴 등록 화면 최종안 (v8)</a>. 별 개수 옆에 크기 판마다 십자 모양으로 마친 방향을 보여 주는 진행 표시를 더한 안: <a href="https://claude.ai/artifact/CpQZ19dLGZ1Y3LCDdcexuQ">v9</a></span></div>
+      <div><b>구현할 때 지킬 것</b><span>크기는 지금 판의 크기만 받습니다. 판 안에서 권하지 않은 다른 방향을 맞추고 있는 동안에는 하얀 얼굴·캐릭터·문구가 그 방향으로 바뀌고, 노란 테두리는 하얀 얼굴이 그 방향을 보여 준 뒤에만 차오릅니다. 그러려면 <code>RegistrationView</code>가 권하는 칸과 함께 머무는 중인 칸을 알려 줘야 합니다.</span></div>
       <div><b>칸 수: 정면 포함 15칸</b><span>정면·왼쪽·오른쪽·위·아래 × 보통·가까이·멀리.</span></div>
       <div><b>얼굴 정렬: 켬</b><span>새 기본값이고, 이미 설치된 키오스크도 한 번 켜집니다. 정렬 전에 등록된 사람은 다시 등록해야 합니다(현재 1명).</span></div>
     </div>
@@ -242,7 +242,7 @@ footer { color: var(--muted); font-size: 0.86rem; border-top: 1px solid var(--li
     <div class="table-wrap"><table>
       <thead><tr><th>항목</th><th>상태</th><th>내용</th></tr></thead>
       <tbody>
-        <tr><td>R1~R4, R7, R8 등록 세션</td><td><span class="pill ok">구현</span></td><td><code>RegistrationSession</code>: 칸 표, 크기별 판 권유, 화면 원 기준 크기 띠(±12%, 가장 가까운 원), 2프레임 머무름 후 가장 선명한 프레임 저장, 정면 포함. <code>PoseLimits</code>: 좌우 0.18~0.60, 위 0.42 이하(0.12 미만은 너무 돌림), 아래 0.62 이상(0.88 초과는 너무 돌림)</td></tr>
+        <tr><td>R1~R4, R7, R8 등록 세션</td><td><span class="pill ok">구현</span></td><td><code>RegistrationSession</code>: 칸 표, 크기별 판(판 안에서는 방향 순서 자유), 화면 원 기준 크기 띠(±12%, 가장 가까운 원), 2프레임 머무름 후 가장 선명한 프레임 저장, 정면 포함. <code>PoseLimits</code>: 좌우 0.18~0.60, 위 0.42 이하(0.12 미만은 너무 돌림), 아래 0.62 이상(0.88 초과는 너무 돌림)</td></tr>
         <tr><td>R5, R6, R10 프레임 분석</td><td><span class="pill ok">구현</span></td><td>얼굴 수(가장 큰 얼굴 폭의 40% 이상)를 세어 여럿이면 모으지 않음, 원 밖 얼굴은 방향과 함께 알림, 얼굴 높이를 화면의 보통 원 기준으로 잼(원 높이 × 0.75 = 1), 고른 얼굴 상자 × 1.4 밖과 다른 얼굴을 가림, 선명도(라플라시안 분산)</td></tr>
         <tr><td>R11 안내 문구</td><td><span class="pill ok">구현</span></td><td>여럿·원 밖(어느 쪽으로)·너무 돌림·가까이·뒤로·그대로·얼굴 없음 문구, 어린이와 어른 각각. 설정 › 안내 문구에서 고칠 수 있음</td></tr>
         <tr><td>등록 기록</td><td><span class="pill ok">구현</span></td><td>저장할 때마다 “등록 샘플 n/15: 칸, 크기, 고개 각도, 유사도”, 끝나거나 그만둘 때 “등록 기록/등록 중단: 시간, 거절 이유별 횟수”</td></tr>

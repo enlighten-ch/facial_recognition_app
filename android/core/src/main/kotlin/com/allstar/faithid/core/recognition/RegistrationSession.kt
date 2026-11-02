@@ -49,10 +49,11 @@ class RegistrationFrame(
 
 /**
  * Collects the face samples of one registration: every [HeadDirection] (front optional) at every
- * circle size, in any order. Whatever empty cell the person's pose and distance match is filled,
- * after the face stayed there for [RegistrationConfig.holdFrames] frames. [suggestion] is the cell
- * the guide asks for next: all directions of the normal circle first, then big, then small, so the
- * person moves forward and back only twice. Not thread-safe; drive it from one thread.
+ * circle size. The sizes come in rounds, normal, then big, then small, so the person moves forward
+ * and back only twice; within a round the directions come in any order. A cell is filled after the
+ * face stayed in it for [RegistrationConfig.holdFrames] frames, and only when the face fits the
+ * round's circle. [suggestion] is the cell the guide asks for next. Not thread-safe; drive it from
+ * one thread.
  */
 class RegistrationSession(private val config: RegistrationConfig) {
 
@@ -65,7 +66,7 @@ class RegistrationSession(private val config: RegistrationConfig) {
         /** The pose matches no empty cell: [detected] is null between directions or already collected. */
         data class WrongDirection(val expected: HeadDirection, val detected: HeadDirection?) : Outcome()
 
-        /** The direction is right but the face fits none of its empty circles; [ratio] = size / [expected]'s size. */
+        /** The face does not fit the round's circle [expected]; [ratio] = size / [expected]'s size. */
         data class WrongSize(val expected: FaceCircle, val ratio: Float) : Outcome()
         data object TooTurned : Outcome()
         data class TooDifferent(val maxSimilarity: Float) : Outcome()
@@ -125,10 +126,14 @@ class RegistrationSession(private val config: RegistrationConfig) {
         val pose = frame.pose
         if (pose == Pose.TooFar) return interrupted(Outcome.TooTurned)
         val direction = (pose as? Pose.Facing)?.direction
-        val open = cells.filter { it.direction == direction && it !in collected }
+        // Only the current round counts: the circle size the guide asks for, any direction still empty in it.
+        val open = cells.filter { it.direction == direction && it !in collected && inRound(it, next) }
         if (direction == null || open.isEmpty()) return interrupted(Outcome.WrongDirection(next.direction, direction))
-        val cell = cellFor(open, next, frame.faceSize)
-            ?: return interrupted(wrongSize(open, next, frame.faceSize!!))
+        val size = frame.faceSize
+        if (config.circleSteps && size != null && circleFor(size) != next.circle) {
+            return interrupted(Outcome.WrongSize(next.circle, size / scaleOf(next.circle)))
+        }
+        val cell = open.firstOrNull { it == next } ?: open.first()
 
         if (cell != holdCell) {
             holdCell = cell
@@ -154,17 +159,9 @@ class RegistrationSession(private val config: RegistrationConfig) {
     /** Something came between the frames of a hold (no face, several faces): start the hold again. */
     fun interrupt() = resetHold()
 
-    private fun cellFor(open: List<RegistrationCell>, next: RegistrationCell, size: Float?): RegistrationCell? {
-        if (!config.circleSteps || size == null) return open.firstOrNull { it == next } ?: open.first()
-        val circle = circleFor(size) ?: return null
-        return open.firstOrNull { it.circle == circle }
-    }
-
-    private fun wrongSize(open: List<RegistrationCell>, next: RegistrationCell, size: Float): Outcome.WrongSize {
-        // Ask for the suggested circle when it is open in this direction, else the first open one.
-        val wanted = open.firstOrNull { it.circle == next.circle }?.circle ?: open.first().circle
-        return Outcome.WrongSize(wanted, size / scaleOf(wanted))
-    }
+    /** With circle steps a round is one circle size; without, every open cell is in it. */
+    private fun inRound(cell: RegistrationCell, next: RegistrationCell): Boolean =
+        !config.circleSteps || cell.circle == next.circle
 
     private fun interrupted(outcome: Outcome): Outcome {
         resetHold()
