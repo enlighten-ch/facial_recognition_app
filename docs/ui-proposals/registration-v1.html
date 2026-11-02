@@ -1,0 +1,542 @@
+<title>얼굴 등록 세 가지 안</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&family=Gothic+A1:wght@400;600;700;800&display=swap">
+<style>
+/* Layout: proposal page for the registration screen. A lab bar picks the option (A ghost head,
+   B star target, C fitting frame), the audience and the situation; the 1280x800 kiosk screen below
+   runs a simulated camera with the overlay drawn on it; a comparison table closes the page. */
+:root {
+  --sky: #fff4ec;
+  --card: #fffdfb;
+  --ink: #33263f;
+  --ink-2: #6e6078;
+  --line: #f0dfd4;
+  --plum: #5b3f8c;
+  --plum-soft: #ece4f7;
+  --apricot: #ff9a62;
+  --mint: #3f9d7a;
+  --gold: #ffc93c;
+  --font-kids: "Jua", "Gowun Dodum", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font: "Gowun Dodum", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+  --font-ui: "Gothic A1", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --sky: #1d1824; --card: #251e2e; --ink: #f4ecf7; --ink-2: #bcaec6; --line: #3a3045; --plum: #b49cf0; --plum-soft: #352a48; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --sky: #1d1824; --card: #251e2e; --ink: #f4ecf7; --ink-2: #bcaec6; --line: #3a3045; --plum: #b49cf0; --plum-soft: #352a48; color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--sky); color: var(--ink); font-family: var(--font-ui); line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 56px; }
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 22px; }
+.intro { display: grid; gap: 10px; max-width: 840px; }
+.eyebrow { font-size: .78rem; font-weight: 700; letter-spacing: .1em; color: var(--ink-2); }
+h1 { font-family: var(--font-kids); font-weight: 400; font-size: 2.5rem; margin: 0; line-height: 1.2; text-wrap: balance; }
+h2 { font-family: var(--font-kids); font-weight: 400; font-size: 1.6rem; margin: 0; }
+.intro p, section p { margin: 0; color: var(--ink-2); max-width: 70ch; }
+a { color: var(--plum); }
+.common { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+.common div { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 12px 16px; font-size: .92rem; }
+.common b { display: block; font-size: 1rem; }
+
+.lab { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 12px 14px; display: grid; gap: 8px; font-size: .9rem; }
+.lab-row { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; }
+.lab-label { color: var(--ink-2); font-weight: 700; font-size: .8rem; min-width: 52px; }
+.lab button { font: inherit; border: 1px solid var(--line); background: var(--sky); color: var(--ink); border-radius: 999px; padding: 4px 12px; cursor: pointer; }
+.lab .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 2px; background: var(--sky); flex-wrap: wrap; }
+.lab .seg button { border: 0; background: transparent; }
+.lab [aria-pressed="true"] { background: var(--plum); color: #fff; border-color: var(--plum); }
+.lab input[type="range"] { width: 160px; accent-color: var(--plum); }
+.lab .hint { color: var(--ink-2); font-size: .84rem; }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--apricot); outline-offset: 2px; }
+
+.device { position: relative; border-radius: 30px; overflow: hidden; box-shadow: 0 0 0 10px #2a2230, 0 22px 50px rgba(91,63,140,.22); margin: 10px; aspect-ratio: 1280 / 800; touch-action: none; }
+.stage { position: absolute; top: 0; left: 0; width: 1280px; height: 800px; transform-origin: 0 0; overflow: hidden; color: #33263f; font-family: var(--font-ui); }
+.stage canvas { position: absolute; inset: 0; width: 1280px; height: 800px; }
+
+/* 빛이 talks from the top, as in v9. */
+.guide { position: absolute; top: 26px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 16px; max-width: 1100px; }
+.avatar { flex: none; width: 88px; height: 88px; border-radius: 50%; position: relative; background: radial-gradient(circle at 35% 30%, #ffd2b4, #ff9a62 72%); box-shadow: 0 6px 16px rgba(0,0,0,.18); }
+.avatar i { position: absolute; top: 40%; width: 10px; height: 15px; border-radius: 6px; background: #33263f; animation: blink 4.2s infinite; }
+.avatar i:first-child { left: 30%; } .avatar i:nth-child(2) { right: 30%; }
+.avatar b { position: absolute; left: 50%; top: 56%; width: 26px; height: 13px; margin-left: -13px; border: 4px solid #33263f; border-top: 0; border-radius: 0 0 20px 20px; }
+.avatar.hop { animation: hop .42s ease-out; }
+.avatar.tilt { animation: tilt 1.1s ease-in-out; }
+@keyframes blink { 0%, 94%, 100% { transform: scaleY(1); } 96% { transform: scaleY(.1); } }
+@keyframes hop { 30% { transform: translateY(-16px); } 75% { transform: translateY(0) scale(1.06, .92); } }
+@keyframes tilt { 25%, 75% { transform: rotate(14deg); } }
+.bubble { background: rgba(255,253,251,.86); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-radius: 28px; padding: 14px 26px; box-shadow: 0 8px 24px rgba(0,0,0,.14); display: grid; gap: 2px; }
+.bubble .say { font-family: var(--font-kids); font-size: 34px; line-height: 1.25; }
+.bubble .sub { font-family: var(--font); font-size: 22px; color: #6e6078; min-height: 1.3em; }
+.stage[data-aud="adults"] .avatar { width: 70px; height: 70px; }
+.stage[data-aud="adults"] .bubble .say { font-family: var(--font); font-weight: 700; font-size: 30px; }
+.bubble.alert { background: rgba(255,240,224,.93); box-shadow: 0 0 0 3px #ff9a62, 0 8px 24px rgba(0,0,0,.14); }
+
+.glass { background: rgba(255,255,255,.28); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.45); color: #fff; }
+.home { position: absolute; left: 28px; bottom: 26px; border-radius: 999px; padding: 12px 24px; font: 700 22px var(--font-ui); text-shadow: 0 1px 3px rgba(0,0,0,.35); }
+.count { position: absolute; right: 28px; bottom: 26px; border-radius: 999px; padding: 8px 20px; font: 400 26px var(--font-kids); text-shadow: 0 1px 3px rgba(0,0,0,.35); font-variant-numeric: tabular-nums; }
+.steps { position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%); display: flex; gap: 8px; }
+.steps span { border-radius: 999px; padding: 6px 16px; font: 700 19px var(--font-ui); text-shadow: 0 1px 3px rgba(0,0,0,.35); }
+.steps span.done { background: rgba(63,157,122,.75); }
+.steps span.now { background: rgba(91,63,140,.8); border-color: #fff; }
+
+section.compare { display: grid; gap: 12px; }
+.table-wrap { overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: 16px; }
+table { border-collapse: collapse; width: 100%; font-size: .93rem; }
+th { text-align: left; color: var(--ink-2); font-size: .82rem; padding: 9px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+td:first-child { font-weight: 700; white-space: nowrap; }
+.pick { display: inline-block; font-size: .78rem; font-weight: 700; padding: 0 9px; border-radius: 999px; background: var(--plum-soft); color: var(--plum); margin-left: 6px; }
+@media (prefers-reduced-motion: reduce) { .avatar i, .avatar.hop, .avatar.tilt { animation: none; } }
+</style>
+
+<div class="wrap">
+  <div class="intro">
+    <span class="eyebrow">FAITH ID · 얼굴 등록 UI 제안 · 2026-11-02</span>
+    <h1>얼굴 등록, 세 가지 안</h1>
+    <p>카메라 화면 위에 <b>맞춰야 할 얼굴 크기와 방향</b>을 반투명하게 겹쳐 보여 주는 세 가지 방법입니다. 화면 속 사람은 시뮬레이션이라 실제 카메라 없이 움직입니다. <b>직접 해보기</b>를 고르면 마우스(태블릿에서는 손가락)로 고개를 돌리고, 휠이나 거리 막대로 가까이·멀리를 바꿀 수 있습니다. 로직과 검증 계획은 <a href="https://claude.ai/artifact/PyiDV98UrDg5qJVSDas66P">얼굴 등록 과정 문서</a>(저장소의 <code>docs/registration/index.html</code>)에 있습니다.</p>
+  </div>
+
+  <div class="common" aria-label="세 안 공통">
+    <div><b>순서 대신 빈칸 채우기</b>정해진 순서를 기다리지 않고, 아직 없는 방향·크기라면 어느 것이든 바로 모읍니다. 빛이는 가장 가까운 빈칸을 권합니다.</div>
+    <div><b>크기는 한 판씩</b>보통 다섯 방향을 다 모은 뒤 가까이, 그다음 멀리. 앞뒤로 움직이는 일이 11번에서 2번으로 줄어듭니다.</div>
+    <div><b>정면 포함 15칸</b>정면·왼쪽·오른쪽·위·아래 × 보통·가까이·멀리. 키오스크 앞에 서면 대부분 정면이라 정면 샘플을 따로 모읍니다.</div>
+    <div><b>한 번에 한 명</b>화면에 얼굴이 둘 이상이면 모으기를 멈추고 “한 번에 한 친구만 등록할게!”라고 안내합니다.</div>
+  </div>
+
+  <div class="lab" role="group" aria-label="미리보기 조정">
+    <div class="lab-row"><span class="lab-label">안</span>
+      <div class="seg" id="optSeg">
+        <button data-opt="A" aria-pressed="true">A · 따라 하는 하얀 얼굴</button>
+        <button data-opt="B" aria-pressed="false">B · 별 과녁</button>
+        <button data-opt="C" aria-pressed="false">C · 맞춤 틀과 눈금</button>
+      </div>
+    </div>
+    <div class="lab-row"><span class="lab-label">대상</span>
+      <div class="seg" id="audSeg"><button data-aud="kids" aria-pressed="true">어린이</button><button data-aud="adults" aria-pressed="false">어른</button></div>
+      <span class="lab-label" style="margin-left:12px">진행</span>
+      <div class="seg" id="modeSeg"><button data-mode="auto" aria-pressed="true">자동 시연</button><button data-mode="manual" aria-pressed="false">직접 해보기</button></div>
+      <label class="hint" id="distWrap" hidden>거리 <input type="range" id="dist" min="140" max="340" value="240" aria-label="카메라와의 거리 (얼굴 크기)"></label>
+    </div>
+    <div class="lab-row"><span class="lab-label">상황</span>
+      <button data-sc="two">두 사람이 함께 섬</button>
+      <button data-sc="off">동그라미 밖으로 비켜남</button>
+      <button data-sc="over">고개를 너무 많이 돌림</button>
+      <button data-sc="away">화면 밖으로 나감</button>
+      <button data-sc="reset">처음부터</button>
+    </div>
+  </div>
+
+  <div class="device" id="device">
+    <div class="stage" id="stage" data-aud="kids">
+      <canvas id="cam" width="1280" height="800" aria-label="시뮬레이션 카메라 화면"></canvas>
+      <div class="guide"><div class="avatar" id="avatar" aria-hidden="true"><i></i><i></i><b></b></div>
+        <div class="bubble" id="bubble" aria-live="polite"><span class="say" id="say"></span><span class="sub" id="sub"></span></div></div>
+      <div class="steps" id="steps" hidden></div>
+      <button class="home glass" tabindex="-1">처음으로</button>
+      <div class="count glass" id="count"></div>
+    </div>
+  </div>
+
+  <section class="compare" aria-labelledby="h-cmp">
+    <h2 id="h-cmp">세 안 비교</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>안</th><th>화면에 겹치는 것</th><th>좋은 점</th><th>걱정되는 점</th><th>잘 맞는 경우</th></tr></thead>
+      <tbody>
+        <tr><td>A 하얀 얼굴<span class="pick">추천</span></td><td>맞춰야 할 크기와 방향으로 돌아간 반투명 하얀 얼굴(눈코입 없는 선 머리). 내 얼굴 둘레에 점선, 맞으면 금색으로 차오름</td><td>“저 얼굴이랑 똑같이”라는 한 가지 규칙만 있으면 됩니다. 크기와 방향을 한 그림으로 보여 줘 글을 몰라도 따라 합니다. 지금의 3D 머리 그림을 카메라 위로 옮긴 것이라 v9와 이어집니다.</td><td>위·아래 방향은 선 머리만으로는 덜 분명해, 얼굴 쪽 밝은 점이 꼭 필요합니다.</td><td>어린이와 어른 모두. 기본 안으로 권합니다.</td></tr>
+        <tr><td>B 별 과녁</td><td>동그라미 안 다섯 자리의 별과, 고개를 따라 움직이는 빛나는 점. 동그라미 크기가 판마다 바뀜</td><td>게임처럼 “점을 별에 데려가기”라 아이들이 가장 재미있어할 안입니다. 남은 칸이 별로 보여서 진행이 한눈에 보입니다.</td><td>점이 고개와 거울처럼 움직여야 해서 처음에 한두 번 헷갈릴 수 있습니다. 어른에게는 놀이처럼 보입니다.</td><td>어린이 위주 키오스크</td></tr>
+        <tr><td>C 맞춤 틀과 눈금</td><td>얼굴 크기의 네모 틀(모서리만), 위쪽 좌우 눈금과 옆쪽 위아래 눈금, 맞추는 동안 차오르는 막대</td><td>카메라 앱처럼 익숙하고, 얼마나 더 돌려야 하는지 눈금으로 정확히 보입니다. 화면이 가장 차분합니다.</td><td>눈금을 읽어야 해서 어린아이에게는 어렵습니다. 크기와 방향이 서로 다른 곳에 있어 눈이 바쁩니다.</td><td>어른, 교사 등록</td></tr>
+      </tbody>
+    </table></div>
+    <p>세 안 모두 공통 로직(빈칸 채우기, 크기별 판, 한 번에 한 명, 0.5초 멈춤)을 씁니다. 안을 고르시면 그 안으로 구현하고, 문서의 검증 계획대로 에뮬레이터와 두 태블릿에서 확인합니다.</p>
+  </section>
+</div>
+
+<script>
+'use strict';
+const W = 1280, H = 800, CX = 640, CY = 455;
+const DIRS = ['F', 'L', 'R', 'U', 'D'];
+const SIZES = ['N', 'B', 'S'];
+const FACE_W = { N: 240, B: 300, S: 178 };               // target face width per circle, px
+const POSE = { F: [0, 0], L: [-0.55, 0], R: [0.55, 0], U: [0, -0.5], D: [0, 0.5] };
+const HOLD_S = 0.5;
+const DIR_NAME = { F: '정면', L: '왼쪽', R: '오른쪽', U: '위', D: '아래' };
+const DIR_KIDS = { F: '앞을 보면서', L: '왼쪽을 보면서', R: '오른쪽을 보면서', U: '위를 보면서', D: '아래를 보면서' };
+const DIR_ADULT = { F: '정면을 보고', L: '고개를 왼쪽으로 돌려', R: '고개를 오른쪽으로 돌려', U: '고개를 살짝 들어', D: '고개를 살짝 숙여' };
+const SIZE_KIDS = { N: '', B: '이번엔 가까이 와서 ', S: '이번엔 한 걸음 뒤로 가서 ' };
+const SIZE_ADULT = { N: '', B: '조금 가까이 와서 ', S: '한 걸음 물러나서 ' };
+
+const ui = { opt: 'A', aud: 'kids', mode: 'auto' };
+const $ = id => document.getElementById(id);
+const cv = $('cam'), g = cv.getContext('2d');
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// ---------- the simulated person ----------
+const me = { x: CX, y: CY, fw: 230, yaw: 0, pitch: 0 };
+const other = { x: 1080, y: 470, fw: 150, yaw: -0.2, pitch: 0, on: 0 };   // on: 0..1 fade
+const pointer = { yaw: 0, pitch: 0, fw: 240 };
+let scenario = null, scenarioUntil = 0;
+let got = new Set(), hold = 0, holdKey = null, pauseUntil = 0, doneAt = 0, wobble = 0;
+const sparks = [];
+
+function cellKey(d, s) { return d + s; }
+function round() { return SIZES.find(s => DIRS.some(d => !got.has(cellKey(d, s)))) || null; }
+function suggestion() {
+  const s = round(); if (!s) return null;
+  return { d: DIRS.find(d => !got.has(cellKey(d, s))), s };
+}
+function classifyDir(p) {
+  if (Math.abs(p.yaw) > 0.85 || Math.abs(p.pitch) > 0.8) return 'over';
+  if (p.yaw <= -0.35) return 'L'; if (p.yaw >= 0.35) return 'R';
+  if (p.pitch <= -0.33) return 'U'; if (p.pitch >= 0.33) return 'D';
+  if (Math.abs(p.yaw) < 0.18 && Math.abs(p.pitch) < 0.18) return 'F';
+  return null;
+}
+function classifySize(fw) {
+  if (fw < 130) return null;
+  if (fw <= 202) return 'S'; if (fw >= 216 && fw <= 266) return 'N'; if (fw >= 280) return 'B';
+  return null;
+}
+function inCircle(p) { return Math.hypot((p.x - CX) / 150, (p.y - CY) / 190) < 1; }
+
+// ---------- what the guide says ----------
+function words(state) {
+  const k = ui.aud === 'kids';
+  const sg = suggestion();
+  if (state === 'done') return [k ? '별 15개 다 모았다!' : '얼굴 등록이 끝났습니다', k ? '이제 이름을 알려 줄래?' : '이름을 입력해 주세요'];
+  if (state === 'away') return [k ? '어디 갔어? 다시 화면 앞에 와 줄래?' : '화면 앞에 서 주세요', ''];
+  if (state === 'two') return [k ? '한 번에 한 친구만 등록할게!' : '한 번에 한 분씩 등록합니다', k ? '다른 친구는 뒤에서 잠깐 기다려 줄래?' : '다른 분은 잠시 화면 밖으로 비켜 주세요'];
+  if (state === 'off') return [k ? '동그라미 쪽으로 조금만 와 줄래?' : '화면 가운데로 와 주세요', k ? '거기 있으면 내가 잘 안 보여' : '얼굴이 원 밖에 있습니다'];
+  if (state === 'over') return [k ? '우와, 너무 많이 돌렸어!' : '조금만 덜 돌려 주세요', k ? '조금만 덜 돌려 볼까?' : '얼굴이 옆으로 너무 돌아가면 저장되지 않습니다'];
+  const target = {
+    A: k ? `${SIZE_KIDS[sg.s]}${DIR_KIDS[sg.d]} 하얀 얼굴이랑 똑같이 해 볼까?` : `${SIZE_ADULT[sg.s]}${DIR_ADULT[sg.d]} 하얀 얼굴에 맞춰 주세요`,
+    B: k ? `${SIZE_KIDS[sg.s]}빛나는 점을 ${DIR_NAME[sg.d] === '정면' ? '가운데' : DIR_NAME[sg.d]} 별에 데려가 줄래?` : `${SIZE_ADULT[sg.s]}고개로 점을 ${DIR_NAME[sg.d] === '정면' ? '가운데' : DIR_NAME[sg.d]} 별에 옮겨 주세요`,
+    C: k ? `${SIZE_KIDS[sg.s]}얼굴을 네모에 맞추고 ${DIR_KIDS[sg.d].replace('보면서', '봐 줄래?')}` : `${SIZE_ADULT[sg.s]}얼굴을 틀에 맞추고 ${DIR_ADULT[sg.d].replace(/돌려$|들어$|숙여$/, m => ({ '돌려': '돌려 주세요', '들어': '들어 주세요', '숙여': '숙여 주세요' })[m]).replace('정면을 보고', '정면을 봐 주세요')}`,
+  }[ui.opt];
+  let sub = '';
+  const want = FACE_W[sg.s];
+  if (state === 'hold') sub = k ? '좋아, 그대로! 하나, 둘…' : '좋습니다. 잠시 그대로 계세요';
+  else if (me.fw < want * 0.88) sub = k ? '조금 더 가까이 와 볼까?' : '조금 더 가까이 와 주세요';
+  else if (me.fw > want * 1.12) sub = k ? '조금만 뒤로 가 볼까?' : '조금 뒤로 물러나 주세요';
+  else sub = k ? '크기는 딱 좋아!' : '거리는 알맞습니다';
+  return [target, sub];
+}
+
+// ---------- update ----------
+let last = performance.now(), lastSay = '', lastSub = '', lastAlert = false;
+function step(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  const t = now / 1000;
+  if (scenario && now > scenarioUntil) scenario = null;
+  const sg = suggestion();
+
+  // Where the person tries to be.
+  let ty = 0, tp = 0, tfw = 240, tx = CX, tyy = CY;
+  if (ui.mode === 'manual') { ty = pointer.yaw; tp = pointer.pitch; tfw = pointer.fw; }
+  else if (sg && now > pauseUntil) { [ty, tp] = POSE[sg.d]; tfw = FACE_W[sg.s]; }
+  else if (sg) { ty = me.yaw * 0.6; tp = me.pitch * 0.6; tfw = me.fw; }
+  if (scenario === 'off') tx = CX + 300;
+  if (scenario === 'over') ty = (sg && sg.d === 'L' ? -1 : 1) * 1.0;
+  if (scenario === 'away') tx = CX + 900;
+  const kTurn = ui.mode === 'manual' ? 10 : 2.4, kMove = ui.mode === 'manual' ? 8 : 1.6;
+  wobble = ui.mode === 'auto' && !reduced ? 0.03 : 0;
+  me.yaw += (ty + Math.sin(t * 2.1) * wobble - me.yaw) * Math.min(1, kTurn * dt);
+  me.pitch += (tp + Math.sin(t * 1.7 + 1) * wobble - me.pitch) * Math.min(1, kTurn * dt);
+  me.fw += (tfw - me.fw) * Math.min(1, kMove * dt);
+  me.x += (tx - me.x) * Math.min(1, 2.2 * dt);
+  me.y += (tyy - me.y) * Math.min(1, 2.2 * dt);
+  other.on += ((scenario === 'two' ? 1 : 0) - other.on) * Math.min(1, 3 * dt);
+
+  // What the kiosk sees.
+  let state;
+  const visible = me.x < W + 100;
+  if (!sg) state = 'done';
+  else if (!visible || me.x > W - 60) state = 'away';
+  else if (other.on > 0.5) state = 'two';
+  else if (!inCircle(me)) state = 'off';
+  else {
+    const d = classifyDir(me), s = classifySize(me.fw);
+    if (d === 'over') state = 'over';
+    else if (d && s && !got.has(cellKey(d, s))) {
+      state = 'hold';
+      const key = cellKey(d, s);
+      if (holdKey !== key) { holdKey = key; hold = 0; }
+      hold += dt / HOLD_S;
+      if (hold >= 1) collect(key);
+    } else state = 'aim';
+  }
+  if (state !== 'hold') { hold = Math.max(0, hold - dt * 3); if (hold === 0) holdKey = null; }
+  if (state === 'done' && !doneAt) { doneAt = now; celebrate(); }
+  if (doneAt && ui.mode === 'auto' && now - doneAt > 4500) restart();
+
+  // Bubble.
+  const [say, sub] = words(state);
+  if (say !== lastSay) { $('say').textContent = say; lastSay = say; }
+  if (sub !== lastSub) { $('sub').textContent = sub; lastSub = sub; }
+  const alert = state === 'two' || state === 'off' || state === 'over' || state === 'away';
+  if (alert !== lastAlert) { $('bubble').classList.toggle('alert', alert); if (alert) gesture('tilt'); lastAlert = alert; }
+
+  draw(state, now);
+  for (let i = sparks.length - 1; i >= 0; i--) { const p = sparks[i]; p.t += dt; if (p.t > p.life) sparks.splice(i, 1); }
+  requestAnimationFrame(step);
+}
+
+function collect(key) {
+  got.add(key); hold = 0; holdKey = null;
+  pauseUntil = performance.now() + 450;
+  const from = facePoint(me);
+  sparks.push({ kind: 'fly', x0: from[0], y0: from[1], x1: 1180, y1: 760, t: 0, life: 0.7 });
+  for (let i = 0; i < (reduced ? 0 : 8); i++) sparks.push({ kind: 'burst', x0: from[0], y0: from[1], a: i / 8 * Math.PI * 2, t: 0, life: 0.6 });
+  gesture('hop');
+  renderChrome();
+}
+function celebrate() {
+  if (reduced) return;
+  for (let i = 0; i < 40; i++) sparks.push({ kind: 'confetti', x0: CX, y0: CY - 40, a: Math.random() * Math.PI * 2, v: 200 + Math.random() * 380, t: 0, life: 2.4, c: ['#ffc93c', '#ff9a62', '#b49cf0', '#7fd3b0'][i % 4] });
+  gesture('hop');
+}
+function restart() { got = new Set(); hold = 0; holdKey = null; doneAt = 0; pauseUntil = performance.now() + 600; me.fw = 230; renderChrome(); }
+function gesture(name) {
+  const a = $('avatar'); a.classList.remove('hop', 'tilt'); void a.offsetWidth; a.classList.add(name);
+}
+
+// ---------- drawing ----------
+const bg = document.createElement('canvas'); bg.width = W; bg.height = H;
+(function paintRoom() {
+  const b = bg.getContext('2d');
+  const sky = b.createLinearGradient(0, 0, 0, H); sky.addColorStop(0, '#d9cbbd'); sky.addColorStop(1, '#a8968a');
+  b.fillStyle = sky; b.fillRect(0, 0, W, H);
+  b.filter = 'blur(18px)';
+  b.fillStyle = '#efe6d8'; b.fillRect(80, 60, 300, 380);          // window
+  b.fillStyle = '#8a6f5c'; b.fillRect(900, 120, 320, 30); b.fillRect(900, 230, 320, 30);   // shelves
+  b.fillStyle = '#6f8f7a'; b.beginPath(); b.ellipse(1010, 105, 40, 30, 0, 0, 7); b.fill();
+  b.fillStyle = '#c7a98f'; b.fillRect(0, 610, W, 190);             // wall panel
+  b.filter = 'none';
+})();
+
+function facePoint(p) { return [p.x + Math.sin(p.yaw * 0.9) * p.fw * 0.36, p.y + Math.sin(p.pitch * 0.8) * p.fw * 0.3]; }
+
+function drawPerson(p, sweater, alpha = 1) {
+  const rx = p.fw / 2, ry = p.fw * 0.62;
+  g.save(); g.globalAlpha = alpha;
+  g.fillStyle = sweater;
+  g.beginPath(); g.ellipse(p.x, p.y + ry + p.fw * 0.72, p.fw * 1.25, p.fw * 0.62, 0, Math.PI, 0); g.lineTo(p.x + p.fw * 1.25, H + 10); g.lineTo(p.x - p.fw * 1.25, H + 10); g.fill();
+  g.fillStyle = '#d9a383'; g.fillRect(p.x - rx * 0.42, p.y + ry * 0.6, rx * 0.84, p.fw * 0.5);
+  const sy = Math.sin(p.yaw * 0.9), sp = Math.sin(p.pitch * 0.8);
+  const skin = g.createRadialGradient(p.x - rx * 0.3 + sy * rx * 0.3, p.y - ry * 0.3, rx * 0.2, p.x, p.y, rx * 1.3);
+  skin.addColorStop(0, '#f6cfb2'); skin.addColorStop(1, '#d39a78');
+  g.fillStyle = '#c98f6e';        // ear on the far side of the turn
+  g.beginPath(); g.ellipse(p.x - Math.sign(sy || 1) * rx * 0.96, p.y + ry * 0.05, rx * 0.16, ry * 0.22, 0, 0, 7); g.fill();
+  g.fillStyle = skin; g.beginPath(); g.ellipse(p.x, p.y, rx, ry, 0, 0, 7); g.fill();
+  g.fillStyle = '#3b2a22';        // hair
+  g.beginPath(); g.ellipse(p.x - sy * rx * 0.12, p.y - ry * 0.32 - sp * ry * 0.1, rx * 1.04, ry * 0.72, 0, Math.PI * 1.02, Math.PI * 1.98); g.fill();
+  g.beginPath(); g.ellipse(p.x - sy * rx * 0.12, p.y - ry * 0.42, rx * 1.02, ry * 0.5, 0, Math.PI, 0); g.fill();
+  const fx = p.x + sy * rx * 0.62, fy = p.y + sp * ry * 0.55 + ry * 0.08, sq = Math.cos(p.yaw * 0.9), spread = rx * 0.38 * sq;
+  g.fillStyle = '#2b1d18';
+  for (const s of [-1, 1]) {
+    g.beginPath(); g.ellipse(fx + s * spread, fy - ry * 0.06, rx * 0.075 * sq + 1, ry * 0.055 * Math.cos(p.pitch * 0.8), 0, 0, 7); g.fill();
+    g.fillRect(fx + s * spread - rx * 0.12 * sq, fy - ry * 0.2, rx * 0.24 * sq, ry * 0.035);
+  }
+  g.strokeStyle = '#b97e5e'; g.lineWidth = p.fw * 0.025; g.lineCap = 'round';
+  g.beginPath(); g.moveTo(fx + sy * rx * 0.05, fy); g.lineTo(fx + sy * rx * 0.2, fy + ry * 0.2); g.lineTo(fx, fy + ry * 0.24); g.stroke();
+  g.strokeStyle = '#a4554a'; g.lineWidth = p.fw * 0.03;
+  g.beginPath(); g.ellipse(fx + sy * rx * 0.05, fy + ry * 0.36, rx * 0.2 * sq + 2, ry * 0.06, 0, 0.15, Math.PI - 0.15); g.stroke();
+  g.restore();
+}
+
+function dimOutside(rx, ry, alpha) {
+  g.save(); g.fillStyle = `rgba(28,20,36,${alpha})`;
+  g.beginPath(); g.rect(0, 0, W, H); g.ellipse(CX, CY, rx, ry, 0, 0, 7); g.fill('evenodd'); g.restore();
+}
+function liveRing(p, color, dash) {
+  g.save(); g.strokeStyle = color; g.lineWidth = 4; g.setLineDash(dash ? [10, 10] : []);
+  g.beginPath(); g.ellipse(p.x, p.y, p.fw * 0.58, p.fw * 0.74, 0, 0, 7); g.stroke(); g.restore();
+}
+
+// Rotates a head-local point (x right, y down, z toward the camera) by yaw and pitch.
+function rot(v, yaw, pitch) {
+  const x = v[0] * Math.cos(yaw) + v[2] * Math.sin(yaw), z0 = -v[0] * Math.sin(yaw) + v[2] * Math.cos(yaw);
+  return [x, v[1] * Math.cos(pitch) + z0 * Math.sin(pitch), -v[1] * Math.sin(pitch) + z0 * Math.cos(pitch)];
+}
+function ghostHead(cx, cy, R, yaw, pitch, color, fill) {
+  const a = yaw * 1.1, b = pitch * 1.1, Ry = R * 1.24;
+  g.save();
+  g.fillStyle = fill; g.strokeStyle = color; g.lineWidth = 5;
+  g.beginPath(); g.ellipse(cx, cy, R, Ry, 0, 0, 7); g.fill(); g.stroke();
+  // The face spot: where the face points.
+  const f = rot([0, 0.05, 1], a, b);
+  const sx = cx + f[0] * R * 0.78, sy = cy + f[1] * Ry * 0.78;
+  const glow = g.createRadialGradient(sx, sy, 2, sx, sy, R * 0.55);
+  glow.addColorStop(0, 'rgba(255,255,255,.55)'); glow.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = glow; g.beginPath(); g.ellipse(sx, sy, R * 0.55, R * 0.62, 0, 0, 7); g.fill();
+  // Two great circles through the face: the middle line and the eye line.
+  g.lineWidth = 3.5; g.strokeStyle = color;
+  for (const ring of [t => [0, Math.sin(t), Math.cos(t)], t => [Math.sin(t) * 0.99, -0.12, Math.cos(t) * 0.99]]) {
+    g.beginPath(); let pen = false;
+    for (let i = 0; i <= 96; i++) {
+      const v = rot(ring(i / 96 * Math.PI * 2), a, b);
+      const px = cx + v[0] * R, py = cy + v[1] * Ry;
+      if (v[2] > 0.02) { pen ? g.lineTo(px, py) : g.moveTo(px, py); pen = true; } else pen = false;
+    }
+    g.stroke();
+  }
+  g.restore();
+}
+function star(x, y, r, fill, stroke, lw = 3) {
+  g.beginPath();
+  for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? r * 0.5 : r; g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); }
+  g.closePath(); g.lineJoin = 'round';
+  if (fill) { g.fillStyle = fill; g.fill(); }
+  if (stroke) { g.strokeStyle = stroke; g.lineWidth = lw; g.stroke(); }
+}
+function holdArc(cx, cy, rx, ry) {
+  if (hold <= 0) return;
+  g.save(); g.strokeStyle = '#ffc93c'; g.lineWidth = 9; g.lineCap = 'round';
+  g.beginPath(); g.ellipse(cx, cy, rx, ry, 0, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, hold)); g.stroke(); g.restore();
+}
+
+function draw(state, now) {
+  g.drawImage(bg, 0, 0);
+  if (other.on > 0.02) drawPerson(other, '#8c6f9e', other.on);
+  drawPerson(me, '#5d7fae');
+  const sg = suggestion();
+  const busy = state === 'two' || state === 'away';
+  if (other.on > 0.3) {     // the second face gets a quiet grey box
+    g.save(); g.globalAlpha = other.on; g.strokeStyle = 'rgba(255,255,255,.8)'; g.lineWidth = 3; g.setLineDash([8, 8]);
+    g.strokeRect(other.x - other.fw * 0.62, other.y - other.fw * 0.78, other.fw * 1.24, other.fw * 1.5); g.restore();
+  }
+  if (sg) {
+    const fw = FACE_W[sg.s], rx = fw * 0.62, ry = fw * 0.8;
+    if (ui.opt === 'A') drawA(sg, fw, rx, ry, state, busy);
+    if (ui.opt === 'B') drawB(sg, fw, rx, ry, state, busy);
+    if (ui.opt === 'C') drawC(sg, fw, rx, ry, state, busy);
+  } else dimOutside(170, 220, 0.25);
+  for (const p of sparks) {
+    const k = p.t / p.life;
+    if (p.kind === 'fly') { const e = 1 - Math.pow(1 - k, 3); star(p.x0 + (p.x1 - p.x0) * e, p.y0 + (p.y1 - p.y0) * e - Math.sin(k * Math.PI) * 120, 26 * (1 - k * 0.4), '#ffc93c', '#f4a81d'); }
+    if (p.kind === 'burst') { const d = 30 + k * 90; g.globalAlpha = 1 - k; star(p.x0 + Math.cos(p.a) * d, p.y0 + Math.sin(p.a) * d, 10, '#ffe08a'); g.globalAlpha = 1; }
+    if (p.kind === 'confetti') { g.globalAlpha = Math.max(0, 1 - k * 0.8); star(p.x0 + Math.cos(p.a) * p.v * p.t, p.y0 + Math.sin(p.a) * p.v * p.t + 160 * p.t * p.t, 14, p.c); g.globalAlpha = 1; }
+  }
+}
+
+// A: a white wire head at the target size and turn; my face ring turns mint when the size fits.
+function drawA(sg, fw, rx, ry, state, busy) {
+  dimOutside(rx * 1.35, ry * 1.25, 0.22);
+  const [ty, tp] = POSE[sg.d];
+  const ok = state === 'hold';
+  ghostHead(CX, CY, fw * 0.52, ty, tp, ok ? 'rgba(255,214,102,.95)' : 'rgba(255,255,255,.82)', ok ? 'rgba(255,214,102,.16)' : 'rgba(255,255,255,.14)');
+  holdArc(CX, CY, fw * 0.52 + 14, fw * 0.645 + 14);
+  if (!busy) liveRing(me, Math.abs(me.fw / fw - 1) < 0.12 ? 'rgba(127,211,176,.95)' : 'rgba(255,255,255,.7)', true);
+}
+
+// B: five star slots inside the circle; a glowing dot follows the head.
+function drawB(sg, fw, rx, ry, state, busy) {
+  dimOutside(rx * 1.3, ry * 1.2, 0.3);
+  const R = rx * 1.3, Ry = ry * 1.2;
+  const sizeOk = Math.abs(me.fw / fw - 1) < 0.12;
+  g.save(); g.strokeStyle = sizeOk ? 'rgba(127,211,176,.95)' : 'rgba(255,255,255,.9)'; g.lineWidth = 6; g.setLineDash(sizeOk ? [] : [16, 12]);
+  g.beginPath(); g.ellipse(CX, CY, R, Ry, 0, 0, 7); g.stroke(); g.restore();
+  if (!busy) liveRing(me, 'rgba(255,255,255,.55)', false);
+  const slot = d => [CX + POSE[d][0] / 0.55 * R * 0.6, CY + POSE[d][1] / 0.5 * Ry * 0.58];
+  const t = performance.now() / 1000;
+  for (const d of DIRS) {
+    const [x, y] = slot(d), have = got.has(cellKey(d, sg.s)), now = d === sg.d;
+    const pulse = now && !reduced ? 1 + Math.sin(t * 5) * 0.08 : 1;
+    star(x, y, (now ? 34 : 26) * pulse, have ? '#ffc93c' : now ? 'rgba(255,201,60,.35)' : 'rgba(255,255,255,.18)', have ? '#f4a81d' : 'rgba(255,255,255,.9)', now ? 4 : 2.5);
+  }
+  if (!busy) {
+    const dx = CX + Math.max(-1.3, Math.min(1.3, me.yaw / 0.55)) * R * 0.6, dy = CY + Math.max(-1.3, Math.min(1.3, me.pitch / 0.5)) * Ry * 0.58;
+    const glow = g.createRadialGradient(dx, dy, 2, dx, dy, 34);
+    glow.addColorStop(0, 'rgba(255,255,255,1)'); glow.addColorStop(0.4, 'rgba(255,235,180,.9)'); glow.addColorStop(1, 'rgba(255,235,180,0)');
+    g.fillStyle = glow; g.beginPath(); g.arc(dx, dy, 34, 0, 7); g.fill();
+    if (hold > 0) { g.save(); g.strokeStyle = '#ffc93c'; g.lineWidth = 6; g.beginPath(); g.arc(dx, dy, 26, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, hold)); g.stroke(); g.restore(); }
+  }
+}
+
+// C: corner brackets for the size, a yaw scale above and a pitch scale beside, a filling bar.
+function drawC(sg, fw, rx, ry, state, busy) {
+  dimOutside(rx * 1.3, ry * 1.2, 0.18);
+  const bw = fw * 1.1, bh = fw * 1.4, x0 = CX - bw / 2, y0 = CY - bh / 2;
+  const sizeOk = Math.abs(me.fw / fw - 1) < 0.12;
+  const corners = (x, y, w, h, color, len, lw) => {
+    g.save(); g.strokeStyle = color; g.lineWidth = lw; g.lineCap = 'round'; g.beginPath();
+    for (const [cx, cy, sx, sy] of [[x, y, 1, 1], [x + w, y, -1, 1], [x, y + h, 1, -1], [x + w, y + h, -1, -1]]) { g.moveTo(cx, cy + sy * len); g.lineTo(cx, cy); g.lineTo(cx + sx * len, cy); }
+    g.stroke(); g.restore();
+  };
+  corners(x0, y0, bw, bh, sizeOk ? 'rgba(127,211,176,.98)' : 'rgba(255,255,255,.95)', 46, 7);
+  if (!busy) { const lw = me.fw * 1.1, lh = me.fw * 1.4; corners(me.x - lw / 2, me.y - lh / 2, lw, lh, 'rgba(255,255,255,.55)', 26, 3); }
+  // Yaw scale above the frame.
+  const sx0 = CX - 230, sx1 = CX + 230, syy = y0 - 34;
+  const toX = v => CX + Math.max(-1, Math.min(1, v / 0.9)) * 230;
+  g.save(); g.strokeStyle = 'rgba(255,255,255,.75)'; g.lineWidth = 3;
+  g.beginPath(); g.moveTo(sx0, syy); g.lineTo(sx1, syy); g.stroke();
+  for (let i = -4; i <= 4; i++) { g.beginPath(); g.moveTo(CX + i * 57.5, syy - (i ? 7 : 12)); g.lineTo(CX + i * 57.5, syy + (i ? 7 : 12)); g.stroke(); }
+  const [ty, tp] = POSE[sg.d];
+  const zone = (a, b, horiz) => { g.fillStyle = 'rgba(255,201,60,.45)'; horiz ? g.fillRect(Math.min(a, b), syy - 9, Math.abs(b - a), 18) : g.fillRect(x0 + bw + 38 - 9, Math.min(a, b), 18, Math.abs(b - a)); };
+  if (sg.d === 'L') zone(toX(-0.35), toX(-0.85), true); else if (sg.d === 'R') zone(toX(0.35), toX(0.85), true); else zone(toX(-0.17), toX(0.17), true);
+  const px = x0 + bw + 38, toY = v => CY + Math.max(-1, Math.min(1, v / 0.8)) * 190;
+  g.beginPath(); g.moveTo(px, CY - 190); g.lineTo(px, CY + 190); g.stroke();
+  for (let i = -4; i <= 4; i++) { g.beginPath(); g.moveTo(px - (i ? 7 : 12), CY + i * 47.5); g.lineTo(px + (i ? 7 : 12), CY + i * 47.5); g.stroke(); }
+  if (sg.d === 'U') zone(toY(-0.33), toY(-0.8), false); else if (sg.d === 'D') zone(toY(0.33), toY(0.8), false); else zone(toY(-0.17), toY(0.17), false);
+  if (!busy) {
+    g.fillStyle = '#fff'; g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(toX(me.yaw), syy + 4); g.lineTo(toX(me.yaw) - 11, syy + 22); g.lineTo(toX(me.yaw) + 11, syy + 22); g.closePath(); g.fill(); g.stroke();
+    g.beginPath(); g.moveTo(px - 4, toY(me.pitch)); g.lineTo(px - 22, toY(me.pitch) - 11); g.lineTo(px - 22, toY(me.pitch) + 11); g.closePath(); g.fill(); g.stroke();
+  }
+  // Hold bar under the frame.
+  g.fillStyle = 'rgba(255,255,255,.3)'; g.fillRect(CX - 120, y0 + bh + 22, 240, 12);
+  g.fillStyle = '#ffc93c'; g.fillRect(CX - 120, y0 + bh + 22, 240 * Math.min(1, hold), 12);
+  g.restore();
+}
+
+// ---------- page chrome ----------
+function renderChrome() {
+  const n = got.size, k = ui.aud === 'kids';
+  $('count').textContent = k ? `★ ${n} / 15` : `${n} / 15`;
+  const steps = $('steps');
+  steps.hidden = ui.opt !== 'C';
+  if (ui.opt === 'C') {
+    const sg = suggestion(), s = sg ? sg.s : 'S';
+    const label = { N: '보통', B: '가까이', S: '멀리' }[s];
+    steps.innerHTML = `<span class="glass">${label}</span>` + DIRS.map(d => `<span class="glass ${got.has(cellKey(d, s)) ? 'done' : sg && sg.d === d ? 'now' : ''}">${DIR_NAME[d]}</span>`).join('');
+  }
+}
+function fit() {
+  const d = $('device'), s = d.clientWidth / W;
+  $('stage').style.transform = `scale(${s})`;
+}
+new ResizeObserver(fit).observe($('device'));
+
+function press(segId, attr, value) {
+  document.querySelectorAll(`#${segId} button`).forEach(b => b.setAttribute('aria-pressed', String(b.dataset[attr] === value)));
+}
+$('optSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; ui.opt = b.dataset.opt; press('optSeg', 'opt', ui.opt); lastSay = ''; renderChrome(); });
+$('audSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; ui.aud = b.dataset.aud; press('audSeg', 'aud', ui.aud); $('stage').dataset.aud = ui.aud; lastSay = ''; renderChrome(); });
+$('modeSeg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return; ui.mode = b.dataset.mode; press('modeSeg', 'mode', ui.mode);
+  $('distWrap').hidden = ui.mode !== 'manual'; pointer.fw = +$('dist').value; restart();
+});
+document.querySelectorAll('[data-sc]').forEach(b => b.addEventListener('click', () => {
+  if (b.dataset.sc === 'reset') { scenario = null; restart(); return; }
+  scenario = b.dataset.sc; scenarioUntil = performance.now() + (scenario === 'two' ? 4200 : 3200);
+}));
+$('dist').addEventListener('input', e => { pointer.fw = +e.target.value; });
+const dev = $('device');
+function aim(e) {
+  if (ui.mode !== 'manual') return;
+  const r = dev.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * W, y = (e.clientY - r.top) / r.height * H;
+  pointer.yaw = Math.max(-1, Math.min(1, (x - CX) / 380));
+  pointer.pitch = Math.max(-1, Math.min(1, (y - CY) / 280));
+}
+dev.addEventListener('pointermove', aim);
+dev.addEventListener('pointerdown', aim);
+dev.addEventListener('wheel', e => {
+  if (ui.mode !== 'manual') return; e.preventDefault();
+  pointer.fw = Math.max(140, Math.min(340, pointer.fw - Math.sign(e.deltaY) * 12)); $('dist').value = pointer.fw;
+}, { passive: false });
+
+renderChrome(); fit(); requestAnimationFrame(step);
+</script>
