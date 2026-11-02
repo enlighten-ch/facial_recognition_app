@@ -63,14 +63,12 @@ face "$NEW" LEFT 2 0.85; sleep 1.5; shot 07-reg-closer
 check "크기가 작으면 가까이 오라는 안내" 'ui_has "조금 더 가까이 와 볼까?"'
 check "원 사이 크기는 받지 않음" 'ui_has "★ 별 1 / 15"'
 face "$NEW" UP 2 0.73; sleep 1.5
-check "다른 판의 크기는 받지 않음 (위·멀리)" 'ui_has "★ 별 1 / 15"'
-face "$NEW" UP 2 1.0; sleep 1.5
-check "같은 판이면 권하지 않은 방향도 받음 (위·보통)" 'ui_has "★ 별 2 / 15"'
+check "권하는 칸이 아니어도 빈칸이면 받음 (위·멀리)" 'ui_has "★ 별 2 / 15"'
 for d in LEFT RIGHT UP DOWN; do face "$NEW" $d 2 1.0; sleep 0.6; done
 sleep 1; shot 08-reg-big
 check "보통 판을 마치면 가까이 판" 'ui_has "이번엔 가까이 와서 앞을 보면서 큰 동그라미를 꽉 채워 줄래?"'
 for d in FRONT LEFT RIGHT UP DOWN; do face "$NEW" $d 2 1.18; sleep 0.6; done
-for d in FRONT LEFT RIGHT UP DOWN; do face "$NEW" $d 2 0.73; sleep 0.6; done
+for d in FRONT LEFT RIGHT DOWN; do face "$NEW" $d 2 0.73; sleep 0.6; done
 shot 09-celebration
 sleep 3; shot 10-form
 check "이름 입력 화면" 'ui_has "선생님, 이름을 적어 주세요"'

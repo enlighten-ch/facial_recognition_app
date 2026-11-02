@@ -131,7 +131,7 @@ class KioskFlowTest {
     private val circles = FlowConfig(candidateSwitchFrames = 1, selectedGraceFrames = 1, registration = RegistrationConfig(holdFrames = 1))
 
     @Test
-    fun `with circle steps the sizes come in rounds and any direction of the round is filled`() {
+    fun `with circle steps the normal circle comes first, and any empty cell is filled`() {
         val (flow, _) = flow(config = circles)
         flow.startRegistration()
         val r = { flow.state.registration!! }
@@ -142,15 +142,11 @@ class KioskFlowTest {
         flow.onObservation(sized(HeadDirection.LEFT, 0.85f))
         assertEquals(CaptureProblem.COME_CLOSER, r().problem)
         assertTrue(flow.state.detail.contains("가까이"))
-        // A big face looking left fits the next round, not this one: refused.
+        // A big face looking left is not what the guide asked for, but its cell is empty: kept.
         flow.onObservation(sized(HeadDirection.LEFT, 1.18f))
-        assertEquals(CaptureProblem.STEP_BACK, r().problem)
-        assertEquals(1, r().total)
-        // Looking up at the right size is kept although the guide asked for left.
-        flow.onObservation(sized(HeadDirection.UP, 1f))
         assertEquals(2, r().total)
         assertEquals(HeadDirection.LEFT to FaceCircle.NORMAL, r().next to r().circle)
-        listOf(HeadDirection.LEFT, HeadDirection.RIGHT, HeadDirection.DOWN).forEach { flow.onObservation(sized(it, 1f)) }
+        listOf(HeadDirection.LEFT, HeadDirection.RIGHT, HeadDirection.UP, HeadDirection.DOWN).forEach { flow.onObservation(sized(it, 1f)) }
         assertEquals(HeadDirection.FRONT to FaceCircle.BIG, r().next to r().circle)
         flow.onObservation(sized(HeadDirection.FRONT, 1.5f))
         assertEquals(CaptureProblem.STEP_BACK, r().problem)

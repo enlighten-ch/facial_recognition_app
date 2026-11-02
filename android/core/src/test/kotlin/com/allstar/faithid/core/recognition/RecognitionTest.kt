@@ -233,16 +233,12 @@ class RegistrationSessionTest {
     }
 
     @Test
-    fun `fills any empty direction of the current size round, never another size`() {
+    fun `fills whatever empty cell the pose and distance match, in any order`() {
         val session = RegistrationSession(RegistrationConfig())
-        // The guide suggests front/normal; looking up at normal size fills up/normal right away.
-        val up = session.hold(HeadDirection.UP, 1f)
-        assertEquals(RegistrationCell(HeadDirection.UP, FaceCircle.NORMAL), (up as RegistrationSession.Outcome.Accepted).cell)
+        // The guide suggests front/normal, but a small, upward face fills up/small right away.
+        val up = session.hold(HeadDirection.UP, 0.73f)
+        assertEquals(RegistrationCell(HeadDirection.UP, FaceCircle.SMALL), (up as RegistrationSession.Outcome.Accepted).cell)
         assertEquals(RegistrationCell(HeadDirection.FRONT, FaceCircle.NORMAL), session.suggestion)
-        // A small face fits a later round's circle: refused, the round's circle is asked for.
-        val small = session.hold(HeadDirection.LEFT, 0.73f) as RegistrationSession.Outcome.WrongSize
-        assertEquals(FaceCircle.NORMAL, small.expected)
-        assertEquals(1, session.totalCollected)
         listOf(1f, 1.18f, 0.73f).forEach { size ->
             HeadDirection.entries.forEach { d ->
                 if (!session.has(RegistrationCell(d, session.circleFor(size)!!))) assertTrue(accepted.isInstance(session.hold(d, size)))
@@ -285,13 +281,13 @@ class RegistrationSessionTest {
         assertEquals(FaceCircle.SMALL, session.circleFor(0.66f))
         assertNull(session.circleFor(0.85f))
         assertNull(session.circleFor(1.5f))
-        // Between the normal and the small circle: no cell; the guide asks for the round's circle.
+        // Between the normal and the small circle: no cell; the guide asks for the suggested circle.
         val between = session.hold(HeadDirection.FRONT, 0.85f) as RegistrationSession.Outcome.WrongSize
         assertEquals(FaceCircle.NORMAL, between.expected)
         assertEquals(0.85f, between.ratio, 1e-4f)
-        // Front/normal done: front is finished for this round, whatever the size.
+        // Front/normal done: a normal-sized front face asks for the next open front circle.
         session.hold(HeadDirection.FRONT, 1f)
-        assertEquals(RegistrationSession.Outcome.WrongDirection(HeadDirection.LEFT, HeadDirection.FRONT), session.hold(HeadDirection.FRONT, 1.18f))
+        assertEquals(FaceCircle.BIG, (session.hold(HeadDirection.FRONT, 1f) as RegistrationSession.Outcome.WrongSize).expected)
     }
 
     @Test
