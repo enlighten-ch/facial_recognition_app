@@ -3,6 +3,8 @@
 # Usage: [BLUR=1] [NOPRINT=1] tools/ui_walkthrough_kiosk.sh <serial> <out-dir> <known-identity|register>
 #   BLUR=1     real tablets: the front camera may show people, keep only heavily blurred screenshots
 #   NOPRINT=1  a real label printer is attached: do not press the print button
+#   NOSAVE=1   real tablets with real people: check the registration screens up to the name form, then go
+#              home without saving, so no test person reaches the server (pass - as the known identity)
 #   register   registers a test person first and uses it as the known face
 set -uo pipefail
 SERIAL="$1"; OUT="$2"; KNOWN="$3"
@@ -43,10 +45,12 @@ shot 01-idle
 check "기본 안내 (빛이)" 'ui_has "안녕! 나는 빛이야. 동그라미 안에 얼굴을 보여 줄래?"'
 check "설정 버튼은 짧게 누르면 아무 반응 없음" 'ui_tap opSettingsButton; sleep 1; ! ui_has "안내 문구"'
 
+if [ "${NOSAVE:-0}" != 1 ]; then
 seen "$KNOWN"; sleep 2; shot 02-recognized
 check "인식: 이름표 받기 버튼" 'ui_has "이름표 받기"'
 check "인식: 나 아닌데? 버튼" 'ui_has "나 아닌데?"'
 noface; sleep 4
+fi
 
 seen "$NEW"; sleep 2; shot 03-unknown
 check "처음 보는 얼굴 안내" 'ui_has "처음 보는 얼굴이네! 우리 친구 할까?"'
@@ -72,6 +76,11 @@ for d in FRONT LEFT RIGHT DOWN; do face "$NEW" $d 2 0.73; sleep 0.6; done
 shot 09-celebration
 sleep 3; shot 10-form
 check "이름 입력 화면" 'ui_has "선생님, 이름을 적어 주세요"'
+if [ "${NOSAVE:-0}" = 1 ]; then
+  ui_tap opHomeButton; sleep 2; noface; b DEBUG_CAMERA --ez paused false
+  echo "KIOSK UI: PASS=$P FAIL=$F (NOSAVE: stopped at the name form, nothing saved)"
+  exit 0
+fi
 typein opNameInput "UINEW-$RUN"; shot 11-form-filled
 ui_tap opSubmitButton; sleep 2; shot 12-registered
 check "등록 완료 안내" 'ui_texts | grep -q "등록 완료!"'
