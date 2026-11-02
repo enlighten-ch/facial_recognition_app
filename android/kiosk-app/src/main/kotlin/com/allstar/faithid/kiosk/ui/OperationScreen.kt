@@ -46,6 +46,7 @@ import com.allstar.faithid.kiosk.ui.guide.GhostFaceView
 import com.allstar.faithid.kiosk.ui.guide.GuideAvatarView
 import com.allstar.faithid.kiosk.ui.guide.GuideGestures
 import com.allstar.faithid.kiosk.ui.guide.GuideMoment
+import com.allstar.faithid.kiosk.ui.guide.StarFlightView
 import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
 import com.allstar.faithid.androidsupport.R as SupportR
@@ -80,6 +81,7 @@ class OperationScreen(
     private val replies: LinearLayout = v(R.id.opReplies)
     private val privacy: TextView = v(R.id.opPrivacy)
     private val count: TextView = v(R.id.opCount)
+    private val starFlight: StarFlightView = v(R.id.opStarFlight)
     private val home: ImageButton = v(R.id.opHomeButton)
     private val gear: ImageButton = v(R.id.opSettingsButton)
     private val avatar: GuideAvatarView = v(R.id.opAvatar)
@@ -212,6 +214,7 @@ class OperationScreen(
     /** Called when the operation screen is hidden (developer view). */
     fun reset() {
         celebration.stop()
+        starFlight.stop()
         ghost.hide()
         main.removeCallbacks(captureTick)
         pending = null
@@ -242,6 +245,7 @@ class OperationScreen(
     /** Plays the celebration over the finished registration, then shows what came next. */
     private fun celebrate(capture: UiState, next: UiState) {
         pending = next
+        flyStar(circleScale(capture.registration?.let { it.held?.circle ?: it.circle }))
         ghost.collected()
         ghost.hide()
         lookStraight()
@@ -369,7 +373,10 @@ class OperationScreen(
         setBubble(if (now < bonusUntil && r.next != null) copy.bonus() else copy.bubble(state))
         replies.removeAllViews()
         count.text = copy.count(r.total, r.target)
-        if (lastTotal in 0 until r.total) ghost.collected()
+        if (lastTotal in 0 until r.total) {
+            ghost.collected()
+            flyStar(circleScale(r.held?.circle ?: r.circle))
+        }
         if (r.total != lastTotal || r.holding > 0f) progressAt = now
         lastTotal = r.total
 
@@ -673,6 +680,22 @@ class OperationScreen(
     }
 
     /** Centre of the face circle in [target]'s coordinates. */
+    /** A star flies from the face circle to the star count, which pops when it lands. */
+    private fun flyStar(scale: Float) {
+        if (starFlight.width == 0 || count.visibility != View.VISIBLE) return
+        val from = ovalIn(starFlight, scale)
+        val origin = IntArray(2).also { starFlight.getLocationInWindow(it) }
+        val target = IntArray(2).also { count.getLocationInWindow(it) }
+        val toX = target[0] - origin[0] + count.width / 2f
+        val toY = target[1] - origin[1] + count.height / 2f
+        starFlight.fly(from[0], from[1], toX, toY) {
+            count.animate().cancel()
+            count.scaleX = 1.25f
+            count.scaleY = 1.25f
+            count.animate().scaleX(1f).scaleY(1f).setDuration(260).start()
+        }
+    }
+
     private fun ovalIn(target: View, scale: Float): FloatArray {
         val rect = guideOverlay.ovalRect(scale)
         val from = IntArray(2).also { guideOverlay.getLocationInWindow(it) }

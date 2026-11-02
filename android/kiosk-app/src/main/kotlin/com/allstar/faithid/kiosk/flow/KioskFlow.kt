@@ -5,6 +5,7 @@ import com.allstar.faithid.core.model.PersonMetadata
 import com.allstar.faithid.core.recognition.AdaptiveSampler
 import com.allstar.faithid.core.recognition.CandidateStabilizer
 import com.allstar.faithid.core.recognition.Decision
+import com.allstar.faithid.core.recognition.FaceCircle
 import com.allstar.faithid.core.recognition.FaceIndex
 import com.allstar.faithid.core.recognition.HeadDirection
 import com.allstar.faithid.core.recognition.Match
@@ -143,7 +144,7 @@ class KioskFlow(
             is Observation.Outside -> (if (observation.screenDx < 0) CaptureProblem.OUTSIDE_LEFT else CaptureProblem.OUTSIDE_RIGHT).also { session.interrupt() }
             is Observation.Several -> CaptureProblem.SEVERAL.also { session.interrupt() }
             is Observation.Face -> {
-                val frame = RegistrationFrame(observation.embedding, observation.pose, observation.size, observation.sharpness)
+                val frame = RegistrationFrame(observation.embedding, observation.pose, observation.size, observation.sharpness, at = clock())
                 when (val outcome = session.offer(frame)) {
                     is Outcome.Accepted -> {
                         bonus = outcome.cell != suggested
@@ -162,6 +163,8 @@ class KioskFlow(
                         held = outcome.cell
                         null
                     }
+                    // Another pose than the one asked for: keep asking for the suggested one for a while.
+                    is Outcome.Waiting -> towardSuggestion(outcome.cell, outcome.suggested)
                     is Outcome.WrongDirection -> CaptureProblem.DIRECTION
                     is Outcome.WrongSize -> if (outcome.ratio < 1f) CaptureProblem.COME_CLOSER else CaptureProblem.STEP_BACK
                     Outcome.TooTurned -> CaptureProblem.TOO_TURNED
@@ -186,6 +189,19 @@ class KioskFlow(
                 ),
             ),
         )
+    }
+
+    /** What to say while the face is in another empty cell than the suggested one. */
+    private fun towardSuggestion(cell: RegistrationCell, suggested: RegistrationCell): CaptureProblem = when {
+        cell.direction != suggested.direction -> CaptureProblem.DIRECTION
+        circleRank(suggested.circle) > circleRank(cell.circle) -> CaptureProblem.COME_CLOSER
+        else -> CaptureProblem.STEP_BACK
+    }
+
+    private fun circleRank(circle: FaceCircle) = when (circle) {
+        FaceCircle.SMALL -> 0
+        FaceCircle.NORMAL -> 1
+        FaceCircle.BIG -> 2
     }
 
     /** The developer screen's line for the last frame. */

@@ -84,6 +84,8 @@ data class KioskSettings(
     val registerSizeTolerance: Float = 0.12f,
     /** Analyzed frames the face must stay in the same place before a sample is kept. */
     val registerHoldFrames: Int = 2,
+    /** Seconds the face must stay in a pose that was not asked for before it is kept too. */
+    val registerOtherPoseSeconds: Float = 3f,
     val registerCaptureEveryNFrames: Int = 4,
     val registerSimilarityLowerBoundary: Float = 0.35f,
     val registerSimilarityHigherBoundary: Float = 0.85f,
@@ -172,6 +174,7 @@ data class KioskSettings(
             smallCircleScale = registerSmallCircleScale,
             sizeTolerance = registerSizeTolerance,
             holdFrames = registerHoldFrames.coerceAtLeast(1),
+            otherPoseMillis = (registerOtherPoseSeconds.coerceIn(0f, 30f) * 1000).toLong(),
         ),
         candidateSwitchFrames = ambiguousCandidateSwitchFrames,
         selectedGraceFrames = selectedCandidateGraceFrames,

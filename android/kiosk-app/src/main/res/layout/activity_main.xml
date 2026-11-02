@@ -935,6 +935,12 @@
                 android:src="@drawable/ic_gear_line" />
         </FrameLayout>
 
+        <!-- A collected sample: a star flies from the face to the star count. -->
+        <com.allstar.faithid.kiosk.ui.guide.StarFlightView
+            android:id="@+id/opStarFlight"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
         <com.allstar.faithid.kiosk.ui.guide.CelebrationView
             android:id="@+id/opCelebration"
             android:layout_width="match_parent"

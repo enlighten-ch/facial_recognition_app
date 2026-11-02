@@ -130,6 +130,7 @@ class KioskSettingsStore(context: Context) {
                 registerFaceFill = float("REGISTER_FACE_FILL", d.registerFaceFill),
                 registerSizeTolerance = float("REGISTER_SIZE_TOLERANCE", d.registerSizeTolerance),
                 registerHoldFrames = int("REGISTER_HOLD_FRAMES", d.registerHoldFrames),
+                registerOtherPoseSeconds = float("REGISTER_OTHER_POSE_SECONDS", d.registerOtherPoseSeconds),
                 registerBigCircleScale = float("REGISTER_BIG_CIRCLE_SCALE", d.registerBigCircleScale),
                 registerSmallCircleScale = float("REGISTER_SMALL_CIRCLE_SCALE", d.registerSmallCircleScale),
                 registerCaptureEveryNFrames = int("REGISTER_CAPTURE_EVERY_N_FRAMES", d.registerCaptureEveryNFrames),
@@ -231,6 +232,7 @@ class KioskSettingsStore(context: Context) {
             put("REGISTER_FACE_FILL", s.registerFaceFill.toDouble())
             put("REGISTER_SIZE_TOLERANCE", s.registerSizeTolerance.toDouble())
             put("REGISTER_HOLD_FRAMES", s.registerHoldFrames)
+            put("REGISTER_OTHER_POSE_SECONDS", s.registerOtherPoseSeconds.toDouble())
             put("REGISTER_BIG_CIRCLE_SCALE", s.registerBigCircleScale.toDouble())
             put("REGISTER_SMALL_CIRCLE_SCALE", s.registerSmallCircleScale.toDouble())
             put("REGISTER_CAPTURE_EVERY_N_FRAMES", s.registerCaptureEveryNFrames)

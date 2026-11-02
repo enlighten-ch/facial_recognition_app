@@ -232,6 +232,28 @@ class RegistrationSessionTest {
     }
 
     @Test
+    fun `another pose than the suggested one is kept only after the face stayed in it a while`() {
+        val session = RegistrationSession(RegistrationConfig(holdFrames = 2, otherPoseMillis = 3_000))
+        fun at(direction: HeadDirection, ms: Long) =
+            session.offer(RegistrationFrame(faces.sample("me"), Pose.Facing(direction), 1f, at = ms))
+        // The suggestion is the front: looking left first is answered with "wait".
+        val waiting = at(HeadDirection.LEFT, 1_000)
+        assertTrue(waiting is RegistrationSession.Outcome.Waiting)
+        assertEquals(HeadDirection.FRONT, (waiting as RegistrationSession.Outcome.Waiting).suggested.direction)
+        assertTrue(at(HeadDirection.LEFT, 3_500) is RegistrationSession.Outcome.Waiting)
+        // After 3 s in the pose the usual hold runs, then the sample is kept.
+        assertTrue(at(HeadDirection.LEFT, 4_000) is RegistrationSession.Outcome.Holding)
+        assertTrue(at(HeadDirection.LEFT, 4_200) is RegistrationSession.Outcome.Accepted)
+        // The suggested pose is kept at once.
+        at(HeadDirection.FRONT, 5_000)
+        assertTrue(at(HeadDirection.FRONT, 5_200) is RegistrationSession.Outcome.Accepted)
+        // Leaving the pose starts the wait again.
+        at(HeadDirection.UP, 6_000)
+        session.interrupt()
+        assertTrue(at(HeadDirection.UP, 9_500) is RegistrationSession.Outcome.Waiting)
+    }
+
+    @Test
     fun `fills whatever empty cell the pose and distance match, in any order`() {
         val session = RegistrationSession(RegistrationConfig())
         // The guide suggests front/normal, but a small, upward face fills up/small right away.

@@ -38,9 +38,10 @@ class KioskFlowTest {
         people: List<Person> = listOf(hong, kim),
         // One sample per direction (front included), kept on the first frame: 5 frames register someone.
         config: FlowConfig = FlowConfig(candidateSwitchFrames = 1, selectedGraceFrames = 1, registration = RegistrationConfig(circleSteps = false, samplesPerDirection = 1, holdFrames = 1)),
+        clock: () -> Long = System::currentTimeMillis,
     ): Pair<KioskFlow, RecordingEffects> {
         val effects = RecordingEffects()
-        val flow = KioskFlow(config, effects) {}
+        val flow = KioskFlow(config, effects, clock) {}
         flow.updateIndex(FaceIndex.of(people))
         return flow to effects
     }
@@ -132,7 +133,8 @@ class KioskFlowTest {
 
     @Test
     fun `with circle steps the normal circle comes first, and any empty cell is filled`() {
-        val (flow, _) = flow(config = circles)
+        var now = 1_000L
+        val (flow, _) = flow(config = circles, clock = { now })
         flow.startRegistration()
         val r = { flow.state.registration!! }
         assertEquals(15, r().target)
@@ -142,7 +144,12 @@ class KioskFlowTest {
         flow.onObservation(sized(HeadDirection.LEFT, 0.85f))
         assertEquals(CaptureProblem.COME_CLOSER, r().problem)
         assertTrue(flow.state.detail.contains("가까이"))
-        // A big face looking left is not what the guide asked for, but its cell is empty: kept.
+        // A big face looking left is not what the guide asked for: first the guide keeps asking for
+        // the normal circle; after 3 s in that pose its empty cell is kept too.
+        flow.onObservation(sized(HeadDirection.LEFT, 1.18f))
+        assertEquals(1, r().total)
+        assertEquals(CaptureProblem.STEP_BACK, r().problem)
+        now += 3_000
         flow.onObservation(sized(HeadDirection.LEFT, 1.18f))
         assertEquals(2, r().total)
         assertTrue("kept a sample other than the suggested one", r().bonus)

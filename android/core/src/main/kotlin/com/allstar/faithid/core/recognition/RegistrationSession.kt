@@ -25,6 +25,12 @@ data class RegistrationConfig(
     val sizeTolerance: Float = 0.12f,
     /** Frames in a row the face must stay in the same cell before a sample is kept (the sharpest of them). */
     val holdFrames: Int = 2,
+    /**
+     * A pose other than the suggested one is kept only after the face stayed in it this long
+     * (frames carry their time, [RegistrationFrame.at]); until then the guide keeps asking for
+     * the suggested pose. 0 keeps any empty cell at once.
+     */
+    val otherPoseMillis: Long = 3_000,
     val pose: PoseLimits = PoseLimits(),
 )
 
@@ -43,6 +49,8 @@ class RegistrationFrame(
     val pose: Pose?,
     val faceSize: Float? = null,
     val sharpness: Float = 0f,
+    /** When the frame was taken (ms); 0 = unknown, then other poses are not delayed. */
+    val at: Long = 0L,
 )
 
 /**
@@ -59,6 +67,12 @@ class RegistrationSession(private val config: RegistrationConfig) {
 
         /** The pose matches an empty cell; [frames] of [needed] frames held so far. */
         data class Holding(val cell: RegistrationCell, val frames: Int, val needed: Int) : Outcome()
+
+        /**
+         * The face is in an empty cell that was not asked for: it is kept after [needed] ms in it
+         * ([waited] so far). Until then the suggested pose is still asked for.
+         */
+        data class Waiting(val cell: RegistrationCell, val suggested: RegistrationCell, val waited: Long, val needed: Long) : Outcome()
 
         /** The pose matches no empty cell: [detected] is null between directions or already collected. */
         data class WrongDirection(val expected: HeadDirection, val detected: HeadDirection?) : Outcome()
@@ -86,6 +100,7 @@ class RegistrationSession(private val config: RegistrationConfig) {
     private var holdCell: RegistrationCell? = null
     private var holdFrames = 0
     private var holdBest: RegistrationFrame? = null
+    private var holdStartedAt = 0L
 
     val totalTarget: Int get() = cells.size
     val totalCollected: Int get() = collected.size
@@ -132,6 +147,12 @@ class RegistrationSession(private val config: RegistrationConfig) {
             holdCell = cell
             holdFrames = 0
             holdBest = null
+            holdStartedAt = frame.at
+        }
+        // Another empty cell than the suggested one counts only after the face stayed in it a while.
+        if (cell != next && config.otherPoseMillis > 0 && frame.at > 0) {
+            val waited = frame.at - holdStartedAt
+            if (waited < config.otherPoseMillis) return Outcome.Waiting(cell, next, waited, config.otherPoseMillis)
         }
         holdFrames++
         if (frame.sharpness >= (holdBest?.sharpness ?: Float.NEGATIVE_INFINITY)) holdBest = frame
@@ -173,6 +194,7 @@ class RegistrationSession(private val config: RegistrationConfig) {
         holdCell = null
         holdFrames = 0
         holdBest = null
+        holdStartedAt = 0L
     }
 
     fun reset() {
