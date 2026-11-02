@@ -4,7 +4,8 @@ import java.security.MessageDigest
 import java.util.Locale
 
 /**
- * Display attributes of a person (name, department, grade and any extra CSV columns).
+ * Display attributes of a person (name, department, grade, an optional family name and any extra
+ * CSV columns). [name] is always the full name; the family name only tells where it splits.
  *
  * Keys keep their original spelling and order so that a CSV edited in Excel round-trips unchanged.
  * Lookups of the three well-known fields accept the Korean and legacy column names as aliases.
@@ -14,6 +15,9 @@ class PersonMetadata private constructor(private val fields: LinkedHashMap<Strin
     val name: String get() = lookup(NAME_ALIASES)
     val department: String get() = lookup(DEPARTMENT_ALIASES)
     val grade: String get() = lookup(GRADE_ALIASES)
+
+    /** The family name entered at registration ("김"), or "" for people registered before it was asked. */
+    val familyName: String get() = lookup(FAMILY_NAME_ALIASES)
 
     /** Fields in insertion order, including name/department/grade. */
     val entries: Map<String, String> get() = fields
@@ -28,8 +32,22 @@ class PersonMetadata private constructor(private val fields: LinkedHashMap<Strin
             in NAME_ALIASES -> name
             in DEPARTMENT_ALIASES -> department
             in GRADE_ALIASES -> grade
+            in FAMILY_NAME_ALIASES -> familyName
             else -> get(column)
         }
+    }
+
+    /** Sets one column, keeping the spelling already used for it (also for the well-known aliases). */
+    fun withValue(column: String, value: String): PersonMetadata {
+        val next = LinkedHashMap(fields)
+        when (val aliases = aliasesOf(column)) {
+            null -> {
+                val existing = next.keys.firstOrNull { it.equals(column.trim(), ignoreCase = true) }
+                next[existing ?: column.trim()] = collapseSpaces(value)
+            }
+            else -> replace(next, aliases, canonicalOf(aliases), value)
+        }
+        return of(next)
     }
 
     fun with(name: String = this.name, department: String = this.department, grade: String = this.grade): PersonMetadata {
@@ -72,13 +90,37 @@ class PersonMetadata private constructor(private val fields: LinkedHashMap<Strin
         const val CANONICAL_NAME = "name"
         const val CANONICAL_DEPARTMENT = "department"
         const val CANONICAL_GRADE = "grade"
+        const val CANONICAL_FAMILY_NAME = "family_name"
 
         val NAME_ALIASES = setOf("name", "이름")
         val DEPARTMENT_ALIASES = setOf("department", "dept", "folder", "부서")
         val GRADE_ALIASES = setOf("grade", "year", "학년")
+        val FAMILY_NAME_ALIASES = setOf("family_name", "성")
+
+        /** The canonical key of a column: "부서" → "department"; other columns are kept as they are. */
+        fun canonicalColumn(column: String): String = aliasesOf(column)?.let { canonicalOf(it) } ?: column.trim()
+
+        private fun aliasesOf(column: String): Set<String>? {
+            val normalized = column.trim().lowercase(Locale.US)
+            return listOf(NAME_ALIASES, DEPARTMENT_ALIASES, GRADE_ALIASES, FAMILY_NAME_ALIASES).firstOrNull { normalized in it }
+        }
+
+        private fun canonicalOf(aliases: Set<String>): String = when (aliases) {
+            NAME_ALIASES -> CANONICAL_NAME
+            DEPARTMENT_ALIASES -> CANONICAL_DEPARTMENT
+            GRADE_ALIASES -> CANONICAL_GRADE
+            else -> CANONICAL_FAMILY_NAME
+        }
 
         fun of(name: String, department: String, grade: String): PersonMetadata =
             of(linkedMapOf(CANONICAL_NAME to name, CANONICAL_DEPARTMENT to department, CANONICAL_GRADE to grade))
+
+        /** A new registration: the full name is [familyName] and [givenName] joined (see [PersonNames.join]). */
+        fun of(familyName: String, givenName: String, department: String, grade: String): PersonMetadata {
+            val fields = linkedMapOf(CANONICAL_NAME to PersonNames.join(familyName, givenName), CANONICAL_DEPARTMENT to department, CANONICAL_GRADE to grade)
+            if (familyName.isNotBlank() && givenName.isNotBlank()) fields[CANONICAL_FAMILY_NAME] = familyName
+            return of(fields)
+        }
 
         /**
          * Normalizes arbitrary fields: trims keys and values, drops blank keys and guarantees that

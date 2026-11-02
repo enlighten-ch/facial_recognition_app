@@ -17,18 +17,39 @@ class GuideCopyTest {
     private val haeun = PersonMetadata.of("김하은", "유년부", "2학년")
 
     @Test
-    fun `children are called by their given name, adults politely`() {
-        assertEquals("하은아", kids.callName("김하은"))
-        assertEquals("준호야", kids.callName("이준호"))
-        assertEquals("E2E-1", kids.callName("E2E-1"))
-        assertEquals("김하은 님", adults.callName("김하은"))
+    fun `people are called by the given name, or with the family name when set`() {
+        assertEquals("하은아", kids.callName(haeun))
+        assertEquals("준호야", kids.callName(PersonMetadata.of("이준호", "", "")))
+        assertEquals("E2E-1", kids.callName(PersonMetadata.of("E2E-1", "", "")))
+        assertEquals("율아", kids.callName(PersonMetadata.of("강", "율", "", "")))
+        assertEquals("하은", adults.callName(haeun))
+        val withFamily = GuideCopy(kids = true, callWithFamilyName = true)
+        assertEquals("김하은아", withFamily.callName(haeun))
+        assertEquals("김하은", GuideCopy(kids = false, callWithFamilyName = true).callName(haeun))
+    }
+
+    @Test
+    fun `the look-alikes are named in order with their similarity`() {
+        val people = listOf("이영희" to 0.62f, "박민수" to 0.45f, "최지우" to 0.31f).mapIndexed { i, (name, score) ->
+            com.allstar.faithid.core.recognition.Match("k$i", PersonMetadata.of(name, "", ""), score)
+        }
+        val line = kids.lookAlike(com.allstar.faithid.kiosk.flow.LookAlikeView(people, faceSeen = true))
+        assertEquals("너랑 닮은 친구는… 이영희, 박민수, 최지우!", line.title)
+        assertEquals(
+            "1위 이영희 (유사도 0.62) 우리 혹시 가족일지도?!\n" +
+                "2위 박민수 (유사도 0.45) 닮았다는 소리 좀 듣죠?\n" +
+                "3위 최지우 (유사도 0.31) 눈 두개 코 하나인 점이 닮았네요!",
+            line.sub,
+        )
+        assertEquals(null, GuideCopy.lookAlikeRemark(0.29f))
+        assertEquals("누구랑 닮았는지 볼까? 동그라미 앞에 서 줘!", kids.lookAlike(com.allstar.faithid.kiosk.flow.LookAlikeView(emptyList(), faceSeen = false)).title)
     }
 
     @Test
     fun `a recognized person is greeted in the audience's tone`() {
         val state = UiState(candidates = listOf(CandidateView("k", haeun.label(), 0.7f, true, haeun)), printButtonEnabled = true)
         assertEquals("반가워, 하은아!", kids.bubble(state).title)
-        assertEquals("김하은 님, 환영합니다", adults.bubble(state).title)
+        assertEquals("하은 님, 환영합니다", adults.bubble(state).title)
         assertEquals("유년부 · 2학년", adults.bubble(state).sub)
     }
 

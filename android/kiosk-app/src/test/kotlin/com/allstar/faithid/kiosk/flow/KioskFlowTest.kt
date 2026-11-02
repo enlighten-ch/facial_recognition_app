@@ -80,7 +80,7 @@ class KioskFlowTest {
         flow.startLabelOnly()
         assertEquals(Screen.REGISTER_INFO, flow.state.screen)
         assertTrue(flow.state.labelOnly)
-        flow.submitInfo("방문자", "", "")
+        flow.submitInfo("", "방문자", "", "")
         assertEquals(CheckInSource.LABEL_ONLY, effects.checkIns.single().source)
         assertEquals("", effects.checkIns.single().personKey)
         assertEquals(Screen.OUTPUT, flow.state.screen)
@@ -116,9 +116,9 @@ class KioskFlowTest {
         assertTrue(flow.state.detail.contains("현재 방향"))
         HeadDirection.entries.forEach { flow.onObservation(face("newcomer", it)) }
         assertEquals(Screen.REGISTER_INFO, flow.state.screen)
-        flow.submitInfo("  ", "", "")
+        flow.submitInfo("", "  ", "", "")
         assertEquals(Screen.REGISTER_INFO, flow.state.screen)
-        flow.submitInfo("새가족", "청년부", "1학년")
+        flow.submitInfo("", "새가족", "청년부", "1학년")
         assertEquals("새가족", effects.registered.single().first.name)
         assertEquals(5, effects.registered.single().second)
         assertTrue(effects.logs.any { it.startsWith("등록 샘플 5/5: 아래쪽·보통") })
@@ -201,39 +201,61 @@ class KioskFlowTest {
         val (flow, _) = flow()
         flow.startRegistration()
         HeadDirection.entries.forEach { flow.onObservation(face("newcomer", it)) }
-        flow.submitInfo("새가족", "청년부", "1학년")
+        flow.submitInfo("", "새가족", "청년부", "1학년")
         assertEquals("새가족", flow.state.registered?.name)
         flow.onObservation(Observation.NoFace)
         assertNull(flow.state.registered)
     }
 
     @Test
-    fun `registering an already registered face asks whether it is the same person`() {
+    fun `registering never looks for an already registered face`() {
+        // Registration starts only after the face was not recognized, so finished samples go straight to the name page.
         val (flow, effects) = flow()
         flow.startRegistration()
         HeadDirection.entries.forEach { flow.onObservation(face("hong", it)) }
-        assertNotNull(flow.state.duplicateOf)
-        assertEquals("hong", flow.state.duplicateOf!!.personKey)
-        assertEquals(Screen.REGISTER_CAPTURE, flow.state.screen)
-
-        flow.confirmDuplicate()
-        assertEquals("hong" to 5, effects.added.single())
-        assertTrue(effects.registered.isEmpty())
-        assertTrue(flow.state.printButtonEnabled)
-        flow.pressPrint()
-        assertEquals(CheckInSource.DUPLICATE_CONFIRMED, effects.checkIns.single().source)
+        assertEquals(Screen.REGISTER_INFO, flow.state.screen)
+        flow.submitInfo("홍", "길동", "고등부", "2학년") // a namesake with a similar face
+        assertEquals(1, effects.registered.size)
+        assertTrue(effects.added.isEmpty())
     }
 
     @Test
-    fun `a look-alike can still register as a new person`() {
+    fun `family and given name are saved as one full name with the family name kept`() {
         val (flow, effects) = flow()
         flow.startRegistration()
-        HeadDirection.entries.forEach { flow.onObservation(face("hong", it)) }
-        flow.rejectDuplicate()
-        assertEquals(Screen.REGISTER_INFO, flow.state.screen)
-        assertNull(flow.state.duplicateOf)
-        flow.submitInfo("홍길동", "고등부", "2학년") // a namesake with a similar face
-        assertEquals(1, effects.registered.size)
+        HeadDirection.entries.forEach { flow.onObservation(face("newcomer", it)) }
+        flow.submitInfo("강", "", "찬양팀", "")
+        assertEquals("이름을 입력해 주세요.", flow.state.detail)
+        flow.submitInfo(" 강 ", " 율 ", "찬양팀", "")
+        val saved = effects.registered.single().first
+        assertEquals("강율", saved.name)
+        assertEquals("강", saved.familyName)
+    }
+
+    @Test
+    fun `seven taps show the three look-alikes, leaving out the person themself`() {
+        val lee = faces.person("이영희", "청년부", "2학년", key = "lee")
+        val park = faces.person("박민수", "청년부", "2학년", key = "park")
+        var now = 1_000L
+        val effects = RecordingEffects()
+        val flow = KioskFlow(FlowConfig(candidateSwitchFrames = 1, selectedGraceFrames = 1), effects, clock = { now }) {}
+        flow.updateIndex(FaceIndex.of(listOf(hong, kim, lee, park)))
+
+        flow.showLookAlikes()
+        assertEquals(false, flow.state.lookAlike?.faceSeen)
+
+        flow.onObservation(face("hong"))
+        flow.showLookAlikes()
+        val shown = flow.state.lookAlike!!
+        assertEquals(3, shown.people.size)
+        assertTrue("recognized person left out", shown.people.none { it.personKey == "hong" })
+        assertTrue(shown.people.zipWithNext().all { (a, b) -> a.score >= b.score })
+        // It stays while recognition goes on, then disappears.
+        flow.onObservation(face("hong"))
+        assertNotNull(flow.state.lookAlike)
+        now += 9_000L
+        flow.onSecond()
+        assertNull(flow.state.lookAlike)
     }
 
     @Test

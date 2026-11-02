@@ -256,7 +256,12 @@ class MainActivity : AppCompatActivity(), ServerService.Listener {
                     today = today,
                 ),
             )
-            Tab.PEOPLE -> peoplePage.render(people, today.orEmpty().filter { it.present && it.onRoster }.map { it.personKey }.toSet())
+            Tab.PEOPLE -> peoplePage.render(
+                people,
+                today.orEmpty().filter { it.present && it.onRoster }.map { it.personKey }.toSet(),
+                settings.rosterColumnLabels,
+                settings.rosterHiddenColumns,
+            )
             Tab.ATTENDANCE -> if (attendanceDate == LocalDate.now() && today != null) {
                 server?.attendance?.let { ledger -> attendancePage.render(attendanceDate, today, ledger::formatTime) }
             }
@@ -278,6 +283,7 @@ class MainActivity : AppCompatActivity(), ServerService.Listener {
                     todayOffRoster = today.orEmpty().count { it.present && !it.onRoster },
                     kiosks = kiosks,
                     appVersion = appVersion(),
+                    rosterColumns = RosterColumns.all(people, settings.rosterColumnLabels, settings.rosterHiddenColumns),
                 ),
             )
         }
@@ -359,12 +365,12 @@ class MainActivity : AppCompatActivity(), ServerService.Listener {
     }
 
     private val peopleActions = object : PeoplePage.Actions {
-        override fun save(person: Person, name: String, department: String, grade: String) {
+        override fun save(person: Person, name: String, values: Map<String, String>) {
             if (name.isEmpty()) {
                 Dialogs.info(this@MainActivity, "저장하지 않았습니다", "이름은 비워 둘 수 없습니다.")
                 return
             }
-            service?.run({ it.people.updateMetadata(person.key, name, department, grade) }) {
+            service?.run({ it.people.updateMetadata(person.key, mapOf(RosterColumns.NAME to name) + values) }) {
                 runOnUiThread {
                     peoplePage.closeEditor()
                     toast("$name 정보를 저장했습니다. 모든 키오스크에 반영됩니다.")

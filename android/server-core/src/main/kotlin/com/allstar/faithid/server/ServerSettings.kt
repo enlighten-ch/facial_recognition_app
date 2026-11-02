@@ -12,10 +12,17 @@ data class ServerSettings(
     /** Start the server when the app starts, without waiting for an administrator login. */
     val autoStart: Boolean = false,
     val maxEmbeddingsPerPerson: Int = 100,
+    /** Headers of the 명단 columns by column key ("department" → "반"); other columns use their default. */
+    val rosterColumnLabels: Map<String, String> = emptyMap(),
+    /** Column keys left out of the 명단 (the name always shows). */
+    val rosterHiddenColumns: Set<String> = DEFAULT_HIDDEN_COLUMNS,
 ) {
     companion object {
         const val DEFAULT_PORT = 18080
         const val DEFAULT_DATA_DIR = "/sdcard/faceDB"
+
+        /** The family name is part of the name column already. */
+        val DEFAULT_HIDDEN_COLUMNS = setOf("family_name")
     }
 }
 
@@ -24,6 +31,9 @@ data class ServerSettings(
  * plain text are converted to a hash on the first load.
  */
 class ServerSettingsStore(private val file: File) {
+    private companion object {
+        const val LIST_SEPARATOR = "|"
+    }
 
     fun load(): ServerSettings {
         val values = parse()
@@ -43,6 +53,9 @@ class ServerSettingsStore(private val file: File) {
             dataDir = StoragePaths.normalize(values["db_storage_dir"].orEmpty()),
             autoStart = values["auto_start"] == "true",
             maxEmbeddingsPerPerson = values["max_embeddings_per_person"]?.toIntOrNull()?.coerceIn(10, 1000) ?: 100,
+            rosterColumnLabels = values["roster_column_labels"]?.let(::decodeLabels) ?: emptyMap(),
+            rosterHiddenColumns = values["roster_hidden_columns"]?.let { list -> list.split(LIST_SEPARATOR).map { it.trim() }.filter { it.isNotEmpty() }.toSet() }
+                ?: ServerSettings.DEFAULT_HIDDEN_COLUMNS,
         )
         if (!file.exists() || values.containsKey("admin_password")) save(settings)
         return settings
@@ -59,6 +72,8 @@ class ServerSettingsStore(private val file: File) {
             "db_storage_dir" to settings.dataDir,
             "auto_start" to settings.autoStart.toString(),
             "max_embeddings_per_person" to settings.maxEmbeddingsPerPerson.toString(),
+            "roster_column_labels" to settings.rosterColumnLabels.entries.joinToString(LIST_SEPARATOR) { (key, label) -> "$key=$label" },
+            "roster_hidden_columns" to settings.rosterHiddenColumns.sorted().joinToString(LIST_SEPARATOR),
         )
         val tmp = File(file.parentFile, file.name + ".tmp")
         tmp.writeText(lines.joinToString("\n", postfix = "\n") { (key, value) -> "$key: \"${value.replace("\\", "\\\\").replace("\"", "\\\"")}\"" })
@@ -67,6 +82,14 @@ class ServerSettingsStore(private val file: File) {
             tmp.renameTo(file)
         }
     }
+
+    /** "department=반|grade=학년" → {department=반, grade=학년}; | and = cannot appear in headers. */
+    private fun decodeLabels(text: String): Map<String, String> =
+        text.split(LIST_SEPARATOR).mapNotNull { pair ->
+            val key = pair.substringBefore('=').trim()
+            val label = pair.substringAfter('=', "").trim()
+            if (key.isEmpty() || label.isEmpty()) null else key to label
+        }.toMap()
 
     private fun parse(): Map<String, String> {
         if (!file.exists()) return emptyMap()

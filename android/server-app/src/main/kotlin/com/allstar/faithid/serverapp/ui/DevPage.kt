@@ -66,6 +66,8 @@ internal class DevPage(
         val todayOffRoster: Int,
         val kiosks: List<KiosksPage.KioskRow>,
         val appVersion: String,
+        /** Every column of the people's CSV columns, for the 명단 열 settings. */
+        val rosterColumns: List<RosterColumn>,
     )
 
     enum class Section { STATUS, SETTINGS, DATA, KIOSKS, LOG }
@@ -98,6 +100,11 @@ internal class DevPage(
     private val autoStart: MaterialSwitch = root.findViewById(R.id.devAutoStartSwitch)
     private val configPath: TextView = root.findViewById(R.id.devConfigPathText)
     private val configText: TextView = root.findViewById(R.id.devConfigText)
+    private val rosterColumns: LinearLayout = root.findViewById(R.id.devRosterColumns)
+
+    /** Header and "보이기" switch per column key, read when the settings are saved. */
+    private val columnEditors = LinkedHashMap<String, Pair<EditText, MaterialSwitch?>>()
+    private var columnSignature: List<String>? = null
 
     private val dataList: LinearLayout = root.findViewById(R.id.devDataList)
     private val fileList: LinearLayout = root.findViewById(R.id.devFileList)
@@ -195,7 +202,8 @@ internal class DevPage(
             Section.STATUS -> renderStatus(state)
             Section.DATA -> renderData(state)
             Section.KIOSKS -> renderKiosks(state)
-            Section.SETTINGS, Section.LOG -> Unit
+            Section.SETTINGS -> renderColumns(state.rosterColumns, force = false)
+            Section.LOG -> Unit
         }
     }
 
@@ -284,6 +292,56 @@ internal class DevPage(
         dataDir.setText(s.dataDir)
         maxSamples.setText(s.maxEmbeddingsPerPerson.toString())
         autoStart.isChecked = s.autoStart
+        last?.let { renderColumns(it.rosterColumns, force = true) }
+    }
+
+    /**
+     * One row per column: the CSV column, its header in the 명단 and whether it shows. Redrawn only
+     * when the columns change (a CSV with new columns was applied), so typing is not interrupted.
+     */
+    private fun renderColumns(columns: List<RosterColumn>, force: Boolean) {
+        val s = settings ?: return
+        val signature = columns.map { "${it.key}:${it.hasValues}" }
+        if (!force && signature == columnSignature) return
+        columnSignature = signature
+        rosterColumns.removeAllViews()
+        columnEditors.clear()
+        columnRow(RosterColumns.NAME, s, hasValues = true, canHide = false)
+        columns.forEach { columnRow(it.key, s, it.hasValues, canHide = true) }
+    }
+
+    private fun columnRow(key: String, s: ServerSettings, hasValues: Boolean, canHide: Boolean) {
+        val row = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, context.dp(4), 0, context.dp(4))
+        }
+        row.addView(TextView(context).apply {
+            text = key + if (hasValues) "" else "  · 값 없음 (명단에서 빠짐)"
+            textSize = 14.5f
+            setTextColor(ContextCompat.getColor(context, if (hasValues) R.color.dev_ink else R.color.dev_muted))
+        }, LinearLayout.LayoutParams(context.dp(260), LinearLayout.LayoutParams.WRAP_CONTENT))
+        val label = (android.view.LayoutInflater.from(context).inflate(R.layout.cell_roster_input, row, false) as EditText).apply {
+            hint = RosterColumns.DEFAULT_LABELS[key] ?: key
+            setText(s.rosterColumnLabels[key].orEmpty())
+            contentDescription = "$key 열의 머리글"
+            (layoutParams as LinearLayout.LayoutParams).marginStart = 0
+        }
+        row.addView(label)
+        val show = if (!canHide) null else MaterialSwitch(context).apply {
+            text = "보이기"
+            textSize = 14.5f
+            setTextColor(ContextCompat.getColor(context, R.color.dev_ink))
+            isChecked = key !in s.rosterHiddenColumns
+            contentDescription = "$key 열 보이기"
+        }
+        if (show != null) {
+            row.addView(show, LinearLayout.LayoutParams(context.dp(150), LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginStart = context.dp(12) })
+        } else {
+            row.addView(View(context), LinearLayout.LayoutParams(context.dp(162), 1))
+        }
+        columnEditors[key] = label to show
+        rosterColumns.addView(row)
     }
 
     private fun saveSettings() {
@@ -295,6 +353,11 @@ internal class DevPage(
                 dataDir = dataDir.text.toString().trim().ifBlank { ServerSettings.DEFAULT_DATA_DIR },
                 maxEmbeddingsPerPerson = maxSamples.text.toString().toIntOrNull()?.coerceIn(10, 1000) ?: current.maxEmbeddingsPerPerson,
                 autoStart = autoStart.isChecked,
+                // Columns that are not listed right now (no longer in the CSV) keep their settings.
+                rosterColumnLabels = current.rosterColumnLabels.filterKeys { it !in columnEditors } +
+                    columnEditors.mapValues { it.value.first.text.toString().trim().replace("|", "").replace("=", "") }.filterValues { it.isNotEmpty() },
+                rosterHiddenColumns = current.rosterHiddenColumns.filter { it !in columnEditors }.toSet() +
+                    columnEditors.filter { it.value.second?.isChecked == false }.keys,
             ),
         )
     }

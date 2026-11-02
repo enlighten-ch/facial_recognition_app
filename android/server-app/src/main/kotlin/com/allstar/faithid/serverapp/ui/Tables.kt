@@ -2,6 +2,7 @@ package com.allstar.faithid.serverapp.ui
 
 import com.allstar.faithid.core.attendance.AttendanceRow
 import com.allstar.faithid.core.model.Person
+import com.allstar.faithid.core.model.PersonMetadata
 
 /** Which column a table is sorted by; tapping the same header again reverses it. */
 internal data class SortState(val key: String, val ascending: Boolean = true) {
@@ -34,26 +35,84 @@ internal object Departments {
 
 internal data class PersonRow(val person: Person, val presentToday: Boolean)
 
-/** The 명단 table: search, department filter and the sortable columns. */
+/** One column of the 명단 besides the name: a metadata column of the CSV ("department", "반", …). */
+internal data class RosterColumn(val key: String, val label: String, val hidden: Boolean, val hasValues: Boolean) {
+    val shown: Boolean get() = !hidden && hasValues
+
+    fun valueOf(person: Person): String = person.metadata.valueOf(key)
+}
+
+/**
+ * The 명단's columns come from the people's own columns, so a column added to or renamed in
+ * face_db.csv shows up once the CSV is applied. Headers and hidden columns come from the
+ * developer screen; columns no one has a value in stay out of the table.
+ */
+internal object RosterColumns {
+    const val NAME = PersonMetadata.CANONICAL_NAME
+    val DEFAULT_LABELS = mapOf(
+        PersonMetadata.CANONICAL_NAME to "이름",
+        PersonMetadata.CANONICAL_DEPARTMENT to "부서",
+        PersonMetadata.CANONICAL_GRADE to "학년 · 나이",
+        PersonMetadata.CANONICAL_FAMILY_NAME to "성",
+    )
+
+    fun label(key: String, labels: Map<String, String>): String = labels[key]?.takeIf { it.isNotBlank() } ?: DEFAULT_LABELS[key] ?: key
+
+    /** Every column but the name, in the order the people's columns first appear (CSV order). */
+    fun all(people: List<Person>, labels: Map<String, String>, hidden: Set<String>): List<RosterColumn> {
+        val keys = LinkedHashSet<String>()
+        // An empty roster still offers department and grade; otherwise the CSV's order decides, so a
+        // renamed column (부서 → 반) keeps its place and still gives the filter chips.
+        if (people.isEmpty()) {
+            keys += PersonMetadata.CANONICAL_DEPARTMENT
+            keys += PersonMetadata.CANONICAL_GRADE
+        }
+        people.forEach { p ->
+            p.metadata.entries.keys.forEach { raw ->
+                val key = PersonMetadata.canonicalColumn(raw)
+                if (key != NAME && keys.none { it.equals(key, ignoreCase = true) }) keys += key
+            }
+        }
+        return keys.map { key ->
+            RosterColumn(
+                key = key,
+                label = label(key, labels),
+                hidden = key in hidden,
+                // An empty roster still shows department and grade.
+                hasValues = people.isEmpty() && key in DEFAULT_LABELS || people.any { it.metadata.valueOf(key).isNotBlank() },
+            )
+        }
+    }
+
+    fun shown(people: List<Person>, labels: Map<String, String>, hidden: Set<String>): List<RosterColumn> =
+        all(people, labels, hidden).filter { it.shown }
+}
+
+/**
+ * The 명단 table: search, the filter chips of the first column (부서, or what replaced it) and the
+ * sortable columns.
+ */
 internal object PeopleTable {
     const val NAME = "name"
-    const val DEPARTMENT = "department"
-    const val GRADE = "grade"
     const val SAMPLES = "samples"
     const val TODAY = "today"
 
-    fun rows(people: List<Person>, present: Set<String>, query: String, department: String?, sort: SortState): List<PersonRow> {
+    fun rows(people: List<Person>, present: Set<String>, query: String, columns: List<RosterColumn>, group: String?, sort: SortState): List<PersonRow> {
         val q = query.trim()
+        val groupColumn = columns.firstOrNull()
         val filtered = people.filter { p ->
-            (department == null || p.department == department) &&
-                (q.isEmpty() || listOf(p.name, p.department, p.grade).any { it.contains(q, ignoreCase = true) })
+            (group == null || groupColumn?.valueOf(p) == group) &&
+                (q.isEmpty() || (listOf(p.name) + columns.map { it.valueOf(p) }).any { it.contains(q, ignoreCase = true) })
         }.map { PersonRow(it, it.key in present) }
         val byName = compareBy<PersonRow> { it.person.name }
-        val byDepartment = compareBy<PersonRow, String>(Departments.comparator) { it.person.department }.thenBy { it.person.grade }
-        val primary: Comparator<PersonRow> = when (sort.key) {
-            DEPARTMENT, GRADE -> byDepartment
-            SAMPLES -> compareBy { it.person.embeddings.size }
-            TODAY -> compareBy { !it.presentToday }
+        val column = columns.firstOrNull { it.key == sort.key }
+        val primary: Comparator<PersonRow> = when {
+            sort.key == SAMPLES -> compareBy { it.person.embeddings.size }
+            sort.key == TODAY -> compareBy { !it.presentToday }
+            column != null && column == groupColumn ->
+                compareBy<PersonRow, String>(Departments.comparator) { column.valueOf(it.person) }
+                    .thenBy { r -> columns.drop(1).joinToString("\u0001") { it.valueOf(r.person) } }
+            column != null -> compareBy<PersonRow> { column.valueOf(it.person).isBlank() }.thenBy { column.valueOf(it.person) }
             else -> byName
         }
         return filtered.sortedWith((if (sort.ascending) primary else primary.reversed()).then(byName).thenBy { it.person.key })

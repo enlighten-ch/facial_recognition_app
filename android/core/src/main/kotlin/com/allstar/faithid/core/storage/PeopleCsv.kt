@@ -42,6 +42,17 @@ object PeopleCsv {
         }
     }
 
+    /**
+     * Drops empty cells of columns the person does not have yet: a column another person uses (such as
+     * family_name) is not a change for everyone else. Emptying a column the person has still counts.
+     */
+    private fun withoutNewBlanks(edited: PersonMetadata, current: PersonMetadata): PersonMetadata =
+        PersonMetadata.of(
+            edited.entries.filter { (key, value) ->
+                value.isNotBlank() || current.entries.keys.any { it.equals(key, ignoreCase = true) }
+            },
+        )
+
     data class ApplyResult(val changed: List<Person>, val unmatched: List<Edit>)
 
     /**
@@ -60,8 +71,9 @@ object PeopleCsv {
                 ?: byIdentity[edit.metadata.identityKey()]
             if (target == null || target.key in changed) {
                 unmatched += edit
-            } else if (target.metadata != edit.metadata) {
-                changed[target.key] = target.copy(metadata = edit.metadata, updatedAt = now)
+            } else {
+                val metadata = withoutNewBlanks(edit.metadata, target.metadata)
+                if (target.metadata != metadata) changed[target.key] = target.copy(metadata = metadata, updatedAt = now)
             }
         }
         return ApplyResult(changed.values.toList(), unmatched)

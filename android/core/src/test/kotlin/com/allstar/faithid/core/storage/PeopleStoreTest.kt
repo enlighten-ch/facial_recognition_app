@@ -3,6 +3,7 @@ package com.allstar.faithid.core.storage
 import com.allstar.faithid.core.codec.Csv
 import com.allstar.faithid.core.codec.FloatPacking
 import com.allstar.faithid.core.codec.PersonCodec
+import com.allstar.faithid.core.model.Person
 import com.allstar.faithid.core.model.PersonKeys
 import com.allstar.faithid.core.model.PersonMetadata
 import com.allstar.faithid.core.sync.Tombstone
@@ -200,5 +201,23 @@ class PeopleCsvTest {
         assertEquals("모르는사람", result.unmatched.single().metadata.name)
         // Same values under Korean headers count as a change of column names only.
         assertEquals(1, result.changed.size)
+    }
+
+    @Test
+    fun `a column only some people use is not a change for the others`() {
+        val kang = Person("kang", PersonMetadata.of("강", "율", "찬양팀", ""), faces.samples("kang", 2))
+        val hong = faces.person("홍길동", "청년부", "3학년", key = "hong")
+        val numbers = mapOf("jung" to 1L, "hong" to 2L)
+        val exported = PeopleCsv.export(listOf(kang, hong), numbers)
+        assertTrue(Csv.parse(exported)[0].contains("family_name"))
+        val unchanged = PeopleCsv.applyEdits(listOf(kang, hong), numbers, PeopleCsv.parseEdits(exported), now = 5)
+        assertTrue(unchanged.changed.isEmpty())
+
+        // Renaming the department column to 반 moves the values into a new column.
+        val renamed = Csv.parse(exported).mapIndexed { i, row -> if (i == 0) row.map { if (it == "department") "반" else it } else row }
+        val result = PeopleCsv.applyEdits(listOf(kang, hong), numbers, PeopleCsv.parseEdits(Csv.write(renamed)), now = 6)
+        val changedHong = result.changed.first { it.key == "hong" }
+        assertEquals("청년부", changedHong.metadata["반"])
+        assertEquals("", changedHong.department)
     }
 }

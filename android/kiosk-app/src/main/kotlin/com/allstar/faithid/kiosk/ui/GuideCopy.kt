@@ -1,9 +1,11 @@
 package com.allstar.faithid.kiosk.ui
 
 import com.allstar.faithid.core.model.PersonMetadata
+import com.allstar.faithid.core.model.PersonNames
 import com.allstar.faithid.core.recognition.FaceCircle
 import com.allstar.faithid.core.recognition.HeadDirection
 import com.allstar.faithid.kiosk.flow.CaptureProblem
+import com.allstar.faithid.kiosk.flow.LookAlikeView
 import com.allstar.faithid.kiosk.flow.Screen
 import com.allstar.faithid.kiosk.flow.UiState
 
@@ -17,19 +19,22 @@ class GuideCopy(
     private val overrides: Map<String, String> = emptyMap(),
     /** The guide character's name from the settings; "{guide}" in a line becomes it. */
     private val guideName: String = "빛이",
+    /** Calls people with the family name too ("김하은아"); otherwise by the given name only ("하은아"). */
+    private val callWithFamilyName: Boolean = false,
 ) {
     data class Line(val title: String, val sub: String = "")
 
     /** One editable line: its key, the label in the settings and the default for each audience. */
     data class Entry(val key: String, val label: String, val kids: String, val adults: String)
 
-    fun line(key: String, name: String? = null, direction: HeadDirection? = null, side: String? = null, count: Int? = null): String {
+    fun line(key: String, person: PersonMetadata? = null, direction: HeadDirection? = null, side: String? = null, count: Int? = null, names: String? = null): String {
         val entry = LINES.first { it.key == key }
         val text = overrides["${audienceKey(kids)}.$key"]?.takeIf { it.isNotBlank() } ?: if (kids) entry.kids else entry.adults
         return text
             .replace("{guide}야", introduce(guideName))
             .replace("{guide}", guideName)
-            .replace("{name}", name?.let { if (kids) callName(it) else it } ?: "")
+            .replace("{names}", names ?: "")
+            .replace("{name}", person?.let { callName(it) } ?: "")
             .replace("{direction}", direction?.let { directionPhrase(it) } ?: "")
             .replace("{side}", side ?: "")
             .replace("{count}", count?.toString() ?: "")
@@ -46,8 +51,9 @@ class GuideCopy(
 
     private fun monitor(state: UiState): Line {
         if (!state.ready) return Line(state.message, state.detail)
+        state.lookAlike?.let { return lookAlike(it) }
         if (state.retrying) return Line(line("retry"), line("retrySub"))
-        state.registered?.let { return Line(line("registered", it.name), line("registeredSub", it.name)) }
+        state.registered?.let { return Line(line("registered", it), line("registeredSub", it)) }
         if (state.showRegisterChoice) return Line(line("unknown"), line("unknownSub"))
         if (state.candidates.size > 1) {
             val chosen = state.candidates.firstOrNull { it.selected }?.metadata
@@ -59,12 +65,25 @@ class GuideCopy(
 
     private fun greeting(person: PersonMetadata): Line {
         val where = listOf(person.department, person.grade).filter { it.isNotBlank() }.joinToString(" · ")
-        return Line(line("hello", person.name), if (kids) line("helloSub") else where)
+        return Line(line("hello", person), if (kids) line("helloSub") else where)
+    }
+
+    /**
+     * The easter egg: the three look-alikes by name, then one line each with the similarity and a
+     * remark on it. The remarks are not in the settings on purpose.
+     */
+    fun lookAlike(view: LookAlikeView): Line {
+        if (!view.faceSeen) return Line(line("lookAlikeNoFace"))
+        if (view.people.isEmpty()) return Line(line("lookAlikeNoOne"))
+        val names = view.people.joinToString(", ") { it.metadata.name }
+        val ranking = view.people.mapIndexed { i, m ->
+            val remark = lookAlikeRemark(m.score)?.let { " $it" }.orEmpty()
+            "${i + 1}위 ${m.metadata.name} (유사도 ${String.format(java.util.Locale.US, "%.2f", m.score)})$remark"
+        }.joinToString("\n")
+        return Line(line("lookAlike", names = names), ranking)
     }
 
     private fun capture(state: UiState): Line {
-        val duplicate = state.duplicateOf
-        if (duplicate != null) return Line(line("confirm", duplicate.metadata?.name ?: duplicate.label), line("confirmSub"))
         val r = state.registration ?: return Line(state.message)
         val next = r.next ?: return Line(line("celebration", count = r.target))
         // Another empty sample than the suggested one is fine too.
@@ -105,7 +124,7 @@ class GuideCopy(
 
     private fun output(state: UiState): Line {
         val output = state.output ?: return Line(state.message)
-        return Line(line("done", output.metadata.name), countdown(output.secondsLeft))
+        return Line(line("done", output.metadata), countdown(output.secondsLeft))
     }
 
     /** Said for a moment after a sample other than the suggested one was kept. */
@@ -136,8 +155,6 @@ class GuideCopy(
     val labelOnly: String get() = if (kids) "오늘은 이름표만" else "등록 없이 이름표만"
     val notMe: String get() = if (kids) "나 아닌데?" else "본인이 아닙니다"
     fun noneOfThem(count: Int): String = if (kids) (if (count == 2) "둘 다 아니에요" else "모두 아니에요") else "해당 없음"
-    val isMe: String get() = if (kids) "네, 맞아요" else "네, 본인입니다"
-    val firstTime: String get() = if (kids) "아니에요, 처음이에요" else "아니요, 처음입니다"
     val save: String get() = if (kids) "다 됐어요" else "저장"
     val home: String get() = "처음으로"
     val privacy: String get() = if (kids) "사진은 저장하지 않아요" else "사진은 저장하지 않습니다"
@@ -145,11 +162,14 @@ class GuideCopy(
 
     fun count(got: Int, target: Int): String = if (kids) "★ 별 $got / $target" else "$got / $target 동작"
 
-    /** "하은아" / "준호야" for children, "김하은 님" for adults. */
-    fun callName(name: String): String {
-        if (!kids) return "$name 님"
-        val given = givenName(name) ?: return name
-        return given + if (hasFinalConsonant(given.last())) "아" else "야"
+    /**
+     * The name the guide calls someone by: "하은아" / "준호야" for children (or "김하은아" with the
+     * family name), "하은" / "김하은" for adults, whose lines add "님".
+     */
+    fun callName(person: PersonMetadata): String {
+        val name = PersonNames.display(person, family = callWithFamilyName, given = true)
+        if (!kids || name.isEmpty() || name.last() !in '가'..'힣') return name
+        return name + if (hasFinalConsonant(name.last())) "아" else "야"
     }
 
     companion object {
@@ -194,8 +214,6 @@ class GuideCopy(
             Entry("tooTurnedSub", "등록: 너무 돌렸을 때 둘째 줄", "조금만 덜 돌려 볼까?", "옆으로 너무 돌리면 저장되지 않습니다"),
             Entry("noFace", "등록: 얼굴이 안 보일 때", "어디 갔어? 다시 동그라미 앞에 와 줄래?", "화면 앞에 서 주세요"),
             Entry("celebration", "등록 축하 ({count})", "별 {count}개 다 모았다!", "얼굴 등록 완료"),
-            Entry("confirm", "이미 아는 얼굴 ({name})", "{name} 맞아요?", "{name} 님이 맞으신가요?"),
-            Entry("confirmSub", "이미 아는 얼굴 둘째 줄", "어, 이미 아는 얼굴이야! 맞으면 네를 눌러 줘", "이미 등록된 얼굴과 같습니다"),
             Entry("regDone", "이름 입력", "별을 다 모았다!", "얼굴 등록이 끝났습니다"),
             Entry("regDoneSub", "이름 입력 둘째 줄", "선생님, 이름을 적어 주세요", "이름과 소속을 입력해 주세요"),
             Entry("labelOnly", "등록 없이 이름표만", "이름표에 뭐라고 쓸까?", "이름표에 넣을 내용"),
@@ -204,6 +222,9 @@ class GuideCopy(
             Entry("registeredSub", "등록 완료 둘째 줄", "이제 다음부터 바로 이름표가 나와", "다음부터는 바로 출석됩니다"),
             Entry("done", "이름표가 나온 뒤 ({name})", "잘 왔어, {name}! 이름표를 가져가요", "출석되었습니다. 이름표를 가져가세요"),
             Entry("print", "이름표 버튼", "이름표 받기", "이름표 출력"),
+            Entry("lookAlike", "닮은 사람 찾기 ({names}, 캐릭터를 일곱 번 누르면)", "너랑 닮은 친구는… {names}!", "닮은 분은… {names}"),
+            Entry("lookAlikeNoFace", "닮은 사람 찾기: 얼굴이 안 보일 때", "누구랑 닮았는지 볼까? 동그라미 앞에 서 줘!", "화면 앞에 서 주시면 닮은 분을 찾아 드립니다"),
+            Entry("lookAlikeNoOne", "닮은 사람 찾기: 비교할 사람이 없을 때", "아직 닮은 친구를 못 찾았어", "아직 비교할 분이 없습니다"),
         )
 
         /** "빛이야", "드림이야", "별이야": the guide's name with the right ending for "I am …". */
@@ -218,11 +239,12 @@ class GuideCopy(
             return name + if (hasFinalConsonant(last)) "이" else "가"
         }
 
-        /** The given name of a Korean name of 2-4 syllables ("김하은" → "하은"); null for other names. */
-        fun givenName(name: String): String? {
-            val n = name.trim()
-            if (n.length !in 2..4 || !n.all { it in '가'..'힣' }) return null
-            return if (n.length == 2) n else n.drop(1)
+        /** What the guide says about one look-alike's similarity; nothing below 0.3. */
+        fun lookAlikeRemark(score: Float): String? = when {
+            score >= 0.6f -> "우리 혹시 가족일지도?!"
+            score >= 0.45f -> "닮았다는 소리 좀 듣죠?"
+            score >= 0.3f -> "눈 두개 코 하나인 점이 닮았네요!"
+            else -> null
         }
 
         private fun hasFinalConsonant(c: Char): Boolean = c in '가'..'힣' && (c - '가') % 28 != 0

@@ -2,6 +2,7 @@ package com.allstar.faithid.server.people
 
 import com.allstar.faithid.core.model.EmbeddingSets
 import com.allstar.faithid.core.model.Person
+import com.allstar.faithid.core.model.PersonMetadata
 import com.allstar.faithid.core.storage.PeopleCsv
 import com.allstar.faithid.core.storage.PeopleStore
 import com.allstar.faithid.core.sync.ChangeSet
@@ -112,16 +113,20 @@ class PeopleRepository(
         return response
     }
 
-    fun updateMetadata(key: String, name: String, department: String, grade: String): Boolean {
+    fun updateMetadata(key: String, name: String, department: String, grade: String): Boolean =
+        updateMetadata(key, linkedMapOf(PersonMetadata.CANONICAL_NAME to name, PersonMetadata.CANONICAL_DEPARTMENT to department, PersonMetadata.CANONICAL_GRADE to grade))
+
+    /** Sets the given columns (any CSV column, "부서" and "department" alike); the others stay as they are. */
+    fun updateMetadata(key: String, values: Map<String, String>): Boolean {
         val revisionAfter = lock.withLock {
             val person = people[key] ?: return false
-            val metadata = person.metadata.with(name.trim(), department.trim(), grade.trim())
+            val metadata = values.entries.fold(person.metadata) { m, (column, value) -> m.withValue(column, value.trim()) }
             if (metadata == person.metadata) return true
             atomically { commit(person.copy(metadata = metadata, revision = nextRevision(), updatedAt = clock.now())) }
             publish()
             currentRevision
         }
-        log.log("person edited: key=$key, name=$name, revision=$revisionAfter")
+        log.log("person edited: key=$key, name=${people[key]?.name}, revision=$revisionAfter")
         onChanged(revisionAfter)
         return true
     }

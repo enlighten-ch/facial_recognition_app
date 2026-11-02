@@ -292,27 +292,9 @@
                             android:textColor="#111111"
                             android:textSize="@dimen/register_progress_text"
                             android:textStyle="bold" />
-
-                        <Button
-                            android:id="@+id/duplicateIsMeButton"
-                            android:layout_width="match_parent"
-                            android:layout_height="@dimen/action_button_height"
-                            android:layout_marginTop="14dp"
-                            android:text="본인이 맞아요"
-                            android:textSize="18sp"
-                            android:visibility="gone" />
-
-                        <Button
-                            android:id="@+id/duplicateNotMeButton"
-                            android:layout_width="match_parent"
-                            android:layout_height="@dimen/action_button_height"
-                            android:layout_marginTop="10dp"
-                            android:text="처음 등록이에요"
-                            android:textSize="18sp"
-                            android:visibility="gone" />
                     </LinearLayout>
 
-                    <!-- Page 2: name, department, grade -->
+                    <!-- Page 2: family name, name, department, grade -->
                     <ScrollView
                         android:layout_width="match_parent"
                         android:layout_height="match_parent">
@@ -339,11 +321,22 @@
                                 android:textSize="@dimen/detail_text" />
 
                             <EditText
-                                android:id="@+id/nameInput"
+                                android:id="@+id/familyNameInput"
                                 android:layout_width="match_parent"
                                 android:layout_height="@dimen/input_height"
                                 android:layout_marginTop="12dp"
-                                android:hint="이름"
+                                android:hint="성"
+                                android:importantForAutofill="no"
+                                android:inputType="textPersonName"
+                                android:singleLine="true"
+                                android:textSize="20sp" />
+
+                            <EditText
+                                android:id="@+id/nameInput"
+                                android:layout_width="match_parent"
+                                android:layout_height="@dimen/input_height"
+                                android:layout_marginTop="10dp"
+                                android:hint="이름 (성 빼고)"
                                 android:importantForAutofill="no"
                                 android:inputType="textPersonName"
                                 android:singleLine="true"
@@ -626,28 +619,69 @@
                             android:orientation="vertical"
                             android:padding="22dp">
 
-                            <TextView
-                                style="@style/FormLabel"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:labelFor="@id/opNameInput"
-                                android:text="이름" />
-
-                            <EditText
-                                android:id="@+id/opNameInput"
+                            <!-- Family name and given name side by side; the full name is both together. -->
+                            <LinearLayout
                                 android:layout_width="match_parent"
-                                android:layout_height="64dp"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal">
+
+                                <TextView
+                                    style="@style/FormLabel"
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="0.4"
+                                    android:labelFor="@id/opFamilyNameInput"
+                                    android:text="성" />
+
+                                <TextView
+                                    style="@style/FormLabel"
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginStart="12dp"
+                                    android:layout_weight="1"
+                                    android:labelFor="@id/opNameInput"
+                                    android:text="이름" />
+                            </LinearLayout>
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
                                 android:layout_marginTop="6dp"
-                                android:background="@drawable/bg_input"
-                                android:hint="예: 김하은"
-                                android:imeOptions="actionDone"
-                                android:importantForAutofill="no"
-                                android:inputType="textPersonName"
-                                android:paddingHorizontal="20dp"
-                                android:singleLine="true"
-                                android:textColor="#33263F"
-                                android:textSize="28sp"
-                                android:textStyle="bold" />
+                                android:orientation="horizontal">
+
+                                <EditText
+                                    android:id="@+id/opFamilyNameInput"
+                                    android:layout_width="0dp"
+                                    android:layout_height="64dp"
+                                    android:layout_weight="0.4"
+                                    android:background="@drawable/bg_input"
+                                    android:hint="예: 김"
+                                    android:imeOptions="actionNext"
+                                    android:importantForAutofill="no"
+                                    android:inputType="textPersonName"
+                                    android:paddingHorizontal="20dp"
+                                    android:singleLine="true"
+                                    android:textColor="#33263F"
+                                    android:textSize="28sp"
+                                    android:textStyle="bold" />
+
+                                <EditText
+                                    android:id="@+id/opNameInput"
+                                    android:layout_width="0dp"
+                                    android:layout_height="64dp"
+                                    android:layout_marginStart="12dp"
+                                    android:layout_weight="1"
+                                    android:background="@drawable/bg_input"
+                                    android:hint="예: 하은"
+                                    android:imeOptions="actionDone"
+                                    android:importantForAutofill="no"
+                                    android:inputType="textPersonName"
+                                    android:paddingHorizontal="20dp"
+                                    android:singleLine="true"
+                                    android:textColor="#33263F"
+                                    android:textSize="28sp"
+                                    android:textStyle="bold" />
+                            </LinearLayout>
 
                             <TextView
                                 style="@style/FormLabel"

@@ -109,6 +109,9 @@ class KioskSettingsStore(context: Context) {
                 hideSystemBars = bool("HIDE_SYSTEM_BARS", d.hideSystemBars),
                 guideAudience = GuideAudience.sanitize(str("GUIDE_AUDIENCE", d.guideAudience)),
                 guideName = str("GUIDE_NAME", d.guideName).trim().ifEmpty { d.guideName },
+                callWithFamilyName = bool("CALL_WITH_FAMILY_NAME", d.callWithFamilyName),
+                labelFamilyName = bool("LABEL_FAMILY_NAME", d.labelFamilyName),
+                labelGivenName = bool("LABEL_GIVEN_NAME", d.labelGivenName),
                 authSimThreshold = float("AUTH_SIM_THRESHOLD", d.authSimThreshold),
                 authMarginThreshold = float("AUTH_MARGIN_THRESHOLD", d.authMarginThreshold),
                 topK = int("TOP_K", d.topK),
@@ -132,7 +135,6 @@ class KioskSettingsStore(context: Context) {
                 registerCaptureEveryNFrames = int("REGISTER_CAPTURE_EVERY_N_FRAMES", d.registerCaptureEveryNFrames),
                 registerSimilarityLowerBoundary = float("REGISTER_SIMILARITY_LOWER_BOUNDARY", d.registerSimilarityLowerBoundary),
                 registerSimilarityHigherBoundary = float("REGISTER_SIMILARITY_HIGHER_BOUNDARY", d.registerSimilarityHigherBoundary),
-                duplicateThreshold = float("DUPLICATE_THRESHOLD", d.duplicateThreshold),
                 maxEmbeddingsPerPerson = int("MAX_EMBEDDINGS_PER_PERSON", d.maxEmbeddingsPerPerson),
                 adaptiveUpdateEnabled = bool("ADAPTIVE_UPDATE_ENABLED", d.adaptiveUpdateEnabled),
                 adaptiveUpdateMaxSim = float("ADAPTIVE_UPDATE_MAX_SIM", d.adaptiveUpdateMaxSim),
@@ -192,8 +194,6 @@ class KioskSettingsStore(context: Context) {
                     selectedCandidate = str("UI_SELECTED_CANDIDATE_TEMPLATE", dm.selectedCandidate),
                     registerComplete = str("UI_REGISTER_COMPLETE_MESSAGE", dm.registerComplete),
                     labelOnlyInput = str("UI_LABEL_ONLY_INPUT_MESSAGE", dm.labelOnlyInput),
-                    duplicateFound = str("UI_DUPLICATE_FOUND_MESSAGE", dm.duplicateFound),
-                    duplicateDetail = str("UI_DUPLICATE_DETAIL", dm.duplicateDetail),
                     returnCountdown = str("OUTPUT_RETURN_MESSAGE_TEMPLATE", dm.returnCountdown),
                 ),
                 guideLines = o.optJSONObject("GUIDE_LINES")?.let { lines ->
@@ -210,6 +210,9 @@ class KioskSettingsStore(context: Context) {
             put("HIDE_SYSTEM_BARS", s.hideSystemBars)
             put("GUIDE_AUDIENCE", s.guideAudience)
             put("GUIDE_NAME", s.guideName)
+            put("CALL_WITH_FAMILY_NAME", s.callWithFamilyName)
+            put("LABEL_FAMILY_NAME", s.labelFamilyName)
+            put("LABEL_GIVEN_NAME", s.labelGivenName)
             put("AUTH_SIM_THRESHOLD", s.authSimThreshold.toDouble())
             put("AUTH_MARGIN_THRESHOLD", s.authMarginThreshold.toDouble())
             put("TOP_K", s.topK)
@@ -233,7 +236,6 @@ class KioskSettingsStore(context: Context) {
             put("REGISTER_CAPTURE_EVERY_N_FRAMES", s.registerCaptureEveryNFrames)
             put("REGISTER_SIMILARITY_LOWER_BOUNDARY", s.registerSimilarityLowerBoundary.toDouble())
             put("REGISTER_SIMILARITY_HIGHER_BOUNDARY", s.registerSimilarityHigherBoundary.toDouble())
-            put("DUPLICATE_THRESHOLD", s.duplicateThreshold.toDouble())
             put("MAX_EMBEDDINGS_PER_PERSON", s.maxEmbeddingsPerPerson)
             put("ADAPTIVE_UPDATE_ENABLED", s.adaptiveUpdateEnabled)
             put("ADAPTIVE_UPDATE_MAX_SIM", s.adaptiveUpdateMaxSim.toDouble())
@@ -305,8 +307,6 @@ class KioskSettingsStore(context: Context) {
             put("UI_SELECTED_CANDIDATE_TEMPLATE", m.selectedCandidate)
             put("UI_REGISTER_COMPLETE_MESSAGE", m.registerComplete)
             put("UI_LABEL_ONLY_INPUT_MESSAGE", m.labelOnlyInput)
-            put("UI_DUPLICATE_FOUND_MESSAGE", m.duplicateFound)
-            put("UI_DUPLICATE_DETAIL", m.duplicateDetail)
             put("OUTPUT_RETURN_MESSAGE_TEMPLATE", m.returnCountdown)
             put("GUIDE_LINES", JSONObject(s.guideLines.filterValues { it.isNotBlank() }))
             put("UI_SAVING_MESSAGE", s.uiSavingMessage)

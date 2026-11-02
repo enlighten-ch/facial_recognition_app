@@ -13,8 +13,6 @@ data class RegistrationConfig(
     val minSimilarity: Float = 0.35f,
     /** ... and at most this similar (otherwise it adds nothing new). */
     val maxSimilarity: Float = 0.85f,
-    /** Finished samples this similar to an already registered person trigger the "is this you?" check. */
-    val duplicateThreshold: Float = 0.45f,
     /**
      * Collects each direction with a normal, a big and a small face circle, so the person also comes
      * closer and steps back. Off: [samplesPerDirection] samples per direction at any distance.
@@ -175,17 +173,6 @@ class RegistrationSession(private val config: RegistrationConfig) {
         holdCell = null
         holdFrames = 0
         holdBest = null
-    }
-
-    /**
-     * The registered person these samples most likely belong to, if any. Checked when the samples
-     * are complete, before asking for a name, so the same person is not registered twice.
-     */
-    fun likelyDuplicateOf(index: FaceIndex): Match? {
-        val all = samples
-        if (all.isEmpty()) return null
-        val best = index.best(Vectors.centroid(all)) ?: return null
-        return best.takeIf { it.score >= config.duplicateThreshold }
     }
 
     fun reset() {

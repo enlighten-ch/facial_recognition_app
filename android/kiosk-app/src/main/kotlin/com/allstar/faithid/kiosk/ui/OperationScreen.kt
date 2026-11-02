@@ -29,6 +29,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
 import androidx.core.widget.doAfterTextChanged
 import com.allstar.faithid.core.model.PersonMetadata
+import com.allstar.faithid.core.model.PersonNames
 import com.allstar.faithid.core.recognition.FaceCircle
 import com.allstar.faithid.core.recognition.HeadDirection
 import com.allstar.faithid.core.recognition.RegistrationCell
@@ -88,6 +89,7 @@ class OperationScreen(
     private val form: View = v(R.id.opForm)
     private val formTitle: TextView = v(R.id.opFormTitle)
     private val formSub: TextView = v(R.id.opFormSub)
+    private val familyNameInput: EditText = v(R.id.opFamilyNameInput)
     private val nameInput: EditText = v(R.id.opNameInput)
     private val departmentChips: ChipGroup = v(R.id.opDepartmentChips)
     private val gradeLabel: View = v(R.id.opGradeLabel)
@@ -106,6 +108,12 @@ class OperationScreen(
 
     private var kids = true
     private var copy = GuideCopy(kids = true)
+    private var labelFamilyName = true
+    private var labelGivenName = true
+
+    /** Taps on 빛이 in a row; the seventh shows the look-alikes. */
+    private var taps = 0
+    private var lastTapAt = 0L
     private var bigScale = 1.18f
     private var smallScale = 0.73f
 
@@ -147,8 +155,9 @@ class OperationScreen(
         home.setOnClickListener { actions.home() }
         v<Button>(R.id.opOutputHome).setOnClickListener { actions.home() }
         submit.setOnClickListener {
-            actions.submitInfo(nameInput.text.toString(), departmentInput.text.toString(), gradeInput.text.toString())
+            actions.submitInfo(familyNameInput.text.toString(), nameInput.text.toString(), departmentInput.text.toString(), gradeInput.text.toString())
         }
+        avatar.setOnClickListener { tapGuide() }
         setUpGear()
         departmentInput.doAfterTextChanged { if (!chipsFromCode) selectChip(departmentChips, it.toString()) }
         gradeInput.doAfterTextChanged { if (!chipsFromCode) selectChip(gradeChips, it.toString()) }
@@ -171,7 +180,9 @@ class OperationScreen(
 
     fun configure(settings: KioskSettings) {
         kids = settings.guideAudience != GuideAudience.ADULTS
-        copy = GuideCopy(kids, settings.guideLines, settings.guideName)
+        copy = GuideCopy(kids, settings.guideLines, settings.guideName, settings.callWithFamilyName)
+        labelFamilyName = settings.labelFamilyName
+        labelGivenName = settings.labelGivenName
         bigScale = settings.registerBigCircleScale
         smallScale = settings.registerSmallCircleScale
         guideOverlay.axisXRatio = settings.registerEllipseAxisXRatio
@@ -208,8 +219,7 @@ class OperationScreen(
             return
         }
         val before = shown
-        val finishedCapture = before?.screen == Screen.REGISTER_CAPTURE && before.duplicateOf == null &&
-            ((state.screen == Screen.REGISTER_INFO && !state.labelOnly) || (state.screen == Screen.REGISTER_CAPTURE && state.duplicateOf != null))
+        val finishedCapture = before?.screen == Screen.REGISTER_CAPTURE && state.screen == Screen.REGISTER_INFO && !state.labelOnly
         if (finishedCapture) {
             celebrate(before!!, state)
             return
@@ -244,10 +254,10 @@ class OperationScreen(
         val screen = state.screen
         if (previous?.screen == Screen.REGISTER_INFO && screen != Screen.REGISTER_INFO) {
             hideKeyboard()
-            listOf(nameInput, departmentInput, gradeInput).forEach { it.clearFocus() }
+            listOf(familyNameInput, nameInput, departmentInput, gradeInput).forEach { it.clearFocus() }
         }
         val camera = screen == Screen.MONITOR || screen == Screen.REGISTER_CAPTURE
-        val capture = screen == Screen.REGISTER_CAPTURE && state.duplicateOf == null
+        val capture = screen == Screen.REGISTER_CAPTURE
 
         guide.visibility = if (camera) View.VISIBLE else View.GONE
         form.visibility = if (screen == Screen.REGISTER_INFO) View.VISIBLE else View.GONE
@@ -263,7 +273,8 @@ class OperationScreen(
             main.removeCallbacks(captureTick)
             lastTotal = -1
         }
-        banner.visibility = if (camera && state.banner.isNotEmpty()) View.VISIBLE else View.GONE
+        // The look-alikes' three lines need the room under the bubble.
+        banner.visibility = if (camera && state.banner.isNotEmpty() && state.lookAlike == null) View.VISIBLE else View.GONE
         banner.text = "● ${state.banner}"
         banner.setTextColor(Color.parseColor("#33263F"))
 
@@ -278,7 +289,7 @@ class OperationScreen(
 
         when (screen) {
             Screen.MONITOR -> drawMonitor(state)
-            Screen.REGISTER_CAPTURE -> if (capture) drawCapture(state) else drawDuplicate(state)
+            Screen.REGISTER_CAPTURE -> drawCapture(state)
             Screen.REGISTER_INFO -> drawForm(state, entering = previous?.screen != Screen.REGISTER_INFO)
             Screen.OUTPUT -> drawOutput(state, entering = previous?.screen != Screen.OUTPUT)
         }
@@ -328,7 +339,7 @@ class OperationScreen(
     private val captureTick = object : Runnable {
         override fun run() {
             val s = shown
-            if (s == null || s.screen != Screen.REGISTER_CAPTURE || s.duplicateOf != null || celebration.isPlaying) return
+            if (s == null || s.screen != Screen.REGISTER_CAPTURE || celebration.isPlaying) return
             drawCapture(s)
             main.postDelayed(this, CAPTURE_TICK_MS)
         }
@@ -398,11 +409,16 @@ class OperationScreen(
         }
     }
 
-    private fun drawDuplicate(state: UiState) {
-        setBubble(copy.bubble(state))
-        replies.removeAllViews()
-        addReply(copy.isMe, main = true, icon = R.drawable.ic_check) { actions.duplicateIsMe() }
-        addReply(copy.firstTime) { actions.duplicateNotMe() }
+    /** Seven quick taps on 빛이 while it waits: who looks most like the face in front of the camera. */
+    private fun tapGuide() {
+        val s = shown ?: return
+        if (s.screen != Screen.MONITOR || !s.ready) return
+        val now = SystemClock.uptimeMillis()
+        taps = if (now - lastTapAt <= TAP_GAP_MS) taps + 1 else 1
+        lastTapAt = now
+        if (taps < SECRET_TAPS) return
+        taps = 0
+        actions.lookAlikes()
     }
 
     private fun drawForm(state: UiState, entering: Boolean) {
@@ -414,10 +430,11 @@ class OperationScreen(
         submit.setCompoundDrawablesRelativeWithIntrinsicBounds(if (state.labelOnly) R.drawable.ic_print else R.drawable.ic_check, 0, 0, 0)
         submit.typeface = if (kids) jua else Typeface.DEFAULT_BOLD
         submit.isEnabled = !state.saving
-        nameInput.hint = if (state.labelOnly) "예: 이준호" else "예: 김하은"
+        familyNameInput.hint = if (state.labelOnly) "예: 이" else "예: 김"
+        nameInput.hint = if (state.labelOnly) "예: 준호" else "예: 하은"
         if (entering) {
             chipsFromCode = true
-            listOf(nameInput, departmentInput, gradeInput).forEach { it.setText("") }
+            listOf(familyNameInput, nameInput, departmentInput, gradeInput).forEach { it.setText("") }
             chipsFromCode = false
             buildDepartmentChips()
             showGrades(null)
@@ -431,7 +448,7 @@ class OperationScreen(
         outputSub.text = line.sub
         if (!entering) return
         val m = out.metadata
-        tagName.text = m.name
+        tagName.text = PersonNames.display(m, labelFamilyName, labelGivenName)
         tagName.typeface = jua
         tagSub.text = listOf(m.department, m.grade).filter { it.isNotBlank() }.joinToString(" · ")
         tagStripe.setBackgroundColor(if (m.department.isBlank()) Color.parseColor("#C9BCD2") else DepartmentColors.of(m.department))
@@ -446,6 +463,7 @@ class OperationScreen(
         return when (state.screen) {
             Screen.MONITOR -> when {
                 !state.ready -> GuideMoment.OFFLINE
+                state.lookAlike != null -> GuideMoment.SECRET
                 state.retrying -> GuideMoment.RETRY
                 state.registered != null -> GuideMoment.SAVED
                 state.showRegisterChoice -> GuideMoment.UNKNOWN_FACE
@@ -460,7 +478,6 @@ class OperationScreen(
                 val r = state.registration
                 val before = previous?.registration
                 when {
-                    state.duplicateOf != null -> GuideMoment.ALREADY_KNOWN
                     !sameScreen -> GuideMoment.REGISTER_START
                     r != null && before != null && r.total > before.total -> GuideMoment.STAR_COLLECTED
                     r?.problem == CaptureProblem.SEVERAL -> GuideMoment.SEVERAL_FACES
@@ -698,6 +715,10 @@ class OperationScreen(
     companion object {
         private const val APRICOT = 0xFFFFB183.toInt()
         private const val SETTINGS_HOLD_MS = 1_200L
+
+        /** Taps on 빛이 for the look-alikes, each within this long of the one before. */
+        private const val SECRET_TAPS = 7
+        private const val TAP_GAP_MS = 700L
         private const val BONUS_MS = 1_700L
         private const val CAPTURE_TICK_MS = 500L
 

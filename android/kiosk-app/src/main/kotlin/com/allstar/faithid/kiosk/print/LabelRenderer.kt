@@ -12,6 +12,7 @@ import android.graphics.RectF
 import android.net.Uri
 import android.text.TextPaint
 import com.allstar.faithid.core.model.PersonMetadata
+import com.allstar.faithid.core.model.PersonNames
 import com.allstar.faithid.kiosk.settings.KioskSettings
 import java.io.File
 import java.io.FileInputStream
@@ -59,6 +60,14 @@ class LabelRenderer(private val context: Context) {
         return bitmap
     }
 
+    /** The name line prints the parts of the name chosen in the settings (성, 이름 or both). */
+    private fun textOf(metadata: PersonMetadata, column: String, settings: KioskSettings): String =
+        if (PersonMetadata.canonicalColumn(column) == PersonMetadata.CANONICAL_NAME) {
+            PersonNames.display(metadata, settings.labelFamilyName, settings.labelGivenName)
+        } else {
+            metadata.valueOf(column)
+        }
+
     private fun drawLines(canvas: Canvas, metadata: PersonMetadata, settings: KioskSettings, rect: RectF) {
         val scale = settings.printTextScaleMultiplier.coerceAtLeast(1)
         val paints = mutableMapOf<Float, TextPaint>()
@@ -73,7 +82,7 @@ class LabelRenderer(private val context: Context) {
         val texts = settings.activeLabelLines.mapIndexed { i, line ->
             val (dx, dy) = renderOffsets(line.offsetX, line.offsetY, settings.paperLandscape)
             LabelText(
-                text = metadata.valueOf(line.column),
+                text = textOf(metadata, line.column, settings),
                 sizePx = (line.textSizeSp * scale).toFloat().coerceIn(10f, 240f),
                 offsetX = dx,
                 offsetY = dy,

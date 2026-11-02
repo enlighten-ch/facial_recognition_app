@@ -84,4 +84,6 @@
     <string name="log_search">로그에서 찾기 (예: client-7a1c)</string>
     <string name="copy">복사</string>
     <string name="clear">지우기</string>
+    <string name="roster_columns">명단 열</string>
+    <string name="roster_columns_hint">명단에 보일 열과 머리글입니다. 열은 face_db.csv의 열을 따라갑니다. 엑셀에서 열을 더하거나 이름을 바꾸고 \'CSV 편집 반영\'을 누르면 여기와 명단에 바로 나타납니다. 맨 위에 보이는 열로 명단의 분류 버튼을 만듭니다. 값이 하나도 없는 열은 명단에서 빠집니다.</string>
 </resources>

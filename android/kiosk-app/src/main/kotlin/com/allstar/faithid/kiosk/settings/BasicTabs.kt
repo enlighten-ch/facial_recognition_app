@@ -11,7 +11,7 @@ private fun scroll(form: SettingsForm) = ScrollView(form.context).apply {
     addView(form.root)
 }
 
-/** "일반": who the kiosk talks to and the screen mode. */
+/** "일반": who the kiosk talks to, the screen mode and how names are called and printed. */
 class GeneralTab(context: Context, s: KioskSettings) : SettingsTab {
     override val title = "일반"
     private val form = SettingsForm(context)
@@ -27,11 +27,27 @@ class GeneralTab(context: Context, s: KioskSettings) : SettingsTab {
     private val developerView = form.switch("개발자 화면 보기 (연결 상태, 수동 동기화 버튼)", s.developerViewEnabled)
     private val hideBars = form.switch("운영 화면에서 상단·하단 시스템 바 숨기기", s.hideSystemBars)
 
+    init { form.section("이름") }
+    private val callName = form.choice(
+        "${GuideCopy.subject(s.guideName)} 부르는 이름",
+        listOf("이름만 (하은아 · 하은 님)", "성과 이름 (김하은아 · 김하은 님)"),
+        if (s.callWithFamilyName) 1 else 0,
+    )
+    private val labelFamily = form.switch("이름표에 성 넣기", s.labelFamilyName)
+    private val labelGiven = form.switch("이름표에 이름 넣기", s.labelGivenName)
+
+    init {
+        form.note("이름표는 '이름' 줄에만 적용됩니다. 둘 다 끄면 성과 이름을 모두 넣습니다. 성을 따로 적지 않고 등록한 분은 이름을 보고 성을 짐작합니다(김하은 → 김 / 하은).")
+    }
+
     override fun applyTo(settings: KioskSettings): KioskSettings = settings.copy(
         guideAudience = if (audience.selectedItemPosition == 1) GuideAudience.ADULTS else GuideAudience.KIDS,
         guideName = guideName.text.toString().trim().take(10).ifEmpty { KioskSettings.DEFAULT_GUIDE_NAME },
         developerViewEnabled = developerView.isChecked,
         hideSystemBars = hideBars.isChecked,
+        callWithFamilyName = callName.selectedItemPosition == 1,
+        labelFamilyName = labelFamily.isChecked,
+        labelGivenName = labelGiven.isChecked,
     )
 }
 
@@ -73,8 +89,6 @@ class CopyTab(context: Context, s: KioskSettings) : SettingsTab {
     private val selected = form.text("후보 선택 완료 ({label})", m.selectedCandidate)
     private val registerComplete = form.text("등록 완료", m.registerComplete)
     private val labelOnly = form.text("이름표만 출력 입력", m.labelOnlyInput)
-    private val duplicateFound = form.text("이미 등록된 얼굴 ({label})", m.duplicateFound)
-    private val duplicateDetail = form.text("이미 등록된 얼굴 상세", m.duplicateDetail)
     private val saving = form.text("저장 중", s.uiSavingMessage)
     private val outputButton = form.text("출력 버튼", s.uiOutputButtonText)
 
@@ -98,8 +112,6 @@ class CopyTab(context: Context, s: KioskSettings) : SettingsTab {
                 selectedCandidate = selected.textOr(d.selectedCandidate),
                 registerComplete = registerComplete.textOr(d.registerComplete),
                 labelOnlyInput = labelOnly.textOr(d.labelOnlyInput),
-                duplicateFound = duplicateFound.textOr(d.duplicateFound),
-                duplicateDetail = duplicateDetail.textOr(d.duplicateDetail),
             ),
         )
     }
@@ -141,7 +153,7 @@ class RecognitionTab(context: Context, s: KioskSettings) : SettingsTab {
     )
 }
 
-/** "등록": sample collection, duplicate check and automatic sample updates. */
+/** "등록": sample collection and automatic sample updates. */
 class RegistrationTab(context: Context, s: KioskSettings) : SettingsTab {
     override val title = "등록"
     private val form = SettingsForm(context)
@@ -156,7 +168,6 @@ class RegistrationTab(context: Context, s: KioskSettings) : SettingsTab {
     private val perDirection = form.number("방향별 수집 장수 (동그라미 3단계를 끄면 사용)", s.registerSamplesPerDirection)
     private val every = form.number("몇 프레임마다 샘플 수집", s.registerCaptureEveryNFrames)
     private val band = form.pair("샘플 유사도 하한", s.registerSimilarityLowerBoundary, "상한 (너무 비슷하면 제외)", s.registerSimilarityHigherBoundary)
-    private val duplicate = form.number("이미 등록된 얼굴로 볼 유사도", s.duplicateThreshold)
     private val maxSamples = form.number("사람별 최대 샘플 수", s.maxEmbeddingsPerPerson)
 
     init { form.section("자동 보정") }
@@ -178,7 +189,6 @@ class RegistrationTab(context: Context, s: KioskSettings) : SettingsTab {
         registerCaptureEveryNFrames = every.intValue(settings.registerCaptureEveryNFrames).coerceIn(1, 30),
         registerSimilarityLowerBoundary = band.first.floatValue(settings.registerSimilarityLowerBoundary).coerceIn(0f, 0.9f),
         registerSimilarityHigherBoundary = band.second.floatValue(settings.registerSimilarityHigherBoundary).coerceIn(0.1f, 1f),
-        duplicateThreshold = duplicate.floatValue(settings.duplicateThreshold).coerceIn(0.2f, 0.95f),
         maxEmbeddingsPerPerson = maxSamples.intValue(settings.maxEmbeddingsPerPerson).coerceIn(10, 1000),
         adaptiveUpdateEnabled = adaptive.isChecked,
         adaptiveUpdateMaxSim = adaptiveMax.floatValue(settings.adaptiveUpdateMaxSim).coerceIn(0f, 1f),

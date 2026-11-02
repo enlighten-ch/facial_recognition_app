@@ -28,7 +28,7 @@ class TablesTest {
         assertFalse(s.tap(PeopleTable.NAME).ascending)
         assertEquals(SortState(PeopleTable.SAMPLES, true), s.tap(PeopleTable.NAME).tap(PeopleTable.SAMPLES))
         assertEquals(" ▲", s.arrow(PeopleTable.NAME))
-        assertEquals("", s.arrow(PeopleTable.GRADE))
+        assertEquals("", s.arrow(PeopleTable.SAMPLES))
     }
 
     @Test
@@ -42,12 +42,36 @@ class TablesTest {
     @Test
     fun `people search, filter and sort`() {
         val present = setOf("a", "c")
-        assertEquals(listOf("김하은", "박서윤", "이준호", "최도윤"), PeopleTable.rows(people, present, "", null, SortState(PeopleTable.NAME)).map { it.person.name })
-        assertEquals(listOf("최도윤", "김하은"), PeopleTable.rows(people, present, "", "유년부", SortState(PeopleTable.NAME, false)).map { it.person.name })
-        assertEquals(listOf("이준호"), PeopleTable.rows(people, present, "5학년", null, SortState(PeopleTable.NAME)).map { it.person.name })
-        assertEquals(listOf("박서윤", "최도윤", "김하은", "이준호"), PeopleTable.rows(people, present, "", null, SortState(PeopleTable.DEPARTMENT)).map { it.person.name })
-        assertEquals("박서윤", PeopleTable.rows(people, present, "", null, SortState(PeopleTable.SAMPLES, false)).first().person.name)
-        assertTrue(PeopleTable.rows(people, present, "", null, SortState(PeopleTable.TODAY)).take(2).all { it.presentToday })
+        val columns = RosterColumns.shown(people, emptyMap(), emptySet())
+        fun rows(query: String = "", group: String? = null, sort: SortState) = PeopleTable.rows(people, present, query, columns, group, sort).map { it.person.name }
+        assertEquals(listOf("김하은", "박서윤", "이준호", "최도윤"), rows(sort = SortState(PeopleTable.NAME)))
+        assertEquals(listOf("최도윤", "김하은"), rows(group = "유년부", sort = SortState(PeopleTable.NAME, false)))
+        assertEquals(listOf("이준호"), rows(query = "5학년", sort = SortState(PeopleTable.NAME)))
+        assertEquals(listOf("박서윤", "최도윤", "김하은", "이준호"), rows(sort = SortState("department")))
+        assertEquals("박서윤", rows(sort = SortState(PeopleTable.SAMPLES, false)).first())
+        assertTrue(PeopleTable.rows(people, present, "", columns, null, SortState(PeopleTable.TODAY)).take(2).all { it.presentToday })
+    }
+
+    @Test
+    fun `roster columns follow the people's columns, headers and hidden columns`() {
+        val defaults = RosterColumns.shown(people, emptyMap(), setOf("family_name"))
+        assertEquals(listOf("부서", "학년 · 나이"), defaults.map { it.label })
+
+        // face_db.csv with the department column renamed to 반 and a new 메모 column, after "CSV 편집 반영".
+        val edited = people.mapIndexed { i, p ->
+            Person(p.key, PersonMetadata.of(linkedMapOf("name" to p.name, "반" to "${i + 1}반", "grade" to p.grade, "메모" to if (i == 0) "새가족" else "")), p.embeddings)
+        } + Person("e", PersonMetadata.of("강", "율", "", ""), emptyList())
+        val columns = RosterColumns.shown(edited, emptyMap(), setOf("family_name"))
+        assertEquals(listOf("반", "grade", "메모"), columns.map { it.key })
+        // The empty department column is left out but stays in the developer screen's list.
+        assertTrue(RosterColumns.all(edited, emptyMap(), emptySet()).any { it.key == "department" && !it.shown })
+        assertTrue(RosterColumns.all(edited, emptyMap(), emptySet()).any { it.key == "family_name" && it.shown })
+
+        // Headers and hidden columns from the developer screen; the first column gives the filter chips.
+        val renamed = RosterColumns.shown(edited, mapOf("department" to "반", "반" to "우리 반"), setOf("grade", "family_name"))
+        assertEquals(listOf("우리 반", "메모"), renamed.map { it.label })
+        assertEquals(listOf("김하은"), PeopleTable.rows(edited, emptySet(), "", renamed, "1반", SortState(PeopleTable.NAME)).map { it.person.name })
+        assertEquals(listOf("김하은"), PeopleTable.rows(edited, emptySet(), "새가족", renamed, null, SortState(PeopleTable.NAME)).map { it.person.name })
     }
 
     @Test

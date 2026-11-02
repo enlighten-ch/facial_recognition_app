@@ -24,6 +24,7 @@ import com.allstar.faithid.androidsupport.FileLog
 import com.allstar.faithid.androidsupport.SystemBars
 import com.allstar.faithid.client.sync.SyncStatus
 import com.allstar.faithid.core.model.PersonMetadata
+import com.allstar.faithid.core.model.PersonNames
 import com.allstar.faithid.core.recognition.FaceIndex
 import com.allstar.faithid.kiosk.R
 import com.allstar.faithid.kiosk.camera.CameraController
@@ -291,7 +292,10 @@ class MainActivity : AppCompatActivity() {
             withData { it.checkIn(checkIn) }
         }
 
-        override fun print(metadata: PersonMetadata) = printer.print(metadata, settings)
+        override fun print(metadata: PersonMetadata) {
+            log.log("이름표: ${PersonNames.display(metadata, settings.labelFamilyName, settings.labelGivenName)}")
+            printer.print(metadata, settings)
+        }
 
         override fun log(message: String) = log.log(message)
     }
@@ -301,9 +305,9 @@ class MainActivity : AppCompatActivity() {
         override fun startLabelOnly() = flow.startLabelOnly()
         override fun selectCandidate(personKey: String) = flow.selectCandidate(personKey)
         override fun print() = flow.pressPrint()
-        override fun submitInfo(name: String, department: String, grade: String) = flow.submitInfo(name, department, grade)
-        override fun duplicateIsMe() = flow.confirmDuplicate()
-        override fun duplicateNotMe() = flow.rejectDuplicate()
+        override fun submitInfo(familyName: String, givenName: String, department: String, grade: String) =
+            flow.submitInfo(familyName, givenName, department, grade)
+        override fun lookAlikes() = flow.showLookAlikes()
         override fun home() = flow.goHome()
         override fun notMe() {
             flow.notMe()

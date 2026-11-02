@@ -16,7 +16,7 @@ class GuideGesturesTest {
         listOf(GuideMoment.RECOGNIZED, GuideMoment.REGISTER_DONE, GuideMoment.SAVED, GuideMoment.STAR_COLLECTED).forEach {
             assertTrue("$it", GuideGestures.gesturesFor(it).any { g -> g in positive })
         }
-        listOf(GuideMoment.UNKNOWN_FACE, GuideMoment.STALLED, GuideMoment.ALREADY_KNOWN).forEach {
+        listOf(GuideMoment.UNKNOWN_FACE, GuideMoment.STALLED).forEach {
             assertEquals("$it", Gesture.TILT, GuideGestures.gesturesFor(it).first())
         }
     }

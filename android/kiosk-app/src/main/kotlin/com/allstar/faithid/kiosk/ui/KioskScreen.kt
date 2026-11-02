@@ -35,9 +35,10 @@ class KioskScreen(activity: Activity, private val actions: Actions, people: () -
         fun startLabelOnly()
         fun selectCandidate(personKey: String)
         fun print()
-        fun submitInfo(name: String, department: String, grade: String)
-        fun duplicateIsMe()
-        fun duplicateNotMe()
+        fun submitInfo(familyName: String, givenName: String, department: String, grade: String)
+
+        /** The guide was tapped seven times: show who looks most alike (easter egg). */
+        fun lookAlikes()
         fun home()
         fun notMe()
         fun openSettings()
@@ -71,11 +72,10 @@ class KioskScreen(activity: Activity, private val actions: Actions, people: () -
     private val registerDetail: TextView = activity.v(R.id.registerDetailText)
     private val registerProgress: ProgressBar = activity.v(R.id.registerProgressBar)
     private val registerCount: TextView = activity.v(R.id.registerCountText)
-    private val duplicateIsMe: Button = activity.v(R.id.duplicateIsMeButton)
-    private val duplicateNotMe: Button = activity.v(R.id.duplicateNotMeButton)
 
     private val infoTitle: TextView = activity.v(R.id.infoTitleText)
     private val infoDetail: TextView = activity.v(R.id.infoDetailText)
+    private val familyNameInput: EditText = activity.v(R.id.familyNameInput)
     private val nameInput: EditText = activity.v(R.id.nameInput)
     private val departmentInput: EditText = activity.v(R.id.departmentInput)
     private val gradeInput: EditText = activity.v(R.id.gradeInput)
@@ -101,10 +101,8 @@ class KioskScreen(activity: Activity, private val actions: Actions, people: () -
         registerButton.setOnClickListener { actions.startRegistration() }
         labelOnlyButton.setOnClickListener { actions.startLabelOnly() }
         printButton.setOnClickListener { actions.print() }
-        duplicateIsMe.setOnClickListener { actions.duplicateIsMe() }
-        duplicateNotMe.setOnClickListener { actions.duplicateNotMe() }
         submitButton.setOnClickListener {
-            actions.submitInfo(nameInput.text.toString(), departmentInput.text.toString(), gradeInput.text.toString())
+            actions.submitInfo(familyNameInput.text.toString(), nameInput.text.toString(), departmentInput.text.toString(), gradeInput.text.toString())
         }
         backButton.setOnClickListener { actions.home() }
         activity.v<Button>(R.id.settingsButton).setOnClickListener { actions.openSettings() }
@@ -195,9 +193,6 @@ class KioskScreen(activity: Activity, private val actions: Actions, people: () -
             registerProgress.progress = r.total
             registerCount.text = progressText(r)
         }
-        val duplicate = state.duplicateOf != null
-        duplicateIsMe.visibility = if (duplicate) View.VISIBLE else View.GONE
-        duplicateNotMe.visibility = if (duplicate) View.VISIBLE else View.GONE
     }
 
     private fun renderInfo(state: UiState, savingText: String) {

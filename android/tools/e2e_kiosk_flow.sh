@@ -93,17 +93,15 @@ ui_tap "이름표 받기"
 cancel_print_dialog
 check "인쇄를 취소해도 출석 1회" 'wait_for 20 sheet "[ \"\$(sheet_count $NAME)\" = 1 ]"'
 
-step "3. 이미 등록된 얼굴로 다시 등록 시도 → 본인 확인"
+step "3. 등록은 등록된 얼굴을 찾지 않음 → 바로 이름 입력"
 no_face; sleep 4
 seen "other-$RUN"; sleep 1
 ui_tap "좋아, 등록할래!"; sleep 1
 register_motions "$PERSON"
 sleep 4
-check "'○○ 맞아요?' 질문 표시" 'ui_has "네, 맞아요"'
-ui_tap "네, 맞아요"; sleep 1
-ui_tap "이름표 받기"
-cancel_print_dialog
-check "본인 확인 후 출석 2회, 새 사람은 만들지 않음" 'wait_for 20 sheet "[ \"\$(sheet_count $NAME)\" = 2 ]" && [ "$(adbs shell grep -c "$NAME" $DATA_DIR/face_db.csv | tr -d "\r")" = 1 ]'
+check "같은 얼굴이어도 '맞아요?' 없이 이름 입력" 'ui_has "선생님, 이름을 적어 주세요" && ! ui_has "네, 맞아요"'
+ui_tap opHomeButton; sleep 2
+check "저장하지 않으면 새 사람도 출석도 없음" '[ "$(sheet_count $NAME)" = 1 ] && [ "$(adbs shell grep -c "$NAME" $DATA_DIR/face_db.csv | tr -d "\r")" = 1 ]'
 
 step "4. 이름표만 출력 → 명단 외 출석"
 no_face; sleep 4
@@ -130,7 +128,7 @@ broadcast DEBUG_CAMERA --ez paused true
 no_face; sleep 6
 seen "$PERSON"; sleep 1
 check "삭제된 사람은 미등록으로 보임" 'wait_for 15 ui "seen $PERSON; sleep 1; ui_has \"좋아, 등록할래!\""'
-check "삭제 후에도 오늘 출석 기록은 유지" '[ "$(sheet_count $NAME)" = 2 ]'
+check "삭제 후에도 오늘 출석 기록은 유지" '[ "$(sheet_count $NAME)" = 1 ]'
 
 no_face
 broadcast DEBUG_CAMERA --ez paused false

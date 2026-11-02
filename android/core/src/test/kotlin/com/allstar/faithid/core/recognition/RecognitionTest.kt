@@ -8,7 +8,6 @@ import com.allstar.faithid.core.recognition.CandidateStabilizer.Observation
 import com.allstar.faithid.core.testing.FakeFaces
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -321,21 +320,6 @@ class RegistrationSessionTest {
         session.offer(RegistrationFrame(first, Pose.Facing(HeadDirection.LEFT)))
         assertTrue(session.offer(frame(HeadDirection.RIGHT, identity = "someone else")) is RegistrationSession.Outcome.TooDifferent)
         assertTrue(session.offer(RegistrationFrame(first.copyOf(), Pose.Facing(HeadDirection.RIGHT))) is RegistrationSession.Outcome.TooSimilar)
-    }
-
-    @Test
-    fun `detects that the face is already registered`() {
-        val registered = faces.person("홍길동", key = "hong")
-        val index = FaceIndex.of(listOf(registered, faces.person("다른사람", key = "other")))
-        val session = RegistrationSession(RegistrationConfig(circleSteps = false, samplesPerDirection = 1))
-        HeadDirection.entries.forEach { session.hold(it, identity = "hong") }
-        val duplicate = session.likelyDuplicateOf(index)
-        assertNotNull(duplicate)
-        assertEquals("hong", duplicate!!.personKey)
-
-        val newcomer = RegistrationSession(RegistrationConfig(circleSteps = false, samplesPerDirection = 1))
-        HeadDirection.entries.forEach { newcomer.hold(it, identity = "newcomer") }
-        assertNull(newcomer.likelyDuplicateOf(index))
     }
 
     @Test

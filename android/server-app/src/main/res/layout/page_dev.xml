@@ -374,6 +374,29 @@
                         android:textColor="@color/dev_ink"
                         android:textSize="15sp" />
 
+                    <!-- 명단 columns: one row per CSV column, filled in by DevPage; saved with the button below. -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="18dp"
+                        android:text="@string/roster_columns"
+                        android:textColor="@color/dev_ink"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="@string/roster_columns_hint"
+                        android:textColor="@color/dev_muted"
+                        android:textSize="13sp" />
+                    <LinearLayout
+                        android:id="@+id/devRosterColumns"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:orientation="vertical" />
+
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"

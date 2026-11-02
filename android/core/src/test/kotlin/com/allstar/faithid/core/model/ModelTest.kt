@@ -126,3 +126,57 @@ class VectorsAndEmbeddingSetsTest {
         assertEquals(64, PersonKeys.legacyKey("a", "b", "c").length)
     }
 }
+
+class PersonNamesTest {
+
+    @Test
+    fun `a registration with family and given name keeps the full name and where it splits`() {
+        val metadata = PersonMetadata.of("김", "하은", "유치부", "5세")
+        assertEquals("김하은", metadata.name)
+        assertEquals("김", metadata.familyName)
+        assertEquals("김", metadata.valueOf("성"))
+        assertEquals("하은", PersonNames.given(metadata))
+        assertEquals("김", PersonNames.family(metadata))
+        assertEquals("Kim Haeun", PersonNames.join("Kim", "Haeun"))
+    }
+
+    @Test
+    fun `the stored family name decides the split of two-syllable names`() {
+        val metadata = PersonMetadata.of("강", "율", "찬양팀", "")
+        assertEquals("강율", metadata.name)
+        assertEquals("율", PersonNames.given(metadata))
+        // Without the field a two-syllable name is taken as a given name.
+        assertEquals("강율", PersonNames.given(PersonMetadata.of("강율", "찬양팀", "")))
+    }
+
+    @Test
+    fun `older names are split by guessing, double family names included`() {
+        assertEquals("하은", PersonNames.given(PersonMetadata.of("김하은", "", "")))
+        assertEquals("민수", PersonNames.given(PersonMetadata.of("남궁민수", "", "")))
+        assertEquals("E2E-1", PersonNames.given(PersonMetadata.of("E2E-1", "", "")))
+        // A renamed person whose stored family name no longer fits falls back to the guess.
+        val renamed = PersonMetadata.of("김", "하은", "", "").with(name = "이서연")
+        assertEquals("서연", PersonNames.given(renamed))
+    }
+
+    @Test
+    fun `display picks the chosen parts and falls back to the full name`() {
+        val metadata = PersonMetadata.of("김", "하은", "", "")
+        assertEquals("김하은", PersonNames.display(metadata, family = true, given = true))
+        assertEquals("하은", PersonNames.display(metadata, family = false, given = true))
+        assertEquals("김", PersonNames.display(metadata, family = true, given = false))
+        assertEquals("김하은", PersonNames.display(metadata, family = false, given = false))
+        assertEquals("하은", PersonNames.display(PersonMetadata.of("", "하은", "", ""), family = true, given = false))
+    }
+
+    @Test
+    fun `withValue sets a column under the spelling already in use`() {
+        val metadata = PersonMetadata.of(linkedMapOf("이름" to "홍길동", "부서" to "청년부", "반" to "1반"))
+        val next = metadata.withValue("department", "중고등부").withValue("반", "2반").withValue("메모", "새가족")
+        assertEquals("중고등부", next["부서"])
+        assertEquals("2반", next["반"])
+        assertEquals("새가족", next["메모"])
+        assertEquals("department", PersonMetadata.canonicalColumn("부서"))
+        assertEquals("반", PersonMetadata.canonicalColumn("반"))
+    }
+}

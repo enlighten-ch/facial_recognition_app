@@ -47,6 +47,11 @@ data class KioskSettings(
     val guideAudience: String = GuideAudience.KIDS,
     /** The guide character's name ("빛이", "별이", "드림이" …), used where the guide introduces itself. */
     val guideName: String = DEFAULT_GUIDE_NAME,
+    /** The guide calls people by the given name only ("하은아"), or with the family name ("김하은아"). */
+    val callWithFamilyName: Boolean = false,
+    /** Which parts of the name the label prints in the name line; both off counts as both on. */
+    val labelFamilyName: Boolean = true,
+    val labelGivenName: Boolean = true,
 
     // Recognition
     val authSimThreshold: Float = 0.40f,
@@ -82,7 +87,6 @@ data class KioskSettings(
     val registerCaptureEveryNFrames: Int = 4,
     val registerSimilarityLowerBoundary: Float = 0.35f,
     val registerSimilarityHigherBoundary: Float = 0.85f,
-    val duplicateThreshold: Float = 0.45f,
     val maxEmbeddingsPerPerson: Int = 100,
     val adaptiveUpdateEnabled: Boolean = true,
     val adaptiveUpdateMaxSim: Float = 0.62f,
@@ -163,7 +167,6 @@ data class KioskSettings(
             includeFront = registerIncludeFront,
             minSimilarity = registerSimilarityLowerBoundary,
             maxSimilarity = registerSimilarityHigherBoundary,
-            duplicateThreshold = duplicateThreshold,
             circleSteps = registerCircleSteps,
             bigCircleScale = registerBigCircleScale,
             smallCircleScale = registerSmallCircleScale,

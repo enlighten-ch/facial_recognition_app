@@ -41,10 +41,12 @@ class KioskFlow(
 
     /** Latest ranking per person key in this session, so a tapped candidate can be printed with its score. */
     private var lastMatches: Map<String, Match> = emptyMap()
-    private var duplicate: Match? = null
 
-    /** Person confirmed through "본인이 맞아요"; their check-in is recorded as such. */
-    private var duplicateConfirmedKey: String? = null
+    /** The last face seen on the waiting screen and when, for the look-alike easter egg. */
+    private var lastFace: FloatArray? = null
+    private var lastFaceAt = 0L
+    private var lookAlike: LookAlikeView? = null
+    private var lookAlikeUntil = 0L
 
     /** True between "나 아닌데?" and [resumeAfterRetry]: camera frames are ignored. */
     private var retrying = false
@@ -89,7 +91,7 @@ class KioskFlow(
     }
 
     private fun monitor(observation: Observation) {
-        if (readiness != Readiness.Ready || state.duplicateOf != null || retrying) return
+        if (readiness != Readiness.Ready || retrying) return
         when (observation) {
             Observation.NoFace -> {
                 val kind = CandidateStabilizer.Observation(CandidateStabilizer.Kind.NO_FACE)
@@ -99,6 +101,8 @@ class KioskFlow(
                 showIdle()
             }
             is Observation.Face -> {
+                lastFace = observation.embedding
+                lastFaceAt = clock()
                 val rankings = index.rank(observation.embedding, config.thresholds.candidateCount.coerceAtLeast(2))
                 lastMatches = lastMatches + rankings.associateBy { it.personKey } // keep earlier ones: a tapped candidate may drop out of one frame
                 val decision = RecognitionPolicy.decide(rankings, config.thresholds)
@@ -128,7 +132,7 @@ class KioskFlow(
     }
 
     private fun capture(observation: Observation) {
-        if (state.duplicateOf != null || session.isComplete) return
+        if (session.isComplete) return
         val suggested = session.suggestion
         var holding = 0f
         var other = false
@@ -145,8 +149,9 @@ class KioskFlow(
                         bonus = outcome.cell != suggested
                         effects.log(record.accepted(outcome, observation, session.totalCollected, session.totalTarget))
                         if (session.isComplete) {
+                            // No look-up of registered faces here: registering starts only after the face was not recognized.
                             effects.log(record.summary(clock(), finished = true))
-                            finishCapture()
+                            showRegisterInfo(labelOnly = false)
                             return
                         }
                         null
@@ -197,24 +202,6 @@ class KioskFlow(
         CaptureProblem.OTHER_PERSON -> "같은 분이 계속 카메라 앞에 있어야 합니다."
     }
 
-    private fun finishCapture() {
-        val match = session.likelyDuplicateOf(index)
-        if (match != null) {
-            duplicate = match
-            effects.log("등록 중복 의심: ${match.label} (점수 ${score(match.score)})")
-            publish(
-                state.copy(
-                    message = messages.duplicateFound.fill("label" to match.label, "name" to match.name),
-                    detail = messages.duplicateDetail,
-                    registration = registrationView(),
-                    duplicateOf = CandidateView(match.personKey, match.label, match.score, true, match.metadata),
-                ),
-            )
-        } else {
-            showRegisterInfo(labelOnly = false)
-        }
-    }
-
     private var lastDecisionLog = ""
 
     /** One log line whenever the shown result changes, with scores, for checking recognition in the field. */
@@ -240,7 +227,6 @@ class KioskFlow(
         session.reset()
         stallCount = 0
         record = RegistrationRecord(clock())
-        duplicate = null
         val first = session.nextDirection ?: HeadDirection.FRONT
         publish(
             UiState(
@@ -278,7 +264,6 @@ class KioskFlow(
         val match = lastMatches[key] ?: return
         val metadata = index.metadataOf(key) ?: match.metadata
         val source = when {
-            key == duplicateConfirmedKey -> CheckInSource.DUPLICATE_CONFIRMED
             state.candidates.size > 1 -> CheckInSource.CANDIDATE_SELECTED
             else -> CheckInSource.RECOGNIZED
         }
@@ -286,11 +271,11 @@ class KioskFlow(
         showOutput(metadata)
     }
 
-    /** Name page: save a registration, or print a label without registering. */
-    fun submitInfo(name: String, department: String, grade: String) {
+    /** Name page: save a registration, or print a label without registering. The family name may be left empty. */
+    fun submitInfo(familyName: String, givenName: String, department: String, grade: String) {
         if (state.screen != Screen.REGISTER_INFO || state.saving) return
-        val metadata = PersonMetadata.of(name, department, grade)
-        if (metadata.name.isBlank()) {
+        val metadata = PersonMetadata.of(familyName, givenName, department, grade)
+        if (givenName.isBlank()) {
             publish(state.copy(detail = "이름을 입력해 주세요."))
             return
         }
@@ -315,32 +300,37 @@ class KioskFlow(
         publish(state.copy(registered = metadata))
     }
 
-    /** "본인이 맞아요" after the duplicate warning: the new samples improve the existing person. */
-    fun confirmDuplicate() {
-        val match = duplicate ?: return
-        effects.addSamples(match.personKey, session.samples)
-        duplicate = null
-        duplicateConfirmedKey = match.personKey
-        lastMatches = mapOf(match.personKey to match)
-        stabilizer.reset()
-        stabilizer.onShown(CandidateStabilizer.Observation(CandidateStabilizer.Kind.CONFIRMED, listOf(match.personKey)))
-        showConfirmed(match)
-    }
-
-    /** "처음 등록이에요": a different person who only looks similar; continue to the name page. */
-    fun rejectDuplicate() {
-        if (duplicate == null) return
-        duplicate = null
-        showRegisterInfo(labelOnly = false)
-    }
-
     fun updatePrintStatus(text: String) {
         val output = state.output ?: return
         publish(state.copy(output = output.copy(printStatus = text)))
     }
 
-    /** Called once a second by the app. Counts down the output screen. */
+    /**
+     * The easter egg: the three registered people who look most like the face in front of the
+     * camera, shown for a few seconds. The person themself is left out when recognized.
+     */
+    fun showLookAlikes() {
+        if (state.screen != Screen.MONITOR || readiness != Readiness.Ready) return
+        val face = lastFace?.takeIf { clock() - lastFaceAt <= LOOK_ALIKE_FACE_MS }
+        val people = if (face == null) {
+            emptyList()
+        } else {
+            val rankings = index.rank(face, LOOK_ALIKE_COUNT + 1)
+            val self = (RecognitionPolicy.decide(rankings, config.thresholds) as? Decision.Confirmed)?.match?.personKey
+            rankings.filter { it.personKey != self }.take(LOOK_ALIKE_COUNT)
+        }
+        lookAlike = LookAlikeView(people, faceSeen = face != null)
+        lookAlikeUntil = clock() + LOOK_ALIKE_SHOW_MS
+        effects.log("닮은 사람 찾기: " + if (face == null) "얼굴 없음" else people.joinToString(", ") { "${it.label} ${score(it.score)}" }.ifEmpty { "다른 사람 없음" })
+        publish(state)
+    }
+
+    /** Called once a second by the app. Counts down the output screen and ends the easter egg. */
     fun onSecond() {
+        if (lookAlike != null && clock() >= lookAlikeUntil) {
+            lookAlike = null
+            publish(state.copy(lookAlike = null))
+        }
         val output = state.output ?: return
         val left = output.secondsLeft - 1
         if (left <= 0) goHome() else publish(state.copy(output = output.copy(secondsLeft = left), message = messages.returnCountdown.fill("seconds" to left.toString())))
@@ -354,7 +344,6 @@ class KioskFlow(
         if (state.screen != Screen.MONITOR || readiness != Readiness.Ready) return
         stabilizer.reset()
         lastMatches = emptyMap()
-        duplicateConfirmedKey = null
         retrying = true
         effects.log("본인 아님: 잠시 뒤 다시 인식")
         publish(UiState(screen = Screen.MONITOR, retrying = true, banner = banner))
@@ -372,9 +361,8 @@ class KioskFlow(
         session.reset()
         stabilizer.reset()
         sampler.resetSession()
-        duplicate = null
         lastMatches = emptyMap()
-        duplicateConfirmedKey = null
+        lookAlike = null
         showIdle()
     }
 
@@ -462,7 +450,10 @@ class KioskFlow(
         stalled = stallCount >= STALL_HINT_FRAMES,
     )
 
-    private fun publish(next: UiState) {
+    private fun publish(update: UiState) {
+        // The easter egg stays over the waiting screen while recognition goes on underneath.
+        val shown = lookAlike?.takeIf { update.screen == Screen.MONITOR && clock() < lookAlikeUntil }
+        val next = update.copy(lookAlike = shown)
         if (next == state) return
         state = next
         onState(next)
@@ -472,5 +463,10 @@ class KioskFlow(
 
     private companion object {
         const val STALL_HINT_FRAMES = 5
+        const val LOOK_ALIKE_COUNT = 3
+        const val LOOK_ALIKE_SHOW_MS = 8_000L
+
+        /** The face must have been seen this recently to look for look-alikes. */
+        const val LOOK_ALIKE_FACE_MS = 3_000L
     }
 }

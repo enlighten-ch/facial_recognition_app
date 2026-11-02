@@ -16,6 +16,20 @@ b() { adbs shell am broadcast -n "$R" -a "com.allstar.faithid.kiosk.$1" "${@:2}"
 face() { local a=(--es identity "$1" --ei count "${3:-1}"); [ -n "${2:-}" ] && a+=(--es direction "$2"); [ -n "${4:-}" ] && a+=(--ef size "$4"); b DEBUG_FACE "${a[@]}"; }
 noface() { for _ in 1 2 3 4 5 6 7; do b DEBUG_NO_FACE; done; }
 seen() { face "$1" "" 5; }
+# Seven quick taps on 빛이 (the look-alike easter egg). avatar_at reads the position first, so the
+# face shown just before the taps is still fresh (the kiosk looks only at faces of the last 3 s).
+avatar_at() {
+  AVATAR=$(ui_dump | python3 -c '
+import re, sys
+for node in re.findall(r"<node [^>]*>", sys.stdin.read()):
+    a = dict(re.findall(r"([\w-]+)=\"([^\"]*)\"", node))
+    if a.get("resource-id", "").endswith(":id/opAvatar"):
+        print(a["bounds"]); break')
+}
+tap7() {
+  set -- $(echo "$AVATAR" | tr '[],' '   ')
+  local i; for i in 1 2 3 4 5 6 7; do adbs shell input tap $(( ($1 + $3) / 2 )) $(( ($2 + $4) / 2 )); done
+}
 # Front and four directions per circle (normal, big = closer, small = further); 2 frames to hold each pose.
 motions() { for size in 1.0 1.18 0.73; do for d in FRONT LEFT RIGHT UP DOWN; do face "$1" $d 2 $size; sleep 0.6; done; done; }
 # Text goes in through the debug receiver (no keyboard: Samsung's keyboard can crash under adb input).
@@ -52,6 +66,10 @@ check "인식: 나 아닌데? 버튼" 'ui_has "나 아닌데?"'
 noface; sleep 4
 fi
 
+avatar_at; seen "$NEW"; tap7; sleep 1; shot 02b-look-alike
+check "빛이 일곱 번: 닮은 순서대로 세 명, 유사도와 한마디" 'ui_texts | grep -q "너랑 닮은 친구는…" && ui_dump | grep -q "1위 .*(유사도 0\.[0-9][0-9]).*3위 "'
+noface; sleep 9
+
 seen "$NEW"; sleep 2; shot 03-unknown
 check "처음 보는 얼굴 안내" 'ui_has "처음 보는 얼굴이네! 우리 친구 할까?"'
 ui_tap "좋아, 등록할래!"; sleep 2; shot 04-reg-front-normal
@@ -81,27 +99,27 @@ if [ "${NOSAVE:-0}" = 1 ]; then
   echo "KIOSK UI: PASS=$P FAIL=$F (NOSAVE: stopped at the name form, nothing saved)"
   exit 0
 fi
-typein opNameInput "UINEW-$RUN"; shot 11-form-filled
+typein opFamilyNameInput "테"; typein opNameInput "하늘"; shot 11-form-filled
 ui_tap opSubmitButton; sleep 2; shot 12-registered
-check "등록 완료 안내" 'ui_texts | grep -q "등록 완료!"'
+check "등록 완료: 성 빼고 이름만 부름 (테 + 하늘)" 'ui_texts | grep -q "등록 완료! 반가워, 하늘아!"'
 sleep 3
 seen "$NEW"; sleep 2; shot 13-new-recognized
-check "방금 등록한 사람 인식" 'ui_texts | grep -q "반가워, "'
+check "방금 등록한 사람 인식" 'ui_texts | grep -q "반가워, 하늘아!"'
 if [ "${NOPRINT:-0}" = 1 ]; then
   ui_tap "나 아닌데?"; sleep 1; echo "  (print skipped: real label printer)"
 else
-  ui_tap "이름표 받기"; sleep 1.2; shot 14-output
-  check "이름표 화면" 'ui_texts | grep -q "이름표를 가져가요"'
+  # The name tag shows for 3 s while confetti keeps the screen busy, too short for a UI dump:
+  # the screenshot shows it, the kiosk log says what was printed.
+  ui_tap "이름표 받기"; sleep 0.8; shot 14-output
+  check "이름표에는 성과 이름 모두 (테하늘)" 'adbs shell "run-as com.example.facetestbed tail -n 20 files/logs/kiosk.log" | grep -q "이름표: 테하늘\$"'
   sleep 3; adbs shell dumpsys window | grep -E "mCurrentFocus" | grep -qi printspooler && { adbs shell input keyevent KEYCODE_BACK; sleep 1; }
 fi
 sleep 5; noface; sleep 3
 
 seen "other-$RUN"; sleep 2; ui_tap "좋아, 등록할래!"; sleep 1
 motions "$KNOWN"
-sleep 4; shot 15-duplicate
-check "이미 아는 얼굴 질문" 'ui_texts | grep -q "맞아요?"'
-ui_tap "아니에요, 처음이에요"; sleep 2; shot 16-dup-to-form
-check "처음이에요 → 이름 입력" 'ui_has "선생님, 이름을 적어 주세요"'
+sleep 4; shot 15-known-face-form
+check "등록된 얼굴이어도 묻지 않고 이름 입력" 'ui_has "선생님, 이름을 적어 주세요" && ! ui_texts | grep -q "맞아요?"'
 ui_tap opHomeButton; sleep 2; noface; sleep 3
 
 seen "guest-$RUN"; sleep 2; ui_tap "오늘은 이름표만"; sleep 2; shot 17-labelonly

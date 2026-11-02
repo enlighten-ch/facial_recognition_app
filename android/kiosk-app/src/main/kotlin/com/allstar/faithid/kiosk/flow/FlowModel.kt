@@ -5,6 +5,7 @@ import com.allstar.faithid.core.model.PersonMetadata
 import com.allstar.faithid.core.recognition.FaceCircle
 import com.allstar.faithid.core.recognition.HeadAngles
 import com.allstar.faithid.core.recognition.HeadDirection
+import com.allstar.faithid.core.recognition.Match
 import com.allstar.faithid.core.recognition.Pose
 import com.allstar.faithid.core.recognition.RecognitionThresholds
 import com.allstar.faithid.core.recognition.RegistrationConfig
@@ -27,8 +28,6 @@ data class FlowMessages(
     val selectedCandidate: String = "선택됨: {label} / 이름 출력하기 버튼을 눌러주세요.",
     val registerComplete: String = "얼굴등록이 완료되었어요! 이름을 입력해주세요",
     val labelOnlyInput: String = "등록없이 이름표만 출력할게요.\n출력할 내용을 입력해주세요.",
-    val duplicateFound: String = "이미 등록된 분과 얼굴이 매우 비슷해요: {label}",
-    val duplicateDetail: String = "본인이 맞으면 '본인이 맞아요'를, 다른 사람이면 '처음 등록이에요'를 눌러 주세요.",
     val returnCountdown: String = "{seconds}초 후 기본 화면으로 복귀합니다",
 )
 
@@ -120,6 +119,12 @@ data class RegistrationView(
     fun collected(direction: HeadDirection): Int = cells.count { it.first.direction == direction && it.second }
 }
 
+/**
+ * The easter egg (the guide tapped seven times): the registered people who look most like the face
+ * in front of the camera, most similar first. Empty when no face was seen just before.
+ */
+data class LookAlikeView(val people: List<Match>, val faceSeen: Boolean)
+
 data class OutputView(val metadata: PersonMetadata, val secondsLeft: Int, val printStatus: String)
 
 /** Everything the screen shows. Rendering is a pure function of this value. */
@@ -132,7 +137,6 @@ data class UiState(
     val printButtonVisible: Boolean = false,
     val printButtonEnabled: Boolean = false,
     val registration: RegistrationView? = null,
-    val duplicateOf: CandidateView? = null,
     val labelOnly: Boolean = false,
     val saving: Boolean = false,
     val output: OutputView? = null,
@@ -143,6 +147,8 @@ data class UiState(
     val registered: PersonMetadata? = null,
     /** After "나 아닌데?": recognition pauses for a moment, then looks again. */
     val retrying: Boolean = false,
+    /** Shown for a few seconds over the waiting screen after the easter egg. */
+    val lookAlike: LookAlikeView? = null,
 )
 
 /** A check-in, recorded when the print button is pressed (whether or not printing succeeds). */
