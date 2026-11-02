@@ -343,6 +343,20 @@ class PeopleRepositoryTest {
     }
 
     @Test
+    fun `the name can be edited in its parts, a guessed split is not stored unchanged`() {
+        val (_, repo) = open()
+        repo.applyOps(listOf(register("a", "홍길동", faces.samples("a", 2))), "k")
+        val rev = repo.revision
+        assertTrue(repo.updateMetadata("a", mapOf("family_name" to "홍", "given_name" to "길동")))
+        assertEquals(rev, repo.revision)
+        assertEquals("", repo.get("a")!!.metadata.familyName)
+        repo.updateMetadata("a", mapOf("family_name" to "홍", "given_name" to "길순"))
+        assertEquals("홍길순", repo.get("a")!!.name)
+        assertEquals("홍", repo.get("a")!!.metadata.familyName)
+        assertFalse(repo.updateMetadata("a", mapOf("family_name" to "", "given_name" to "")))
+    }
+
+    @Test
     fun `editing to the same values does not create a revision`() {
         val (_, repo) = open()
         repo.applyOps(listOf(register("a", "홍길동", faces.samples("a", 2))), "k")

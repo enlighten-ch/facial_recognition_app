@@ -196,7 +196,7 @@ internal class AttendancePage(
             holder.initial.text = initialOf(row.name)
             holder.initial.tint(color)
             holder.initial.alpha = if (row.present) 1f else 0.45f
-            holder.name.text = row.name
+            holder.name.text = grouping?.nameOf(row) ?: row.name
             holder.name.setTextColor(ContextCompat.getColor(holder.itemView.context, if (row.present) R.color.ink else R.color.ink_muted))
             holder.dot.visibility = if (row.onRoster) View.VISIBLE else View.GONE
             holder.dot.tint(color)

@@ -160,11 +160,15 @@ class PeopleRepository(
     fun updateMetadata(key: String, name: String, department: String, grade: String): Boolean =
         updateMetadata(key, linkedMapOf(PersonMetadata.CANONICAL_NAME to name, PersonMetadata.CANONICAL_DEPARTMENT to department, PersonMetadata.CANONICAL_GRADE to grade))
 
-    /** Sets the given columns (any CSV column, "부서" and "department" alike); the others stay as they are. */
+    /**
+     * Sets the given columns (any CSV column, "부서" and "department" alike); the others stay as
+     * they are. family_name and given_name set the name from its parts.
+     */
     fun updateMetadata(key: String, values: Map<String, String>): Boolean {
         val revisionAfter = lock.withLock {
             val person = people[key] ?: return false
-            val metadata = values.entries.fold(person.metadata) { m, (column, value) -> m.withValue(column, value.trim()) }
+            val metadata = withValues(person.metadata, values.mapValues { it.value.trim() })
+            if (metadata.name.isBlank()) return false
             if (metadata == person.metadata) return true
             atomically { commit(person.copy(metadata = metadata, revision = nextRevision(), updatedAt = clock.now())) }
             publish()
@@ -248,16 +252,7 @@ class PeopleRepository(
                     if (person.key in changes.deleted) return@forEach
                     var metadata = person.metadata
                     changes.removedColumns.forEach { metadata = metadata.without(it) }
-                    changes.values[person.key]?.let { edits ->
-                        // The name's parts (family_name, given_name) together set the name.
-                        val family = edits[PersonMetadata.CANONICAL_FAMILY_NAME]
-                        val given = edits[PersonMetadata.CSV_GIVEN_NAME]
-                        if (family != null || given != null) {
-                            metadata = metadata.withName(family ?: PersonNames.family(metadata), given ?: PersonNames.given(metadata))
-                        }
-                        edits.filterKeys { it != PersonMetadata.CANONICAL_FAMILY_NAME && it != PersonMetadata.CSV_GIVEN_NAME }
-                            .forEach { (column, value) -> metadata = metadata.withValue(column, value) }
-                    }
+                    changes.values[person.key]?.let { edits -> metadata = withValues(metadata, edits) }
                     if (metadata != person.metadata && metadata.name.isNotBlank()) {
                         commit(person.copy(metadata = metadata, revision = rev, updatedAt = now))
                         changed++
@@ -332,6 +327,23 @@ class PeopleRepository(
                 "removed columns=${c.removedColumns}, unmatched=${c.unmatched.size}" +
                 if (c.heldDeletions > 0) ", deletions held back=${c.heldDeletions}" else "",
         )
+    }
+
+    /** Sets columns; the name's parts (family_name, given_name) together set the name. */
+    private fun withValues(metadata: PersonMetadata, values: Map<String, String>): PersonMetadata {
+        var next = metadata
+        val family = values[PersonMetadata.CANONICAL_FAMILY_NAME]
+        val given = values[PersonMetadata.CSV_GIVEN_NAME]
+        if (family != null || given != null) {
+            val f = family ?: PersonNames.family(next)
+            val g = given ?: PersonNames.given(next)
+            // The split shown was only guessed and stays the same: nothing to store.
+            val unchanged = f == PersonNames.family(next) && g == PersonNames.given(next)
+            if (!unchanged) next = next.withName(f, g)
+        }
+        values.filterKeys { it != PersonMetadata.CANONICAL_FAMILY_NAME && it != PersonMetadata.CSV_GIVEN_NAME }
+            .forEach { (column, value) -> next = next.withValue(column, value) }
+        return next
     }
 
     private fun saveLabels(next: Map<String, String>) {

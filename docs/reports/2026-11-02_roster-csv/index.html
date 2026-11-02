@@ -115,6 +115,7 @@ figcaption { font-size: var(--step--1); color: var(--muted); max-width: 72ch; }
       <li><a href="#summary">요약</a></li>
       <li><a href="#csv">CSV 반영</a></li>
       <li><a href="#columns">열 이름과 칸 고치기</a></li>
+      <li><a href="#names">성과 이름</a></li>
       <li><a href="#grouping">분류 선택</a></li>
       <li><a href="#safety">삭제와 백업</a></li>
       <li><a href="#sheet">출석부</a></li>
@@ -137,7 +138,7 @@ figcaption { font-size: var(--step--1); color: var(--muted); max-width: 72ch; }
       <div class="facts">
         <div class="fact"><b>CSV ↔ DB</b><span>서버 시작 때 읽고, 고친 칸만 반영</span></div>
         <div class="fact"><b>길게 누르기</b><span>칸 값 고치기 · 열 이름 바꾸기 · 열 숨기기</span></div>
-        <div class="fact"><b>분류 3곳</b><span>오늘의 순서 · 명단 · 출석을 아무 열로</span></div>
+        <div class="fact"><b>분류 3곳</b><span>현황 · 명단 · 출석을 아무 열로</span></div>
         <div class="fact"><b>백업</b><span>매일 1번 + CSV 반영·되돌리기 전</span></div>
       </div>
       <ul class="plain">
@@ -213,9 +214,19 @@ figcaption { font-size: var(--step--1); color: var(--muted); max-width: 72ch; }
       </div>
     </section>
 
+    <section id="names" aria-labelledby="h-names">
+      <h2 id="h-names">성과 이름</h2>
+      <ul class="plain">
+        <li>명단과 출석 탭은 이름을 <b>성 (띄우고) 이름</b>으로 보여 줍니다(예: 김 하은). 성을 따로 받기 전에 등록된 두 글자 이름처럼 나눌 수 없는 이름은 그대로 보입니다.</li>
+        <li>줄을 누르면 고치는 칸이 성과 이름으로 나뉘어 열리고, 이름을 길게 눌러도 성·이름 두 칸으로 고칩니다. 성을 비우면 이름 칸이 전체 이름이 됩니다.</li>
+        <li>짐작으로 나눈 성을 그대로 두고 저장하면 따로 저장하지 않습니다(명단이 쓸데없이 바뀌지 않게). 다른 칸 하나만 고칠 때도 이름은 건드리지 않습니다.</li>
+        <li>첫 탭 이름을 ‘오늘의 순서’에서 <b>현황</b>으로 바꿨습니다. 주일이 아닌 날의 제목도 ‘오늘 현황’입니다.</li>
+      </ul>
+    </section>
+
     <section id="grouping" aria-labelledby="h-grouping">
       <h2 id="h-grouping">분류 선택</h2>
-      <p>오늘의 순서의 출석 현황, 명단의 분류 버튼, 출석 탭의 요약과 표를 부서뿐 아니라 이름을 뺀 아무 CSV 열(학년, 반, 메모 등)로 나눌 수 있습니다. 각 탭의 ‘분류: 부서 ▾’를 눌러 고르고, 고른 값은 config.yaml에 저장되어 앱을 다시 열어도 그대로입니다. 고른 열이 CSV에서 사라지면 부서로 돌아갑니다.</p>
+      <p>현황 탭의 출석 현황, 명단의 분류 버튼, 출석 탭의 요약과 표를 부서뿐 아니라 이름을 뺀 아무 CSV 열(학년, 반, 메모 등)로 나눌 수 있습니다. 각 탭의 ‘분류: 부서 ▾’를 눌러 고르고, 고른 값은 config.yaml에 저장되어 앱을 다시 열어도 그대로입니다. 고른 열이 CSV에서 사라지면 부서로 돌아갑니다.</p>
     </section>
 
     <section id="safety" aria-labelledby="h-safety">
@@ -276,6 +287,7 @@ figcaption { font-size: var(--step--1); color: var(--muted); max-width: 72ch; }
             <tr><td>분류 메뉴 3곳에서 학년으로 바꾸기 → 앱 다시 열어도 유지 → 부서로 돌려놓음</td><td>태블릿</td><td><span class="pill ok">통과</span></td></tr>
             <tr><td>오늘 출석부를 열어 지금 명단과 비교</td><td>태블릿</td><td><span class="pill ok">고친 뒤 일치</span></td></tr>
             <tr><td>CSV 편집 열기 → 문서 앱 선택 창</td><td>태블릿</td><td><span class="pill ok">통과</span></td></tr>
+            <tr><td>명단 이름이 ‘성 이름’으로 보이고, 줄·이름을 누르면 성·이름 칸으로 열림 (저장 안 함) · 첫 탭 이름 ‘현황’</td><td>태블릿</td><td><span class="pill ok">통과</span></td></tr>
           </tbody>
         </table>
       </div>

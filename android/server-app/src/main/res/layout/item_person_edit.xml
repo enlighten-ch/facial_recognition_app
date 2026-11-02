@@ -15,12 +15,23 @@
         android:orientation="horizontal">
 
         <EditText
+            android:id="@+id/personFamilyNameInput"
+            style="@style/DevField"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="0.45"
+            android:hint="@string/col_family_name"
+            android:importantForAutofill="no"
+            android:inputType="textPersonName" />
+
+        <EditText
             android:id="@+id/personNameInput"
             style="@style/DevField"
             android:layout_width="0dp"
             android:layout_height="48dp"
-            android:layout_weight="1.3"
-            android:hint="@string/col_name"
+            android:layout_marginStart="10dp"
+            android:layout_weight="0.85"
+            android:hint="@string/col_given_name"
             android:importantForAutofill="no"
             android:inputType="textPersonName" />
 

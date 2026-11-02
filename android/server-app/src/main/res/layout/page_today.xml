@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 오늘의 순서: Sunday morning checklist and today's attendance. -->
+<!-- 현황: Sunday morning checklist and today's attendance. -->
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/todayPage"
     android:layout_width="match_parent"

@@ -26,6 +26,7 @@ import androidx.core.content.ContextCompat
 import com.allstar.faithid.androidsupport.SystemBars
 import com.allstar.faithid.core.attendance.AttendanceRow
 import com.allstar.faithid.core.model.Person
+import com.allstar.faithid.core.model.PersonMetadata
 import com.allstar.faithid.server.ServerSettings
 import com.allstar.faithid.server.ServerSettingsStore
 import com.allstar.faithid.server.StoragePaths
@@ -37,7 +38,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * Login, the four dashboard tabs (오늘의 순서, 명단, 출석, 키오스크) and the developer screen. All
+ * Login, the four dashboard tabs (현황, 명단, 출석, 키오스크) and the developer screen. All
  * work happens in [ServerService]; this class only shows its state and forwards button presses.
  */
 class MainActivity : AppCompatActivity(), ServerService.Listener {
@@ -442,12 +443,14 @@ class MainActivity : AppCompatActivity(), ServerService.Listener {
     }
 
     private val peopleActions = object : PeoplePage.Actions {
-        override fun save(person: Person, name: String, values: Map<String, String>) {
-            if (name.isEmpty()) {
+        override fun save(person: Person, familyName: String?, givenName: String?, values: Map<String, String>) {
+            if (givenName != null && givenName.isEmpty()) {
                 Dialogs.info(this@MainActivity, "저장하지 않았습니다", "이름은 비워 둘 수 없습니다.")
                 return
             }
-            service?.run({ it.people.updateMetadata(person.key, mapOf(RosterColumns.NAME to name) + values) }) {
+            val name = if (givenName == null) person.name else com.allstar.faithid.core.model.PersonNames.join(familyName.orEmpty(), givenName)
+            val parts = if (givenName == null) emptyMap() else mapOf(PersonMetadata.CANONICAL_FAMILY_NAME to familyName.orEmpty(), PersonMetadata.CSV_GIVEN_NAME to givenName)
+            service?.run({ it.people.updateMetadata(person.key, parts + values) }) {
                 runOnUiThread {
                     peoplePage.closeEditor()
                     toast("$name 정보를 저장했습니다. 모든 키오스크에 반영됩니다.")

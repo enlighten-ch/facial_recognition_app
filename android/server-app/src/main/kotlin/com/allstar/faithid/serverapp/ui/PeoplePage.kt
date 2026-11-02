@@ -15,6 +15,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.allstar.faithid.core.model.Person
 import com.allstar.faithid.core.model.PersonMetadata
+import com.allstar.faithid.core.model.PersonNames
 import com.allstar.faithid.core.storage.PeopleCsv
 import com.allstar.faithid.serverapp.R
 
@@ -28,8 +29,8 @@ internal class PeoplePage(
     private val actions: Actions,
 ) {
     interface Actions {
-        /** [values] maps column keys to the edited values; columns not shown are left as they are. */
-        fun save(person: Person, name: String, values: Map<String, String>)
+        /** The name in its parts (null: unchanged), and [values] by column key; other columns stay as they are. */
+        fun save(person: Person, familyName: String?, givenName: String?, values: Map<String, String>)
         fun delete(person: Person)
 
         /** New name of a column (null = its own name again); the data stays in the column. */
@@ -151,6 +152,7 @@ internal class PeoplePage(
 
     /** Long press on a cell: change that one value (saved, written to the CSV and sent to the kiosks). */
     private fun editCell(person: Person, key: String) {
+        if (key == RosterColumns.NAME) return editName(person)
         val input = (inflater.inflate(R.layout.cell_roster_input, null, false) as EditText).apply {
             setText(person.metadata.valueOf(key))
             hint = RosterColumns.label(key, labels)
@@ -158,13 +160,37 @@ internal class PeoplePage(
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, context.dp(52))
         }
         AlertDialog.Builder(context)
-            .setTitle("${person.name} · ${RosterColumns.label(key, labels)}")
+            .setTitle("${DisplayNames.of(person.metadata)} · ${RosterColumns.label(key, labels)}")
             .setView(padded(input))
             .setPositiveButton("저장") { _, _ ->
-                val value = input.text.toString().trim()
-                if (key == RosterColumns.NAME) actions.save(person, value, emptyMap())
-                else actions.save(person, person.name, mapOf(key to value))
+                actions.save(person, null, null, mapOf(key to input.text.toString().trim()))
             }
+            .setNegativeButton("취소", null)
+            .show()
+    }
+
+    /** Long press on a name: the family name and the given name in two boxes. */
+    private fun editName(person: Person) {
+        fun box(value: String, hint: String, weight: Float) = (inflater.inflate(R.layout.cell_roster_input, null, false) as EditText).apply {
+            setText(value)
+            this.hint = hint
+            contentDescription = hint
+            layoutParams = LinearLayout.LayoutParams(0, context.dp(52), weight)
+        }
+        val family = box(PersonNames.family(person.metadata), "성", 0.4f)
+        val given = box(PersonNames.given(person.metadata), "이름 (성 빼고)", 1f).apply {
+            (layoutParams as LinearLayout.LayoutParams).marginStart = context.dp(10)
+        }
+        val row = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(family)
+            addView(given)
+        }
+        AlertDialog.Builder(context)
+            .setTitle("이름 고치기")
+            .setMessage("성을 비우면 이름 칸이 그대로 전체 이름이 됩니다.")
+            .setView(padded(row))
+            .setPositiveButton("저장") { _, _ -> actions.save(person, family.text.toString().trim(), given.text.toString().trim(), emptyMap()) }
             .setNegativeButton("취소", null)
             .show()
     }
@@ -250,6 +276,7 @@ internal class PeoplePage(
         }
 
         inner class EditHolder(view: View) : RecyclerView.ViewHolder(view) {
+            val family: EditText = view.findViewById(R.id.personFamilyNameInput)
             val name: EditText = view.findViewById(R.id.personNameInput)
             val inputs: LinearLayout = view.findViewById(R.id.personColumnInputs)
             val samples: TextView = view.findViewById(R.id.personEditSamples)
@@ -276,7 +303,7 @@ internal class PeoplePage(
                 is RowHolder -> {
                     holder.initial.text = initialOf(person.name)
                     holder.initial.tint(color)
-                    holder.name.text = person.name
+                    holder.name.text = DisplayNames.of(person.metadata)
                     // A long-press listener makes a view take taps too: a tap still opens the row's editor.
                     holder.name.setOnClickListener { openEditor(person) }
                     holder.name.setOnLongClickListener { editCell(person, RosterColumns.NAME); true }
@@ -287,8 +314,8 @@ internal class PeoplePage(
                     holder.itemView.setOnClickListener { openEditor(person) }
                 }
                 is EditHolder -> {
-                    holder.name.setText(person.name)
-                    holder.name.hint = RosterColumns.label(RosterColumns.NAME, labels)
+                    holder.family.setText(PersonNames.family(person.metadata))
+                    holder.name.setText(PersonNames.given(person.metadata))
                     val inputs = columns.map { column ->
                         (inflater.inflate(R.layout.cell_roster_input, holder.inputs, false) as EditText).apply {
                             hint = column.label
@@ -300,7 +327,7 @@ internal class PeoplePage(
                     holder.samples.text = "사진 ${person.embeddings.size}장"
                     holder.save.setOnClickListener {
                         val values = columns.zip(inputs).associate { (column, input) -> column.key to input.text.toString().trim() }
-                        actions.save(person, holder.name.text.toString().trim(), values)
+                        actions.save(person, holder.family.text.toString().trim(), holder.name.text.toString().trim(), values)
                     }
                     holder.close.setOnClickListener { closeEditor() }
                     holder.delete.setOnClickListener { actions.delete(person) }

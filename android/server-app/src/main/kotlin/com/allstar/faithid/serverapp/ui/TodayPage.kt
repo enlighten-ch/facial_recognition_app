@@ -15,7 +15,7 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-/** "오늘의 순서": what to check on a Sunday morning, in order, and today's attendance so far. */
+/** "현황": what to check on a Sunday morning, in order, and today's attendance so far. */
 internal class TodayPage(
     root: View,
     private val actions: Actions,

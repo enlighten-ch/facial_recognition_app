@@ -3,6 +3,7 @@ package com.allstar.faithid.serverapp.ui
 import com.allstar.faithid.core.attendance.AttendanceRow
 import com.allstar.faithid.core.model.Person
 import com.allstar.faithid.core.model.PersonMetadata
+import com.allstar.faithid.core.model.PersonNames
 import com.allstar.faithid.core.storage.PeopleCsv
 
 /** Which column a table is sorted by; tapping the same header again reverses it. */
@@ -35,6 +36,14 @@ internal object Departments {
 }
 
 internal data class PersonRow(val person: Person, val presentToday: Boolean)
+
+/** Names as the server app shows them: "김 하은" when the family name is known, else the name as it is. */
+internal object DisplayNames {
+    fun of(metadata: PersonMetadata): String {
+        val family = PersonNames.family(metadata)
+        return if (family.isEmpty()) metadata.name else "$family ${PersonNames.given(metadata)}"
+    }
+}
 
 /** One column of the 명단 besides the name: a metadata column of the CSV ("department", "반", …). */
 internal data class RosterColumn(val key: String, val label: String, val hidden: Boolean, val hasValues: Boolean) {
@@ -141,8 +150,11 @@ internal class Grouping(val column: String, val label: String, private val peopl
 
     fun of(person: Person): String = PeopleCsv.cellOf(person.metadata, column)
 
+    /** The row's name, split into family and given name when the person is on the roster. */
+    fun nameOf(row: AttendanceRow): String = people[row.personKey]?.let { DisplayNames.of(it.metadata) } ?: row.name
+
     companion object {
-        /** Columns to group by: every column with values except the name and its parts. */
+        /** Columns to group by: every column with values except the name and its parts (현황, 명단, 출석). */
         fun choices(columns: List<RosterColumn>): List<RosterColumn> =
             columns.filter { it.hasValues && it.key != PersonMetadata.CANONICAL_FAMILY_NAME }
 
