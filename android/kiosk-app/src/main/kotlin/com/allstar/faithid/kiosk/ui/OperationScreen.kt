@@ -33,6 +33,8 @@ import com.allstar.faithid.core.recognition.FaceCircle
 import com.allstar.faithid.core.recognition.HeadDirection
 import com.allstar.faithid.kiosk.R
 import com.allstar.faithid.kiosk.camera.GuideOverlayView
+import com.allstar.faithid.kiosk.flow.CaptureProblem
+import com.allstar.faithid.kiosk.flow.RegistrationView
 import com.allstar.faithid.kiosk.flow.Screen
 import com.allstar.faithid.kiosk.flow.UiState
 import com.allstar.faithid.kiosk.settings.GuideAudience
@@ -219,17 +221,17 @@ class OperationScreen(
     private fun celebrate(capture: UiState, next: UiState) {
         pending = next
         capture.registration?.let { r ->
-            stars.show(IntArray(4) { r.perDirection }, r.perDirection, -1, kids)
+            stars.show(Array(HeadDirection.entries.size) { BooleanArray(3) { true } }, -1, -1, kids)
         }
         head.done = true
         headCaption.text = copy.followCaption(null, null)
-        title.text = copy.celebration
+        title.text = copy.celebration(capture.registration?.target ?: 0)
         sub.visibility = View.GONE
         count.text = capture.registration?.let { copy.count(it.target, it.target) } ?: ""
         guideOverlay.animateScale(1f)
         react(GuideMoment.REGISTER_DONE)
         val oval = ovalIn(celebration, 1f)
-        celebration.celebrate(oval[0], oval[1], kids, copy.celebration) {
+        celebration.celebrate(oval[0], oval[1], kids, copy.celebration(capture.registration?.target ?: 0)) {
             val waiting = pending ?: next
             pending = null
             draw(waiting)
@@ -308,16 +310,31 @@ class OperationScreen(
 
     private fun drawCapture(state: UiState) {
         val r = state.registration ?: return
-        setBubble(copy.bubble(state).let { if (r.stalled) it.copy(sub = copy.stalled) else it })
+        setBubble(copy.bubble(state))
         replies.removeAllViews()
-        val collected = IntArray(4) { i -> (r.collected[HeadDirection.entries[i]] ?: 0).coerceAtMost(r.perDirection) }
-        stars.show(collected, r.perDirection, r.next?.ordinal ?: -1, kids)
+        stars.show(starFlags(r), r.next?.ordinal ?: -1, starStep(r), kids)
         head.done = r.next == null
         head.direction = r.next
         head.circle = r.circle
         headTitle.text = copy.followTitle
         headCaption.text = copy.followCaption(r.next, r.circle)
         count.text = copy.count(r.total, r.target)
+    }
+
+    /** Collected flags per direction and star (normal, big, small; repeats when the circle steps are off). */
+    private fun starFlags(r: RegistrationView): Array<BooleanArray> {
+        val flags = Array(HeadDirection.entries.size) { BooleanArray(3) }
+        val steps = r.cells.any { it.first.circle != FaceCircle.NORMAL }
+        r.cells.forEach { (cell, has) ->
+            val k = if (steps) cell.circle.ordinal else cell.slot
+            if (k < 3) flags[cell.direction.ordinal][k] = has
+        }
+        return flags
+    }
+
+    private fun starStep(r: RegistrationView): Int {
+        val next = r.cells.firstOrNull { !it.second }?.first ?: return -1
+        return if (r.cells.any { it.first.circle != FaceCircle.NORMAL }) next.circle.ordinal else next.slot
     }
 
     private fun drawDuplicate(state: UiState) {
@@ -385,6 +402,7 @@ class OperationScreen(
                     state.duplicateOf != null -> GuideMoment.ALREADY_KNOWN
                     !sameScreen -> GuideMoment.REGISTER_START
                     r != null && before != null && r.total > before.total -> GuideMoment.STAR_COLLECTED
+                    r?.problem == CaptureProblem.SEVERAL -> GuideMoment.SEVERAL_FACES
                     r?.stalled == true -> GuideMoment.STALLED
                     else -> moment
                 }
@@ -536,6 +554,9 @@ class OperationScreen(
      * someone set for the old screen.
      */
     private var fit = 1f
+
+    /** Size of the normal face circle on screen relative to the configured one; faces are measured against it. */
+    val normalScale: Float get() = fit
     private var guideBottom = 0f
 
     private fun circleScale(circle: FaceCircle?): Float = fit * when (circle) {

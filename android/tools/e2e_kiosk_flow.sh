@@ -39,8 +39,10 @@ face() { # identity [direction] [count] [size]
 # A face held in front of the camera for a few frames (the kiosk ignores one-frame flickers).
 seen() { face "$1" "" 5; }
 no_face() { for _ in 1 2 3 4 5 6 7; do broadcast DEBUG_NO_FACE; done; }
-# The 12 registration motions: each direction with the normal, big (closer) and small (further) circle.
-register_motions() { for d in LEFT RIGHT UP DOWN; do face "$1" "$d" 1 0.30; face "$1" "$d" 1 0.37; face "$1" "$d" 1 0.24; sleep 0.3; done; }
+# The 15 registration motions: front and the four directions with the normal circle, then closer
+# (big circle), then further (small circle). Sizes are relative to the normal circle; each pose is
+# held for 2 frames, as the kiosk keeps a sample only after the face stays put.
+register_motions() { for size in 1.0 1.18 0.73; do for d in FRONT LEFT RIGHT UP DOWN; do face "$1" "$d" 2 "$size"; done; sleep 0.3; done; }
 wait_for() { # seconds description command
   local deadline=$(( $(date +%s) + $1 ))
   while [ "$(date +%s)" -lt "$deadline" ]; do eval "$3" && return 0; sleep 1; done
@@ -67,13 +69,17 @@ broadcast DEBUG_CAMERA --ez paused true
 no_face
 sleep 1
 
-step "1. 처음 보는 얼굴 → 등록 (12가지 동작)"
+step "1. 처음 보는 얼굴 → 등록 (15가지 동작, 여럿·원 밖 안내)"
 seen "$PERSON"; sleep 1
 check "미등록 안내와 등록 버튼" 'ui_has "좋아, 등록할래!"'
 ui_tap "좋아, 등록할래!"; sleep 1
+broadcast DEBUG_SEVERAL --ei faces 2; sleep 1
+check "얼굴이 여럿이면 한 명씩 안내" 'ui_has "한 번에 한 친구만 등록할게!"'
+broadcast DEBUG_OUTSIDE --ef dx -1.5; sleep 1
+check "원 왼쪽 밖이면 오른쪽으로 안내" 'ui_has "오른쪽으로 한 걸음!"'
 register_motions "$PERSON"
 sleep 4 # the celebration plays first
-check "12가지 동작 후 이름 입력 화면" 'ui_has "선생님, 이름을 적어 주세요"'
+check "15가지 동작 후 이름 입력 화면" 'ui_has "선생님, 이름을 적어 주세요"'
 ui_tap opNameInput; ui_close_crash_dialog; ui_type "$NAME"; ui_tap opDepartmentInput; ui_type "E2E"; ui_tap opGradeInput; ui_type "G1"
 ui_close_crash_dialog
 ui_hide_keyboard
@@ -113,12 +119,12 @@ check "명단 외 출석 기록" 'wait_for 20 sheet "[ \"\$(sheet_count GUEST-$R
 step "5. 서버에서 삭제 → 키오스크에서도 사라짐"
 adbs shell am start -n "$SERVER/com.allstar.faithid.serverapp.ui.MainActivity" >/dev/null; sleep 3
 if ui_has "로그인"; then ui_tap loginIdInput; clear_field; ui_type admin; ui_tap loginPasswordInput; clear_field; ui_type "$ADMIN_PASSWORD"; ui_tap loginButton; sleep 2; fi
-ui_tap "명단"; sleep 1
+ui_tap tabPeople; sleep 1 # by id: the 오늘의 순서 page has a "명단" title too
 ui_tap peopleSearchInput; clear_field; ui_type "$NAME"; adbs shell input keyevent KEYCODE_BACK; sleep 1
 ui_tap personName; sleep 1 # opens the row for editing
 ui_tap personDeleteButton; sleep 1; ui_tap "삭제"; sleep 2
 check "서버 명단에서 삭제" 'wait_for 10 csv "! adbs shell grep -q \"$NAME\" $DATA_DIR/face_db.csv"'
-ui_tap "키오스크"
+ui_tap tabKiosks
 kiosk_front
 broadcast DEBUG_CAMERA --ez paused true
 no_face; sleep 6

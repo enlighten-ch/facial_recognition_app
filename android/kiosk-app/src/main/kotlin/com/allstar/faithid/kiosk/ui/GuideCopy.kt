@@ -3,6 +3,7 @@ package com.allstar.faithid.kiosk.ui
 import com.allstar.faithid.core.model.PersonMetadata
 import com.allstar.faithid.core.recognition.FaceCircle
 import com.allstar.faithid.core.recognition.HeadDirection
+import com.allstar.faithid.kiosk.flow.CaptureProblem
 import com.allstar.faithid.kiosk.flow.Screen
 import com.allstar.faithid.kiosk.flow.UiState
 
@@ -20,12 +21,14 @@ class GuideCopy(
     /** One editable line: its key, the label in the settings and the default for each audience. */
     data class Entry(val key: String, val label: String, val kids: String, val adults: String)
 
-    fun line(key: String, name: String? = null, direction: HeadDirection? = null): String {
+    fun line(key: String, name: String? = null, direction: HeadDirection? = null, side: String? = null, count: Int? = null): String {
         val entry = LINES.first { it.key == key }
         val text = overrides["${audienceKey(kids)}.$key"]?.takeIf { it.isNotBlank() } ?: if (kids) entry.kids else entry.adults
         return text
             .replace("{name}", name?.let { if (kids) callName(it) else it } ?: "")
             .replace("{direction}", direction?.let { directionPhrase(it) } ?: "")
+            .replace("{side}", side ?: "")
+            .replace("{count}", count?.toString() ?: "")
     }
 
     // ----- speech bubble --------------------------------------------------------------------
@@ -59,13 +62,32 @@ class GuideCopy(
         val duplicate = state.duplicateOf
         if (duplicate != null) return Line(line("confirm", duplicate.metadata?.name ?: duplicate.label), line("confirmSub"))
         val r = state.registration ?: return Line(state.message)
-        val next = r.next ?: return Line(line("celebration"))
-        val key = when (r.circle ?: FaceCircle.NORMAL) {
-            FaceCircle.NORMAL -> "fitNormal"
-            FaceCircle.BIG -> "fitBig"
-            FaceCircle.SMALL -> "fitSmall"
+        val next = r.next ?: return Line(line("celebration", count = r.target))
+        // Problems that stop collecting come first and replace the request.
+        when (r.problem) {
+            CaptureProblem.SEVERAL -> return Line(line("several"), line("severalSub"))
+            CaptureProblem.OUTSIDE_LEFT -> return Line(line("outside"), line("outsideSub", side = "오른쪽"))
+            CaptureProblem.OUTSIDE_RIGHT -> return Line(line("outside"), line("outsideSub", side = "왼쪽"))
+            CaptureProblem.TOO_TURNED -> return Line(line("tooTurned"), line("tooTurnedSub"))
+            CaptureProblem.NO_FACE -> if (r.stalled) return Line(line("noFace"))
+            else -> Unit
         }
-        return Line(line(key, direction = next))
+        val circle = when (r.circle ?: FaceCircle.NORMAL) {
+            FaceCircle.NORMAL -> "Normal"
+            FaceCircle.BIG -> "Big"
+            FaceCircle.SMALL -> "Small"
+        }
+        val title = if (next == HeadDirection.FRONT) line("front$circle") else line("fit$circle", direction = next)
+        val sub = when (r.problem) {
+            null -> if (r.holding > 0f) line("hold") else ""
+            CaptureProblem.COME_CLOSER -> line("closer")
+            CaptureProblem.STEP_BACK -> line("back")
+            CaptureProblem.DIRECTION -> if (r.stalled) line("turnLikePicture") else ""
+            CaptureProblem.TOO_SIMILAR -> line("moveABit")
+            CaptureProblem.OTHER_PERSON -> line("samePerson")
+            else -> ""
+        }
+        return Line(title, sub)
     }
 
     private fun info(state: UiState): Line {
@@ -83,12 +105,14 @@ class GuideCopy(
 
     /** "왼쪽을" for children ("왼쪽을 보면서 …"), "왼쪽으로" for adults ("고개를 왼쪽으로 돌린 채 …"). */
     fun directionPhrase(d: HeadDirection): String {
+        if (d == HeadDirection.FRONT) return if (kids) "앞을" else "정면으로"
         val word = directionWord(d)
         val vertical = d == HeadDirection.UP || d == HeadDirection.DOWN
         return if (kids) word + if (vertical) "를" else "을" else word + if (vertical) "로" else "으로"
     }
 
     fun directionWord(d: HeadDirection): String = when (d) {
+        HeadDirection.FRONT -> "정면"
         HeadDirection.LEFT -> "왼쪽"
         HeadDirection.RIGHT -> "오른쪽"
         HeadDirection.UP -> "위"
@@ -107,9 +131,8 @@ class GuideCopy(
     val save: String get() = if (kids) "다 됐어요" else "저장"
     val home: String get() = "처음으로"
     val privacy: String get() = if (kids) "사진은 저장하지 않아요" else "사진은 저장하지 않습니다"
-    val stalled: String get() = if (kids) "카메라에 조금 더 가까이 오거나 멀어져 볼까?" else "카메라에 조금 더 가까이 오거나 멀어져 보세요"
     val followTitle: String get() = if (kids) "이렇게 따라 해 봐!" else "이렇게 돌려 주세요"
-    val celebration: String get() = line("celebration")
+    fun celebration(count: Int): String = line("celebration", count = count)
 
     fun count(got: Int, target: Int): String = if (kids) "★ 별 $got / $target" else "$got / $target 동작"
 
@@ -151,10 +174,26 @@ class GuideCopy(
             Entry("fitNormal", "등록: 보통 동그라미 ({direction})", "{direction} 보면서 동그라미에 얼굴을 쏙 맞춰 줄래?", "고개를 {direction} 돌린 채 원 안에 얼굴을 맞춰 주세요"),
             Entry("fitBig", "등록: 큰 동그라미 ({direction})", "우아, 동그라미가 커졌다! {direction} 보면서 얼굴로 꽉 채워 줄래?", "고개를 {direction} 돌린 채 커진 원을 얼굴로 채워 주세요"),
             Entry("fitSmall", "등록: 작은 동그라미 ({direction})", "이번엔 작은 동그라미야! {direction} 보면서 쏙 들어와 볼까?", "고개를 {direction} 돌린 채 작아진 원 안에 얼굴을 넣어 주세요"),
-            Entry("celebration", "등록 축하", "별 12개 다 모았다!", "얼굴 등록 완료"),
+            Entry("frontNormal", "등록: 보통 동그라미 (정면)", "앞을 보면서 동그라미에 얼굴을 쏙 맞춰 줄래?", "정면을 보고 원 안에 얼굴을 맞춰 주세요"),
+            Entry("frontBig", "등록: 큰 동그라미 (정면)", "이번엔 가까이 와서 앞을 보면서 큰 동그라미를 꽉 채워 줄래?", "조금 가까이 와서 정면을 보고 커진 원을 채워 주세요"),
+            Entry("frontSmall", "등록: 작은 동그라미 (정면)", "이번엔 한 걸음 뒤로 가서 작은 동그라미에 쏙 들어와 볼까?", "한 걸음 물러나서 정면을 보고 작아진 원 안에 얼굴을 넣어 주세요"),
+            Entry("hold", "등록: 맞췄을 때 둘째 줄", "좋아, 그대로! 하나, 둘…", "좋습니다. 잠시 그대로 계세요"),
+            Entry("closer", "등록: 더 가까이 둘째 줄", "조금 더 가까이 와 볼까?", "조금 더 가까이 와 주세요"),
+            Entry("back", "등록: 더 멀리 둘째 줄", "조금만 뒤로 가 볼까?", "조금 뒤로 물러나 주세요"),
+            Entry("turnLikePicture", "등록: 방향이 안 맞을 때 둘째 줄", "그림처럼 고개를 돌려 볼까?", "그림과 같은 방향으로 고개를 돌려 주세요"),
+            Entry("moveABit", "등록: 너무 비슷할 때 둘째 줄", "고개를 아주 조금만 움직여 볼까?", "자세를 조금만 바꿔 주세요"),
+            Entry("samePerson", "등록: 다른 얼굴일 때 둘째 줄", "처음 그 친구가 계속 있어 줘", "처음 등록하던 분이 계속 계셔야 합니다"),
+            Entry("several", "등록: 얼굴이 여럿일 때", "한 번에 한 친구만 등록할게!", "한 번에 한 분씩 등록합니다"),
+            Entry("severalSub", "등록: 얼굴이 여럿일 때 둘째 줄", "다른 친구는 뒤에서 잠깐 기다려 줄래?", "다른 분은 잠시 화면 밖으로 비켜 주세요"),
+            Entry("outside", "등록: 원 밖에 있을 때", "동그라미 쪽으로 조금만 와 줄래?", "화면 가운데로 와 주세요"),
+            Entry("outsideSub", "등록: 원 밖 둘째 줄 ({side})", "{side}으로 한 걸음!", "{side}으로 조금 옮겨 주세요"),
+            Entry("tooTurned", "등록: 너무 돌렸을 때", "우와, 너무 많이 돌렸어!", "조금만 덜 돌려 주세요"),
+            Entry("tooTurnedSub", "등록: 너무 돌렸을 때 둘째 줄", "조금만 덜 돌려 볼까?", "옆으로 너무 돌리면 저장되지 않습니다"),
+            Entry("noFace", "등록: 얼굴이 안 보일 때", "어디 갔어? 다시 동그라미 앞에 와 줄래?", "화면 앞에 서 주세요"),
+            Entry("celebration", "등록 축하 ({count})", "별 {count}개 다 모았다!", "얼굴 등록 완료"),
             Entry("confirm", "이미 아는 얼굴 ({name})", "{name} 맞아요?", "{name} 님이 맞으신가요?"),
             Entry("confirmSub", "이미 아는 얼굴 둘째 줄", "어, 이미 아는 얼굴이야! 맞으면 네를 눌러 줘", "이미 등록된 얼굴과 같습니다"),
-            Entry("regDone", "이름 입력", "별 12개 다 모았다!", "얼굴 등록이 끝났습니다"),
+            Entry("regDone", "이름 입력", "별을 다 모았다!", "얼굴 등록이 끝났습니다"),
             Entry("regDoneSub", "이름 입력 둘째 줄", "선생님, 이름을 적어 주세요", "이름과 소속을 입력해 주세요"),
             Entry("labelOnly", "등록 없이 이름표만", "이름표에 뭐라고 쓸까?", "이름표에 넣을 내용"),
             Entry("labelOnlySub", "등록 없이 이름표만 둘째 줄", "얼굴은 저장하지 않아요", "얼굴은 저장하지 않습니다"),

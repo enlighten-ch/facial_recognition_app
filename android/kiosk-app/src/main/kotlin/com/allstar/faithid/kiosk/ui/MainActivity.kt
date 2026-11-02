@@ -243,6 +243,7 @@ class MainActivity : AppCompatActivity() {
                 screen = { currentScreen },
                 mirrored = { camera.mirrored },
                 guideScale = { screen.guideScale },
+                normalScale = { screen.normalScale },
                 deliver = { observation -> main.post { flow.onObservation(observation) } },
                 log = log::log,
             )

@@ -14,7 +14,8 @@ b() { adbs shell am broadcast -n "$R" -a "com.allstar.faithid.kiosk.$1" "${@:2}"
 face() { local a=(--es identity "$1" --ei count "${3:-1}"); [ -n "${2:-}" ] && a+=(--es direction "$2"); [ -n "${4:-}" ] && a+=(--ef size "$4"); b DEBUG_FACE "${a[@]}"; }
 noface() { for _ in 1 2 3 4 5 6 7; do b DEBUG_NO_FACE; done; }
 seen() { face "$1" "" 5; }
-motions() { for d in LEFT RIGHT UP DOWN; do face "$1" $d 1 0.30; sleep 0.8; face "$1" $d 1 0.37; sleep 0.8; face "$1" $d 1 0.24; sleep 0.8; done; }
+# Front and four directions per circle (normal, big = closer, small = further); 2 frames to hold each pose.
+motions() { for size in 1.0 1.18 0.73; do for d in FRONT LEFT RIGHT UP DOWN; do face "$1" $d 2 $size; sleep 0.6; done; done; }
 # Text goes in through the debug receiver (no keyboard: Samsung's keyboard can crash under adb input).
 # BACK only while the keyboard shows: otherwise it would close the kiosk screen.
 hidekb() { adbs shell dumpsys input_method | grep -q "mInputShown=true" && adbs shell input keyevent KEYCODE_BACK; sleep 0.5; }
@@ -49,20 +50,25 @@ noface; sleep 4
 
 seen "$NEW"; sleep 2; shot 03-unknown
 check "처음 보는 얼굴 안내" 'ui_has "처음 보는 얼굴이네! 우리 친구 할까?"'
-ui_tap "좋아, 등록할래!"; sleep 2; shot 04-reg-left-normal
-check "등록 첫 안내: 왼쪽 + 보통 동그라미" 'ui_has "왼쪽을 보면서 동그라미에 얼굴을 쏙 맞춰 줄래?"'
-check "별 개수 0/12" 'ui_has "★ 별 0 / 12"'
-face "$NEW" LEFT 1 0.30; sleep 2; shot 05-reg-left-big
-check "큰 동그라미 안내" 'ui_has "우아, 동그라미가 커졌다! 왼쪽을 보면서 얼굴로 꽉 채워 줄래?"'
-face "$NEW" LEFT 1 0.30; sleep 1
-check "큰 동그라미인데 가까이 오지 않으면 받지 않음" 'ui_has "★ 별 1 / 12"'
-face "$NEW" LEFT 1 0.37; sleep 2; shot 06-reg-left-small
-check "작은 동그라미 안내" 'ui_has "이번엔 작은 동그라미야! 왼쪽을 보면서 쏙 들어와 볼까?"'
-face "$NEW" LEFT 1 0.24; sleep 1
-for d in RIGHT UP; do face "$NEW" $d 1 0.30; sleep 0.6; face "$NEW" $d 1 0.37; sleep 0.6; face "$NEW" $d 1 0.24; sleep 0.6; done
-sleep 1; shot 08-reg-down
-check "아래 방향 안내" 'ui_has "아래를 보면서 동그라미에 얼굴을 쏙 맞춰 줄래?"'
-face "$NEW" DOWN 1 0.30; sleep 0.6; face "$NEW" DOWN 1 0.37; sleep 0.6; face "$NEW" DOWN 1 0.24; sleep 0.8
+ui_tap "좋아, 등록할래!"; sleep 2; shot 04-reg-front-normal
+check "등록 첫 안내: 정면 + 보통 동그라미" 'ui_has "앞을 보면서 동그라미에 얼굴을 쏙 맞춰 줄래?"'
+check "별 개수 0/15" 'ui_has "★ 별 0 / 15"'
+b DEBUG_SEVERAL --ei faces 2; sleep 1.5; shot 05-reg-several
+check "얼굴이 여럿이면 한 명씩 안내" 'ui_has "한 번에 한 친구만 등록할게!"'
+face "$NEW" FRONT 1 1.0; sleep 1.5; shot 06-reg-hold
+check "맞추면 그대로 있으라는 안내" 'ui_has "좋아, 그대로! 하나, 둘…"'
+face "$NEW" FRONT 1 1.0; sleep 1.5
+check "머문 뒤 별 1개" 'ui_has "★ 별 1 / 15"'
+face "$NEW" LEFT 2 0.85; sleep 1.5; shot 07-reg-closer
+check "크기가 작으면 가까이 오라는 안내" 'ui_has "조금 더 가까이 와 볼까?"'
+check "원 사이 크기는 받지 않음" 'ui_has "★ 별 1 / 15"'
+face "$NEW" UP 2 0.73; sleep 1.5
+check "권하는 칸이 아니어도 빈칸이면 받음 (위·멀리)" 'ui_has "★ 별 2 / 15"'
+for d in LEFT RIGHT UP DOWN; do face "$NEW" $d 2 1.0; sleep 0.6; done
+sleep 1; shot 08-reg-big
+check "보통 판을 마치면 가까이 판" 'ui_has "이번엔 가까이 와서 앞을 보면서 큰 동그라미를 꽉 채워 줄래?"'
+for d in FRONT LEFT RIGHT UP DOWN; do face "$NEW" $d 2 1.18; sleep 0.6; done
+for d in FRONT LEFT RIGHT DOWN; do face "$NEW" $d 2 0.73; sleep 0.6; done
 shot 09-celebration
 sleep 3; shot 10-form
 check "이름 입력 화면" 'ui_has "선생님, 이름을 적어 주세요"'

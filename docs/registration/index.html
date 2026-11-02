@@ -84,7 +84,7 @@ footer { color: var(--muted); font-size: 0.86rem; border-top: 1px solid var(--li
 
 <main>
   <header>
-    <span class="eyebrow">FAITH ID · 설계와 검증 · 2026-11-02 · 작성 중</span>
+    <span class="eyebrow">FAITH ID · 설계와 검증 · 2026-11-02 · 구현 중</span>
     <h1>얼굴 등록 과정</h1>
     <p class="lede">키오스크의 얼굴 등록이 실제로 잘 끝나지 않는다는 의견을 받고, 등록 로직을 처음부터 다시 확인했습니다. 이 문서에는 지금의 동작, 확인한 문제, 바꿀 로직, 화면 안 세 가지, 검증 방법을 적었습니다. 구현과 시험 결과도 이 문서에 이어서 기록합니다.</p>
   </header>
@@ -228,12 +228,28 @@ footer { color: var(--muted); font-size: 0.86rem; border-top: 1px solid var(--li
   </section>
 
   <section aria-labelledby="h-decide">
-    <h2 id="h-decide">정할 것</h2>
+    <h2 id="h-decide">정한 것 (11-02)</h2>
     <div class="decide">
-      <div><b>화면 안</b><span>A·B·C 중 하나. 추천은 A입니다. 어린이 화면만 B로 하는 조합도 가능합니다.</span></div>
-      <div><b>칸 수</b><span>정면을 넣은 15칸(추천) 또는 지금처럼 12칸. 15칸이 3칸 많지만 순서 제약이 없어져 전체 시간은 줄어들 것으로 봅니다(V5로 확인).</span></div>
-      <div><b>얼굴 정렬</b><span>V6 측정 뒤 결정합니다. 켜면 현재 등록된 1명은 다시 등록해야 합니다.</span></div>
+      <div><b>화면 안: A 하얀 얼굴</b><span>선 없이 눈코입 없는 반투명 얼굴로 단순화합니다. 모양은 세 가지 중에서 고르는 중입니다: <a href="https://claude.ai/artifact/6pQccRFQsJXz6FUm2Qzsc3">하얀 얼굴, 세 가지 모양 (v3)</a>. 보통·가까이·멀리 진행 표시는 넣지 않습니다.</span></div>
+      <div><b>칸 수: 정면 포함 15칸</b><span>정면·왼쪽·오른쪽·위·아래 × 보통·가까이·멀리.</span></div>
+      <div><b>얼굴 정렬: 켬</b><span>새 기본값이고, 이미 설치된 키오스크도 한 번 켜집니다. 정렬 전에 등록된 사람은 다시 등록해야 합니다(현재 1명).</span></div>
     </div>
+  </section>
+
+  <section aria-labelledby="h-status">
+    <h2 id="h-status">구현 상태</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>항목</th><th>상태</th><th>내용</th></tr></thead>
+      <tbody>
+        <tr><td>R1~R4, R7, R8 등록 세션</td><td><span class="pill ok">구현</span></td><td><code>RegistrationSession</code>: 칸 표, 크기별 판 권유, 화면 원 기준 크기 띠(±12%, 가장 가까운 원), 2프레임 머무름 후 가장 선명한 프레임 저장, 정면 포함. <code>PoseLimits</code>: 좌우 0.18~0.60, 위 0.42 이하(0.12 미만은 너무 돌림), 아래 0.62 이상(0.88 초과는 너무 돌림)</td></tr>
+        <tr><td>R5, R6, R10 프레임 분석</td><td><span class="pill ok">구현</span></td><td>얼굴 수(가장 큰 얼굴 폭의 40% 이상)를 세어 여럿이면 모으지 않음, 원 밖 얼굴은 방향과 함께 알림, 얼굴 높이를 화면의 보통 원 기준으로 잼(원 높이 × 0.75 = 1), 고른 얼굴 상자 × 1.4 밖과 다른 얼굴을 가림, 선명도(라플라시안 분산)</td></tr>
+        <tr><td>R11 안내 문구</td><td><span class="pill ok">구현</span></td><td>여럿·원 밖(어느 쪽으로)·너무 돌림·가까이·뒤로·그대로·얼굴 없음 문구, 어린이와 어른 각각. 설정 › 안내 문구에서 고칠 수 있음</td></tr>
+        <tr><td>등록 기록</td><td><span class="pill ok">구현</span></td><td>저장할 때마다 “등록 샘플 n/15: 칸, 크기, 고개 각도, 유사도”, 끝나거나 그만둘 때 “등록 기록/등록 중단: 시간, 거절 이유별 횟수”</td></tr>
+        <tr><td>설정</td><td><span class="pill ok">구현</span></td><td>등록 탭: 정면 모으기, 원에 맞는 얼굴 높이, 크기 허용 범위, 머무는 프레임 수</td></tr>
+        <tr><td>하얀 얼굴 화면</td><td><span class="pill warn">모양 결정 후</span></td><td>지금 키오스크는 기존 별 화면에 정면 별 묶음만 더해 새 로직으로 동작</td></tr>
+        <tr><td>V1·V2 단위 시험</td><td><span class="pill ok">통과</span></td><td>전체 JVM 시험 통과(등록 세션 9, 자세 3, 흐름·문구·설정 시험 추가)</td></tr>
+      </tbody>
+    </table></div>
   </section>
 
   <section aria-labelledby="h-order">

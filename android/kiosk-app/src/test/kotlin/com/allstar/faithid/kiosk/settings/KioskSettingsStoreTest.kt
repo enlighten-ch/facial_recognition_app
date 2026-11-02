@@ -57,10 +57,19 @@ class KioskSettingsStoreTest {
     }
 
     @Test
+    fun `face alignment is turned on once for kiosks set up before the registration changes`() {
+        assertTrue(KioskSettingsStore.fromJson(legacy(mapOf("FACE_ALIGNMENT_ENABLED" to false))).faceAlignmentEnabled)
+        // Saved after the change: the stored choice stands.
+        val later = legacy(mapOf("FACE_ALIGNMENT_ENABLED" to false, "REGISTER_INCLUDE_FRONT" to true))
+        assertFalse(KioskSettingsStore.fromJson(later).faceAlignmentEnabled)
+    }
+
+    @Test
     fun `save and load round trip`() {
         val original = KioskSettings(
             dbClientId = "k1", dbClientSecret = "s".repeat(32), printLayoutStacked = false, topK = 4,
             guideAudience = GuideAudience.ADULTS, registerCircleSteps = false, registerBigCircleScale = 1.3f,
+            registerIncludeFront = false, registerFaceFill = 0.8f, registerSizeTolerance = 0.1f, registerHoldFrames = 3, faceAlignmentEnabled = false,
             guideLines = mapOf("kids.idle" to "어서 와!", "adults.print" to "출력"),
         )
         val back = KioskSettingsStore.fromJson(KioskSettingsStore.toJson(original))

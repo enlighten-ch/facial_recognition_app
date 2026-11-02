@@ -4,6 +4,7 @@ import com.allstar.faithid.core.model.PersonMetadata
 import com.allstar.faithid.core.recognition.FaceCircle
 import com.allstar.faithid.core.recognition.HeadDirection
 import com.allstar.faithid.kiosk.flow.CandidateView
+import com.allstar.faithid.kiosk.flow.CaptureProblem
 import com.allstar.faithid.kiosk.flow.RegistrationView
 import com.allstar.faithid.kiosk.flow.Screen
 import com.allstar.faithid.kiosk.flow.UiState
@@ -31,15 +32,44 @@ class GuideCopyTest {
         assertEquals("유년부 · 2학년", adults.bubble(state).sub)
     }
 
+    private fun capture(next: HeadDirection, circle: FaceCircle, problem: CaptureProblem? = null, holding: Float = 0f, stalled: Boolean = false) = UiState(
+        screen = Screen.REGISTER_CAPTURE,
+        registration = RegistrationView(emptyList(), 1, 15, next, circle, holding, problem, stalled),
+    )
+
     @Test
     fun `registration says direction and circle in one line`() {
-        fun capture(next: HeadDirection, circle: FaceCircle) = UiState(
-            screen = Screen.REGISTER_CAPTURE,
-            registration = RegistrationView(emptyMap(), 3, 1, 12, next, circle),
-        )
         assertEquals("왼쪽을 보면서 동그라미에 얼굴을 쏙 맞춰 줄래?", kids.bubble(capture(HeadDirection.LEFT, FaceCircle.NORMAL)).title)
         assertEquals("이번엔 작은 동그라미야! 위를 보면서 쏙 들어와 볼까?", kids.bubble(capture(HeadDirection.UP, FaceCircle.SMALL)).title)
         assertEquals("고개를 아래로 돌린 채 커진 원을 얼굴로 채워 주세요", adults.bubble(capture(HeadDirection.DOWN, FaceCircle.BIG)).title)
+        assertEquals("앞을 보면서 동그라미에 얼굴을 쏙 맞춰 줄래?", kids.bubble(capture(HeadDirection.FRONT, FaceCircle.NORMAL)).title)
+        assertEquals("정면을 보고 원 안에 얼굴을 맞춰 주세요", adults.bubble(capture(HeadDirection.FRONT, FaceCircle.NORMAL)).title)
+    }
+
+    @Test
+    fun `registration explains why nothing is collected`() {
+        assertEquals(GuideCopy.Line("한 번에 한 친구만 등록할게!", "다른 친구는 뒤에서 잠깐 기다려 줄래?"), kids.bubble(capture(HeadDirection.LEFT, FaceCircle.NORMAL, CaptureProblem.SEVERAL)))
+        assertEquals("한 번에 한 분씩 등록합니다", adults.bubble(capture(HeadDirection.LEFT, FaceCircle.NORMAL, CaptureProblem.SEVERAL)).title)
+        // Left of the circle on screen: come to the right.
+        assertEquals("오른쪽으로 한 걸음!", kids.bubble(capture(HeadDirection.LEFT, FaceCircle.NORMAL, CaptureProblem.OUTSIDE_LEFT)).sub)
+        assertEquals("왼쪽으로 조금 옮겨 주세요", adults.bubble(capture(HeadDirection.LEFT, FaceCircle.NORMAL, CaptureProblem.OUTSIDE_RIGHT)).sub)
+        assertEquals("우와, 너무 많이 돌렸어!", kids.bubble(capture(HeadDirection.LEFT, FaceCircle.NORMAL, CaptureProblem.TOO_TURNED)).title)
+        assertEquals("조금 더 가까이 와 볼까?", kids.bubble(capture(HeadDirection.LEFT, FaceCircle.BIG, CaptureProblem.COME_CLOSER)).sub)
+        assertEquals("조금 뒤로 물러나 주세요", adults.bubble(capture(HeadDirection.LEFT, FaceCircle.SMALL, CaptureProblem.STEP_BACK)).sub)
+        assertEquals("좋아, 그대로! 하나, 둘…", kids.bubble(capture(HeadDirection.LEFT, FaceCircle.NORMAL, holding = 0.5f)).sub)
+        // A wrong direction is only explained once it goes on for a while.
+        assertEquals("", kids.bubble(capture(HeadDirection.LEFT, FaceCircle.NORMAL, CaptureProblem.DIRECTION)).sub)
+        assertEquals("그림처럼 고개를 돌려 볼까?", kids.bubble(capture(HeadDirection.LEFT, FaceCircle.NORMAL, CaptureProblem.DIRECTION, stalled = true)).sub)
+        // A face lost for one frame keeps the request; for longer, 빛이 asks where they went.
+        assertEquals("왼쪽을 보면서 동그라미에 얼굴을 쏙 맞춰 줄래?", kids.bubble(capture(HeadDirection.LEFT, FaceCircle.NORMAL, CaptureProblem.NO_FACE)).title)
+        assertEquals("어디 갔어? 다시 동그라미 앞에 와 줄래?", kids.bubble(capture(HeadDirection.LEFT, FaceCircle.NORMAL, CaptureProblem.NO_FACE, stalled = true)).title)
+    }
+
+    @Test
+    fun `the celebration counts the stars of this registration`() {
+        val done = UiState(screen = Screen.REGISTER_CAPTURE, registration = RegistrationView(emptyList(), 15, 15, null))
+        assertEquals("별 15개 다 모았다!", kids.bubble(done).title)
+        assertEquals("별 12개 다 모았다!", kids.celebration(12))
     }
 
     @Test
@@ -66,6 +96,6 @@ class GuideCopyTest {
     @Test
     fun `a problem with the name replaces the second line of the form`() {
         val form = UiState(screen = Screen.REGISTER_INFO, message = "x", detail = "이름을 입력해 주세요.")
-        assertEquals(GuideCopy.Line("별 12개 다 모았다!", "이름을 입력해 주세요."), kids.bubble(form))
+        assertEquals(GuideCopy.Line("별을 다 모았다!", "이름을 입력해 주세요."), kids.bubble(form))
     }
 }

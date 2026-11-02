@@ -96,6 +96,7 @@ class HeadView @JvmOverloads constructor(
         } else if (d != null) {
             val sway = if (reduceMotion) 1.0 else 0.86 + 0.14 * sin(t * 2.4)
             when (d) {
+                HeadDirection.FRONT -> Unit
                 HeadDirection.LEFT -> targetYaw = -0.98 * sway
                 HeadDirection.RIGHT -> targetYaw = 0.98 * sway
                 HeadDirection.UP -> targetPitch = -0.6 * sway

@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import com.allstar.faithid.core.model.Vectors
 import com.allstar.faithid.core.recognition.HeadDirection
+import com.allstar.faithid.core.recognition.Pose
 import com.allstar.faithid.kiosk.flow.Observation
 import com.allstar.faithid.kiosk.ui.DebugBridge
 import kotlin.random.Random
@@ -13,14 +14,19 @@ import kotlin.random.Random
  * Debug builds only. Lets E2E scripts drive the kiosk without a camera:
  *
  *   adb shell am broadcast -n com.example.facetestbed/com.allstar.faithid.kiosk.debug.DebugObservationReceiver \
- *     -a com.allstar.faithid.kiosk.DEBUG_FACE --es identity alice --es direction LEFT --ei count 3 [--ef size 0.3]
+ *     -a com.allstar.faithid.kiosk.DEBUG_FACE --es identity alice --es direction LEFT --ei count 3 [--ef size 1.18]
+ *   ... -a com.allstar.faithid.kiosk.DEBUG_FACE --es direction TOO_FAR | BETWEEN
+ *   ... -a com.allstar.faithid.kiosk.DEBUG_SEVERAL --ei faces 2
+ *   ... -a com.allstar.faithid.kiosk.DEBUG_OUTSIDE --ef dx -1.5   (left of the circle on screen)
  *   ... -a com.allstar.faithid.kiosk.DEBUG_NO_FACE
  *   ... -a com.allstar.faithid.kiosk.DEBUG_CAMERA --ez paused true
  *   ... -a com.allstar.faithid.kiosk.DEBUG_FINISH   (closes the kiosk screen; syncing goes on)
  *   ... -a com.allstar.faithid.kiosk.DEBUG_TYPE --es text 김하은   (into the focused field)
  *
- * The same identity always yields samples of the same synthetic face (512-d, ~0.74 apart). `size`
- * is the face width relative to the frame (registration circle steps); without it size is not checked.
+ * The same identity always yields samples of the same synthetic face (512-d, ~0.74 apart).
+ * `direction` is FRONT (default), LEFT, RIGHT, UP, DOWN, BETWEEN or TOO_FAR. `size` is the face
+ * size relative to the normal registration circle (1 = fits it, 1.18 big, 0.73 small); without it
+ * the size is not checked.
  */
 class DebugObservationReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -36,12 +42,19 @@ class DebugObservationReceiver : BroadcastReceiver() {
         when (intent.action) {
             ACTION_CAMERA -> DebugBridge.cameraPaused = intent.getBooleanExtra("paused", true)
             ACTION_NO_FACE -> observe(Observation.NoFace)
+            ACTION_SEVERAL -> observe(Observation.Several(intent.getIntExtra("faces", 2)))
+            ACTION_OUTSIDE -> observe(Observation.Outside(intent.getFloatExtra("dx", -1.5f)))
             ACTION_FACE -> {
                 val identity = intent.getStringExtra("identity") ?: "anonymous"
-                val direction = intent.getStringExtra("direction")?.let { name -> HeadDirection.entries.firstOrNull { it.name == name } }
+                val name = intent.getStringExtra("direction") ?: HeadDirection.FRONT.name
+                val pose = when (name) {
+                    "TOO_FAR" -> Pose.TooFar
+                    "BETWEEN" -> Pose.Between
+                    else -> HeadDirection.entries.firstOrNull { it.name == name }?.let { Pose.Facing(it) } ?: Pose.Between
+                }
                 val size = if (intent.hasExtra("size")) intent.getFloatExtra("size", 0f) else null
                 repeat(intent.getIntExtra("count", 1).coerceIn(1, 50)) {
-                    observe(Observation.Face(sample(identity), direction, size))
+                    observe(Observation.Face(sample(identity), (pose as? Pose.Facing)?.direction, size, pose))
                 }
             }
         }
@@ -63,6 +76,8 @@ class DebugObservationReceiver : BroadcastReceiver() {
     companion object {
         const val ACTION_FACE = "com.allstar.faithid.kiosk.DEBUG_FACE"
         const val ACTION_NO_FACE = "com.allstar.faithid.kiosk.DEBUG_NO_FACE"
+        const val ACTION_SEVERAL = "com.allstar.faithid.kiosk.DEBUG_SEVERAL"
+        const val ACTION_OUTSIDE = "com.allstar.faithid.kiosk.DEBUG_OUTSIDE"
         const val ACTION_CAMERA = "com.allstar.faithid.kiosk.DEBUG_CAMERA"
         const val ACTION_FINISH = "com.allstar.faithid.kiosk.DEBUG_FINISH"
         const val ACTION_TYPE = "com.allstar.faithid.kiosk.DEBUG_TYPE"

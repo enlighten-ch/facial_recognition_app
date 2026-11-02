@@ -94,6 +94,9 @@ class KioskScreen(activity: Activity, private val actions: Actions, people: () -
     /** Size of the face circle the camera analysis should use (registration steps). */
     val guideScale: Float get() = if (developerMode) 1f else operation.guideScale
 
+    /** Size of the normal face circle on screen relative to the configured one (registration face size). */
+    val normalScale: Float get() = if (developerMode) 1f else operation.normalScale
+
     init {
         registerButton.setOnClickListener { actions.startRegistration() }
         labelOnlyButton.setOnClickListener { actions.startLabelOnly() }
@@ -215,12 +218,14 @@ class KioskScreen(activity: Activity, private val actions: Actions, people: () -
         val builder = SpannableStringBuilder()
         append(builder, "전체 ${r.total} / ${r.target}", Color.rgb(17, 17, 17))
         HeadDirection.entries.forEach { direction ->
-            val count = (r.collected[direction] ?: 0).coerceAtMost(r.perDirection)
+            val count = r.collected(direction)
+            val of = r.cells.count { it.first.direction == direction }
+            if (of == 0) return@forEach
             builder.append('\n')
             when {
-                count >= r.perDirection -> append(builder, "✓ ${direction.progressLabel} $count/${r.perDirection} 완료", Color.rgb(30, 132, 73))
-                direction == r.next -> append(builder, "● ${direction.progressLabel} $count/${r.perDirection}", Color.rgb(245, 166, 35))
-                else -> append(builder, "○ ${direction.progressLabel} $count/${r.perDirection} 대기", Color.rgb(142, 142, 147))
+                count >= of -> append(builder, "✓ ${direction.progressLabel} $count/$of 완료", Color.rgb(30, 132, 73))
+                direction == r.next -> append(builder, "● ${direction.progressLabel} $count/$of", Color.rgb(245, 166, 35))
+                else -> append(builder, "○ ${direction.progressLabel} $count/$of", Color.rgb(142, 142, 147))
             }
         }
         return builder

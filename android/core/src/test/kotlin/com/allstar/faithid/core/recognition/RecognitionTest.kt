@@ -127,14 +127,29 @@ class HeadPoseAndGeometryTest {
         mouthRight = Point(75f, 100f),
     )
 
+    private fun facing(d: HeadDirection) = Pose.Facing(d)
+
     @Test
-    fun `classifies yaw and pitch and mirrors yaw for the front camera`() {
-        assertNull(HeadPose.classify(landmarks(60f, 75f), mirroredPreview = false))
-        assertEquals(HeadDirection.LEFT, HeadPose.classify(landmarks(52f, 75f), false))
-        assertEquals(HeadDirection.RIGHT, HeadPose.classify(landmarks(52f, 75f), true))
-        assertEquals(HeadDirection.RIGHT, HeadPose.classify(landmarks(68f, 75f), false))
-        assertEquals(HeadDirection.UP, HeadPose.classify(landmarks(60f, 65f), false))
-        assertEquals(HeadDirection.DOWN, HeadPose.classify(landmarks(60f, 85f), false))
+    fun `classifies front, the four directions, in-between and too far, and mirrors yaw for the front camera`() {
+        assertEquals(facing(HeadDirection.FRONT), HeadPose.classify(landmarks(60f, 75f), mirroredPreview = false))
+        assertEquals(facing(HeadDirection.LEFT), HeadPose.classify(landmarks(52f, 75f), false))
+        assertEquals(facing(HeadDirection.RIGHT), HeadPose.classify(landmarks(52f, 75f), true))
+        assertEquals(facing(HeadDirection.RIGHT), HeadPose.classify(landmarks(68f, 75f), false))
+        assertEquals(facing(HeadDirection.UP), HeadPose.classify(landmarks(60f, 65f), false))
+        assertEquals(facing(HeadDirection.DOWN), HeadPose.classify(landmarks(60f, 85f), false))
+        // A little turned or tilted: neither front nor a direction.
+        assertEquals(Pose.Between, HeadPose.classify(landmarks(55f, 75f), false))
+        assertEquals(Pose.Between, HeadPose.classify(landmarks(60f, 80f), false))
+        // Nearly a profile, or the chin far up: landmarks are unreliable there.
+        assertEquals(Pose.TooFar, HeadPose.classify(landmarks(30f, 75f), false))
+        assertEquals(Pose.TooFar, HeadPose.classify(landmarks(60f, 54f), false))
+    }
+
+    @Test
+    fun `measures yaw in eye distances and pitch between eyes and mouth`() {
+        val angles = HeadPose.measure(landmarks(52f, 65f), false)!!
+        assertEquals(-0.2f, angles.yaw, 1e-4f)
+        assertEquals(0.3f, angles.pitch, 1e-4f)
     }
 
     @Test
@@ -194,72 +209,132 @@ class HeadPoseAndGeometryTest {
 class RegistrationSessionTest {
     private val faces = FakeFaces(seed = 5, dim = 128)
 
+    private fun frame(direction: HeadDirection?, size: Float? = null, identity: String = "me", sharpness: Float = 0f) =
+        RegistrationFrame(faces.sample(identity), direction?.let { Pose.Facing(it) } ?: Pose.Between, size, sharpness)
+
+    /** Offers the same pose until a sample is kept or refused; returns the last outcome. */
+    private fun RegistrationSession.hold(direction: HeadDirection?, size: Float? = null, identity: String = "me"): RegistrationSession.Outcome {
+        var outcome: RegistrationSession.Outcome
+        do outcome = offer(frame(direction, size, identity)) while (outcome is RegistrationSession.Outcome.Holding)
+        return outcome
+    }
+
+    private val accepted = RegistrationSession.Outcome.Accepted::class
+
     @Test
-    fun `collects the configured samples per direction in order`() {
-        val session = RegistrationSession(RegistrationConfig(samplesPerDirection = 2))
-        assertEquals(HeadDirection.LEFT, session.nextDirection)
-        val wrong = session.offer(HeadDirection.RIGHT, faces.sample("me"))
-        assertTrue(wrong is RegistrationSession.Outcome.WrongDirection)
-        HeadDirection.entries.forEach { direction ->
-            repeat(2) { assertTrue(session.offer(direction, faces.sample("me")) is RegistrationSession.Outcome.Accepted) }
+    fun `fifteen cells, front included, suggested by circle round`() {
+        val session = RegistrationSession(RegistrationConfig())
+        assertEquals(15, session.totalTarget)
+        assertEquals(RegistrationCell(HeadDirection.FRONT, FaceCircle.NORMAL), session.suggestion)
+        assertEquals(HeadDirection.entries, session.cells.take(5).map { it.direction })
+        assertTrue(session.cells.take(5).all { it.circle == FaceCircle.NORMAL })
+        assertTrue(session.cells.drop(5).take(5).all { it.circle == FaceCircle.BIG })
+        assertEquals(12, RegistrationSession(RegistrationConfig(includeFront = false)).totalTarget)
+    }
+
+    @Test
+    fun `fills whatever empty cell the pose and distance match, in any order`() {
+        val session = RegistrationSession(RegistrationConfig())
+        // The guide suggests front/normal, but a small, upward face fills up/small right away.
+        val up = session.hold(HeadDirection.UP, 0.73f)
+        assertEquals(RegistrationCell(HeadDirection.UP, FaceCircle.SMALL), (up as RegistrationSession.Outcome.Accepted).cell)
+        assertEquals(RegistrationCell(HeadDirection.FRONT, FaceCircle.NORMAL), session.suggestion)
+        listOf(1f, 1.18f, 0.73f).forEach { size ->
+            HeadDirection.entries.forEach { d ->
+                if (!session.has(RegistrationCell(d, session.circleFor(size)!!))) assertTrue(accepted.isInstance(session.hold(d, size)))
+            }
         }
         assertTrue(session.isComplete)
-        assertEquals(8, session.samples.size)
-        assertEquals(RegistrationSession.Outcome.AlreadyComplete, session.offer(HeadDirection.LEFT, faces.sample("me")))
+        assertEquals(15, session.samples.size)
+        assertEquals(RegistrationSession.Outcome.AlreadyComplete, session.offer(frame(HeadDirection.LEFT, 1f)))
         session.reset()
         assertEquals(0, session.totalCollected)
     }
 
     @Test
+    fun `keeps a sample only after the hold, and the sharpest frame of it`() {
+        val session = RegistrationSession(RegistrationConfig(holdFrames = 3))
+        val blurry = frame(HeadDirection.FRONT, 1f, sharpness = 1f)
+        val sharp = frame(HeadDirection.FRONT, 1f, sharpness = 9f)
+        assertEquals(RegistrationSession.Outcome.Holding(RegistrationCell(HeadDirection.FRONT, FaceCircle.NORMAL), 1, 3), session.offer(blurry))
+        assertTrue(session.offer(sharp) is RegistrationSession.Outcome.Holding)
+        assertTrue(accepted.isInstance(session.offer(frame(HeadDirection.FRONT, 1f, sharpness = 2f))))
+        assertTrue(session.samples.single() === sharp.embedding)
+    }
+
+    @Test
+    fun `a different pose, no face or several faces start the hold again`() {
+        val session = RegistrationSession(RegistrationConfig(holdFrames = 2))
+        assertTrue(session.offer(frame(HeadDirection.FRONT, 1f)) is RegistrationSession.Outcome.Holding)
+        assertTrue(session.offer(frame(null, 1f)) is RegistrationSession.Outcome.WrongDirection)
+        assertTrue(session.offer(frame(HeadDirection.FRONT, 1f)) is RegistrationSession.Outcome.Holding)
+        session.interrupt()
+        assertTrue(session.offer(frame(HeadDirection.FRONT, 1f)) is RegistrationSession.Outcome.Holding)
+        assertTrue(accepted.isInstance(session.offer(frame(HeadDirection.FRONT, 1f))))
+    }
+
+    @Test
+    fun `size is judged against the circles as drawn`() {
+        val session = RegistrationSession(RegistrationConfig())
+        assertEquals(FaceCircle.NORMAL, session.circleFor(1.05f))
+        assertEquals(FaceCircle.BIG, session.circleFor(1.1f))   // nearer the big circle than the normal one
+        assertEquals(FaceCircle.SMALL, session.circleFor(0.66f))
+        assertNull(session.circleFor(0.85f))
+        assertNull(session.circleFor(1.5f))
+        // Between the normal and the small circle: no cell; the guide asks for the suggested circle.
+        val between = session.hold(HeadDirection.FRONT, 0.85f) as RegistrationSession.Outcome.WrongSize
+        assertEquals(FaceCircle.NORMAL, between.expected)
+        assertEquals(0.85f, between.ratio, 1e-4f)
+        // Front/normal done: a normal-sized front face asks for the next open front circle.
+        session.hold(HeadDirection.FRONT, 1f)
+        assertEquals(FaceCircle.BIG, (session.hold(HeadDirection.FRONT, 1f) as RegistrationSession.Outcome.WrongSize).expected)
+    }
+
+    @Test
+    fun `refuses a pose turned too far, in between, or already collected`() {
+        val session = RegistrationSession(RegistrationConfig(includeFront = false, circleSteps = false, samplesPerDirection = 1))
+        assertEquals(RegistrationSession.Outcome.TooTurned, session.offer(RegistrationFrame(faces.sample("me"), Pose.TooFar)))
+        assertEquals(RegistrationSession.Outcome.WrongDirection(HeadDirection.LEFT, null), session.hold(null))
+        // Front is not collected in this configuration.
+        assertEquals(RegistrationSession.Outcome.WrongDirection(HeadDirection.LEFT, HeadDirection.FRONT), session.hold(HeadDirection.FRONT))
+        assertTrue(accepted.isInstance(session.hold(HeadDirection.RIGHT)))
+        assertEquals(RegistrationSession.Outcome.WrongDirection(HeadDirection.LEFT, HeadDirection.RIGHT), session.hold(HeadDirection.RIGHT))
+    }
+
+    @Test
+    fun `with circle steps off or an unknown size the distance is not checked`() {
+        val off = RegistrationSession(RegistrationConfig(circleSteps = false, samplesPerDirection = 2))
+        assertEquals(10, off.totalTarget)
+        assertTrue(accepted.isInstance(off.hold(HeadDirection.LEFT, 0.3f)))
+        assertTrue(accepted.isInstance(off.hold(HeadDirection.LEFT, 2f)))
+        assertEquals(2, off.collected(HeadDirection.LEFT))
+
+        val unknown = RegistrationSession(RegistrationConfig())
+        assertTrue(accepted.isInstance(unknown.hold(HeadDirection.LEFT)))
+        assertEquals(1, unknown.collected(HeadDirection.LEFT))
+    }
+
+    @Test
     fun `rejects a different person and an identical frame`() {
-        val session = RegistrationSession(RegistrationConfig(samplesPerDirection = 3))
+        val session = RegistrationSession(RegistrationConfig(holdFrames = 1))
         val first = faces.sample("me")
-        session.offer(HeadDirection.LEFT, first)
-        assertTrue(session.offer(HeadDirection.LEFT, faces.sample("someone else")) is RegistrationSession.Outcome.TooDifferent)
-        assertTrue(session.offer(HeadDirection.LEFT, first.copyOf()) is RegistrationSession.Outcome.TooSimilar)
-    }
-
-    @Test
-    fun `circle steps ask for a closer and then a further face in each direction`() {
-        val session = RegistrationSession(RegistrationConfig(samplesPerDirection = 3))
-        assertEquals(FaceCircle.NORMAL, session.nextCircle)
-        assertTrue(session.offer(HeadDirection.LEFT, faces.sample("me"), faceSize = 0.30f) is RegistrationSession.Outcome.Accepted)
-        assertEquals(FaceCircle.BIG, session.nextCircle)
-        val tooFar = session.offer(HeadDirection.LEFT, faces.sample("me"), faceSize = 0.31f)
-        assertEquals(FaceCircle.BIG, (tooFar as RegistrationSession.Outcome.WrongSize).expected)
-        assertTrue(session.offer(HeadDirection.LEFT, faces.sample("me"), faceSize = 0.36f) is RegistrationSession.Outcome.Accepted)
-        assertEquals(FaceCircle.SMALL, session.nextCircle)
-        assertTrue(session.offer(HeadDirection.LEFT, faces.sample("me"), faceSize = 0.29f) is RegistrationSession.Outcome.WrongSize)
-        assertTrue(session.offer(HeadDirection.LEFT, faces.sample("me"), faceSize = 0.24f) is RegistrationSession.Outcome.Accepted)
-        // The next direction starts again with the normal circle and its own baseline.
-        assertEquals(HeadDirection.RIGHT, session.nextDirection)
-        assertEquals(FaceCircle.NORMAL, session.nextCircle)
-        assertTrue(session.offer(HeadDirection.RIGHT, faces.sample("me"), faceSize = 0.20f) is RegistrationSession.Outcome.Accepted)
-        assertTrue(session.offer(HeadDirection.RIGHT, faces.sample("me"), faceSize = 0.23f) is RegistrationSession.Outcome.Accepted)
-    }
-
-    @Test
-    fun `without a face size or with circle steps off the size is not checked`() {
-        val unknown = RegistrationSession(RegistrationConfig(samplesPerDirection = 3))
-        repeat(3) { assertTrue(unknown.offer(HeadDirection.LEFT, faces.sample("me")) is RegistrationSession.Outcome.Accepted) }
-
-        val off = RegistrationSession(RegistrationConfig(samplesPerDirection = 3, circleSteps = false))
-        repeat(3) { assertTrue(off.offer(HeadDirection.LEFT, faces.sample("me"), faceSize = 0.3f) is RegistrationSession.Outcome.Accepted) }
-        assertEquals(FaceCircle.NORMAL, off.nextCircle)
+        session.offer(RegistrationFrame(first, Pose.Facing(HeadDirection.LEFT)))
+        assertTrue(session.offer(frame(HeadDirection.RIGHT, identity = "someone else")) is RegistrationSession.Outcome.TooDifferent)
+        assertTrue(session.offer(RegistrationFrame(first.copyOf(), Pose.Facing(HeadDirection.RIGHT))) is RegistrationSession.Outcome.TooSimilar)
     }
 
     @Test
     fun `detects that the face is already registered`() {
         val registered = faces.person("홍길동", key = "hong")
         val index = FaceIndex.of(listOf(registered, faces.person("다른사람", key = "other")))
-        val session = RegistrationSession(RegistrationConfig(samplesPerDirection = 1))
-        HeadDirection.entries.forEach { session.offer(it, faces.sample("hong")) }
+        val session = RegistrationSession(RegistrationConfig(circleSteps = false, samplesPerDirection = 1))
+        HeadDirection.entries.forEach { session.hold(it, identity = "hong") }
         val duplicate = session.likelyDuplicateOf(index)
         assertNotNull(duplicate)
         assertEquals("hong", duplicate!!.personKey)
 
-        val newcomer = RegistrationSession(RegistrationConfig(samplesPerDirection = 1))
-        HeadDirection.entries.forEach { newcomer.offer(it, faces.sample("newcomer")) }
+        val newcomer = RegistrationSession(RegistrationConfig(circleSteps = false, samplesPerDirection = 1))
+        HeadDirection.entries.forEach { newcomer.hold(it, identity = "newcomer") }
         assertNull(newcomer.likelyDuplicateOf(index))
     }
 

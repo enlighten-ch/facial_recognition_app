@@ -3,9 +3,12 @@ package com.allstar.faithid.kiosk.flow
 import com.allstar.faithid.core.attendance.CheckInSource
 import com.allstar.faithid.core.model.PersonMetadata
 import com.allstar.faithid.core.recognition.FaceCircle
+import com.allstar.faithid.core.recognition.HeadAngles
 import com.allstar.faithid.core.recognition.HeadDirection
+import com.allstar.faithid.core.recognition.Pose
 import com.allstar.faithid.core.recognition.RecognitionThresholds
 import com.allstar.faithid.core.recognition.RegistrationConfig
+import com.allstar.faithid.core.recognition.RegistrationCell
 
 enum class Screen { MONITOR, REGISTER_CAPTURE, REGISTER_INFO, OUTPUT }
 
@@ -58,10 +61,25 @@ sealed class Observation {
     data object NoFace : Observation()
 
     /**
-     * A face inside the guide ellipse; [direction] is null for a frontal face. [size] is the face
-     * width relative to the camera frame, if known.
+     * A face inside the guide ellipse. [direction] is the classified direction (FRONT for a frontal
+     * face, null when unknown or in between); [pose] adds "turned too far" for registration.
+     * [size] is the face size relative to the normal face circle as drawn (1 = fits it), if known.
+     * [sharpness] ranks the frames of a registration hold.
      */
-    class Face(val embedding: FloatArray, val direction: HeadDirection?, val size: Float? = null) : Observation()
+    class Face(
+        val embedding: FloatArray,
+        val direction: HeadDirection?,
+        val size: Float? = null,
+        val pose: Pose? = direction?.let { Pose.Facing(it) },
+        val angles: HeadAngles? = null,
+        val sharpness: Float = 0f,
+    ) : Observation()
+
+    /** Registration only: a face is visible but outside the circle; [screenDx] < 0 means it is left of the circle on screen. */
+    data class Outside(val screenDx: Float) : Observation()
+
+    /** Registration only: [count] faces are in front of the camera. */
+    data class Several(val count: Int) : Observation()
 }
 
 data class CandidateView(
@@ -72,18 +90,26 @@ data class CandidateView(
     val metadata: PersonMetadata? = null,
 )
 
+/** Why the last registration frame was not kept, for the guide's words. */
+enum class CaptureProblem { NO_FACE, OUTSIDE_LEFT, OUTSIDE_RIGHT, SEVERAL, TOO_TURNED, DIRECTION, COME_CLOSER, STEP_BACK, TOO_SIMILAR, OTHER_PERSON }
+
 data class RegistrationView(
-    val collected: Map<HeadDirection, Int>,
-    val perDirection: Int,
+    /** Every cell to collect, in the order the guide suggests them, and whether it is collected. */
+    val cells: List<Pair<RegistrationCell, Boolean>>,
     val total: Int,
     val target: Int,
+    /** The suggested cell (null when complete). */
     val next: HeadDirection?,
-    /** The face circle for the next sample (null when complete). */
     val circle: FaceCircle? = null,
-    /** Several frames in a row were not accepted; the screen suggests moving closer or further away. */
+    /** 0..1 while the face stays in an empty cell; the sample is kept at 1. */
+    val holding: Float = 0f,
+    val problem: CaptureProblem? = null,
+    /** Several frames in a row were not kept; the screen gives the reason more weight. */
     val stalled: Boolean = false,
 ) {
     val complete: Boolean get() = total >= target
+
+    fun collected(direction: HeadDirection): Int = cells.count { it.first.direction == direction && it.second }
 }
 
 data class OutputView(val metadata: PersonMetadata, val secondsLeft: Int, val printStatus: String)

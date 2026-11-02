@@ -24,7 +24,14 @@ class KioskSettingsStore(context: Context) {
     companion object {
         private const val KEY_JSON = "runtime_settings_json"
 
-        fun fromJson(o: JSONObject): KioskSettings = upgradeUntouchedGuideOval(o, upgradeUntouchedLabelLayout(o, parse(o)))
+        fun fromJson(o: JSONObject): KioskSettings = alignFacesOnce(o, upgradeUntouchedGuideOval(o, upgradeUntouchedLabelLayout(o, parse(o))))
+
+        /**
+         * Kiosks set up before the 2026-11 registration changes embedded unaligned faces; those
+         * changes turn alignment on (the registered people are registered again).
+         */
+        private fun alignFacesOnce(o: JSONObject, s: KioskSettings): KioskSettings =
+            if (o.has("REGISTER_INCLUDE_FRONT")) s else s.copy(faceAlignmentEnabled = true)
 
         /**
          * Kiosks that never changed the label layout get the new stacked layout: the old factory
@@ -115,6 +122,10 @@ class KioskSettingsStore(context: Context) {
                 registerEllipseOutsideDimAlpha = float("REGISTER_ELLIPSE_OUTSIDE_DIM_ALPHA", d.registerEllipseOutsideDimAlpha),
                 registerSamplesPerDirection = int("REGISTER_SAMPLES_PER_DIRECTION", d.registerSamplesPerDirection),
                 registerCircleSteps = bool("REGISTER_CIRCLE_STEPS", d.registerCircleSteps),
+                registerIncludeFront = bool("REGISTER_INCLUDE_FRONT", d.registerIncludeFront),
+                registerFaceFill = float("REGISTER_FACE_FILL", d.registerFaceFill),
+                registerSizeTolerance = float("REGISTER_SIZE_TOLERANCE", d.registerSizeTolerance),
+                registerHoldFrames = int("REGISTER_HOLD_FRAMES", d.registerHoldFrames),
                 registerBigCircleScale = float("REGISTER_BIG_CIRCLE_SCALE", d.registerBigCircleScale),
                 registerSmallCircleScale = float("REGISTER_SMALL_CIRCLE_SCALE", d.registerSmallCircleScale),
                 registerCaptureEveryNFrames = int("REGISTER_CAPTURE_EVERY_N_FRAMES", d.registerCaptureEveryNFrames),
@@ -211,6 +222,10 @@ class KioskSettingsStore(context: Context) {
             put("REGISTER_ELLIPSE_OUTSIDE_DIM_ALPHA", s.registerEllipseOutsideDimAlpha.toDouble())
             put("REGISTER_SAMPLES_PER_DIRECTION", s.registerSamplesPerDirection)
             put("REGISTER_CIRCLE_STEPS", s.registerCircleSteps)
+            put("REGISTER_INCLUDE_FRONT", s.registerIncludeFront)
+            put("REGISTER_FACE_FILL", s.registerFaceFill.toDouble())
+            put("REGISTER_SIZE_TOLERANCE", s.registerSizeTolerance.toDouble())
+            put("REGISTER_HOLD_FRAMES", s.registerHoldFrames)
             put("REGISTER_BIG_CIRCLE_SCALE", s.registerBigCircleScale.toDouble())
             put("REGISTER_SMALL_CIRCLE_SCALE", s.registerSmallCircleScale.toDouble())
             put("REGISTER_CAPTURE_EVERY_N_FRAMES", s.registerCaptureEveryNFrames)

@@ -6,6 +6,7 @@ import com.allstar.faithid.core.model.PersonMetadata
 import com.allstar.faithid.core.recognition.FaceCircle
 import com.allstar.faithid.core.recognition.FaceIndex
 import com.allstar.faithid.core.recognition.HeadDirection
+import com.allstar.faithid.core.recognition.Pose
 import com.allstar.faithid.core.recognition.RegistrationConfig
 import com.allstar.faithid.core.testing.FakeFaces
 import org.junit.Assert.assertEquals
@@ -29,12 +30,14 @@ class KioskFlowTest {
         override fun register(metadata: PersonMetadata, samples: List<FloatArray>): String? { registered += metadata to samples.size; return "new-key" }
         override fun checkIn(checkIn: CheckIn) { checkIns += checkIn }
         override fun print(metadata: PersonMetadata) { printed += metadata }
-        override fun log(message: String) {}
+        val logs = mutableListOf<String>()
+        override fun log(message: String) { logs += message }
     }
 
     private fun flow(
         people: List<Person> = listOf(hong, kim),
-        config: FlowConfig = FlowConfig(candidateSwitchFrames = 1, selectedGraceFrames = 1, registration = RegistrationConfig(samplesPerDirection = 1)),
+        // One sample per direction (front included), kept on the first frame: 5 frames register someone.
+        config: FlowConfig = FlowConfig(candidateSwitchFrames = 1, selectedGraceFrames = 1, registration = RegistrationConfig(circleSteps = false, samplesPerDirection = 1, holdFrames = 1)),
     ): Pair<KioskFlow, RecordingEffects> {
         val effects = RecordingEffects()
         val flow = KioskFlow(config, effects) {}
@@ -107,8 +110,9 @@ class KioskFlowTest {
         flow.onObservation(face("newcomer"))
         flow.startRegistration()
         assertEquals(Screen.REGISTER_CAPTURE, flow.state.screen)
-        flow.onObservation(face("newcomer", HeadDirection.UP))
+        flow.onObservation(face("newcomer", null)) // between two directions
         assertEquals(0, flow.state.registration!!.total)
+        assertEquals(CaptureProblem.DIRECTION, flow.state.registration!!.problem)
         assertTrue(flow.state.detail.contains("현재 방향"))
         HeadDirection.entries.forEach { flow.onObservation(face("newcomer", it)) }
         assertEquals(Screen.REGISTER_INFO, flow.state.screen)
@@ -116,26 +120,61 @@ class KioskFlowTest {
         assertEquals(Screen.REGISTER_INFO, flow.state.screen)
         flow.submitInfo("새가족", "청년부", "1학년")
         assertEquals("새가족", effects.registered.single().first.name)
-        assertEquals(4, effects.registered.single().second)
+        assertEquals(5, effects.registered.single().second)
+        assertTrue(effects.logs.any { it.startsWith("등록 샘플 5/5: 아래쪽·보통") })
+        assertTrue(effects.logs.any { it.startsWith("등록 기록: ") && it.contains("저장 5") && it.contains("방향 1") })
         assertEquals(Screen.MONITOR, flow.state.screen)
     }
 
+    private fun sized(direction: HeadDirection?, size: Float, identity: String = "newcomer") = Observation.Face(faces.sample(identity), direction, size)
+
+    private val circles = FlowConfig(candidateSwitchFrames = 1, selectedGraceFrames = 1, registration = RegistrationConfig(holdFrames = 1))
+
     @Test
-    fun `with circle steps each direction asks for a closer then a further face`() {
-        val config = FlowConfig(candidateSwitchFrames = 1, selectedGraceFrames = 1, registration = RegistrationConfig(samplesPerDirection = 3))
-        val (flow, _) = flow(config = config)
+    fun `with circle steps the normal circle comes first, and any empty cell is filled`() {
+        val (flow, _) = flow(config = circles)
         flow.startRegistration()
-        assertEquals(FaceCircle.NORMAL, flow.state.registration!!.circle)
-        flow.onObservation(Observation.Face(faces.sample("newcomer"), HeadDirection.LEFT, 0.30f))
-        assertEquals(FaceCircle.BIG, flow.state.registration!!.circle)
-        flow.onObservation(Observation.Face(faces.sample("newcomer"), HeadDirection.LEFT, 0.30f))
-        assertEquals(1, flow.state.registration!!.total)
+        val r = { flow.state.registration!! }
+        assertEquals(15, r().target)
+        assertEquals(HeadDirection.FRONT to FaceCircle.NORMAL, r().next to r().circle)
+        flow.onObservation(sized(HeadDirection.FRONT, 1f))
+        assertEquals(HeadDirection.LEFT to FaceCircle.NORMAL, r().next to r().circle)
+        flow.onObservation(sized(HeadDirection.LEFT, 0.85f))
+        assertEquals(CaptureProblem.COME_CLOSER, r().problem)
         assertTrue(flow.state.detail.contains("가까이"))
-        flow.onObservation(Observation.Face(faces.sample("newcomer"), HeadDirection.LEFT, 0.37f))
-        assertEquals(FaceCircle.SMALL, flow.state.registration!!.circle)
-        flow.onObservation(Observation.Face(faces.sample("newcomer"), HeadDirection.LEFT, 0.24f))
-        assertEquals(HeadDirection.RIGHT, flow.state.registration!!.next)
-        assertEquals(FaceCircle.NORMAL, flow.state.registration!!.circle)
+        // A big face looking left is not what the guide asked for, but its cell is empty: kept.
+        flow.onObservation(sized(HeadDirection.LEFT, 1.18f))
+        assertEquals(2, r().total)
+        assertEquals(HeadDirection.LEFT to FaceCircle.NORMAL, r().next to r().circle)
+        listOf(HeadDirection.LEFT, HeadDirection.RIGHT, HeadDirection.UP, HeadDirection.DOWN).forEach { flow.onObservation(sized(it, 1f)) }
+        assertEquals(HeadDirection.FRONT to FaceCircle.BIG, r().next to r().circle)
+        flow.onObservation(sized(HeadDirection.FRONT, 1.5f))
+        assertEquals(CaptureProblem.STEP_BACK, r().problem)
+    }
+
+    @Test
+    fun `several faces, a face outside the circle or turned too far keep nothing`() {
+        val config = circles.copy(registration = RegistrationConfig(holdFrames = 2))
+        val (flow, effects) = flow(config = config)
+        flow.startRegistration()
+        val r = { flow.state.registration!! }
+        flow.onObservation(sized(HeadDirection.FRONT, 1f))
+        assertEquals(0.5f, r().holding)
+        flow.onObservation(Observation.Several(2))
+        assertEquals(CaptureProblem.SEVERAL, r().problem)
+        assertEquals(0f, r().holding)
+        flow.onObservation(sized(HeadDirection.FRONT, 1f))
+        assertEquals("the hold starts again after the interruption", 0, r().total)
+        flow.onObservation(sized(HeadDirection.FRONT, 1f))
+        assertEquals(1, r().total)
+        flow.onObservation(Observation.Outside(-1.4f))
+        assertEquals(CaptureProblem.OUTSIDE_LEFT, r().problem)
+        flow.onObservation(Observation.Face(faces.sample("newcomer"), null, 1f, Pose.TooFar))
+        assertEquals(CaptureProblem.TOO_TURNED, r().problem)
+        assertEquals(1, r().total)
+        flow.goHome()
+        val summary = effects.logs.last()
+        assertTrue(summary, summary.startsWith("등록 중단: ") && summary.contains("여럿 1") && summary.contains("원 왼쪽 밖 1") && summary.contains("너무 돌림 1"))
     }
 
     @Test
@@ -176,7 +215,7 @@ class KioskFlowTest {
         assertEquals(Screen.REGISTER_CAPTURE, flow.state.screen)
 
         flow.confirmDuplicate()
-        assertEquals("hong" to 4, effects.added.single())
+        assertEquals("hong" to 5, effects.added.single())
         assertTrue(effects.registered.isEmpty())
         assertTrue(flow.state.printButtonEnabled)
         flow.pressPrint()

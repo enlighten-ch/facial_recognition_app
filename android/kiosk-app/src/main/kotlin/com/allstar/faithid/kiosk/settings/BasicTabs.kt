@@ -116,7 +116,7 @@ class RecognitionTab(context: Context, s: KioskSettings) : SettingsTab {
     private val switchFrames = form.number("후보군 교체 확인 프레임", s.ambiguousCandidateSwitchFrames)
     private val grace = form.number("선택 후보 유지 프레임", s.selectedCandidateGraceFrames)
     private val camera = form.choice("카메라", listOf("후면 카메라 우선", "전면 카메라 우선"), s.cameraIndex.coerceIn(0, 1))
-    private val alignment = form.switch("얼굴 정렬 사용 (켜면 모든 사람을 다시 등록해야 합니다)", s.faceAlignmentEnabled)
+    private val alignment = form.switch("얼굴 정렬 사용 (바꾸면 모든 사람을 다시 등록해야 합니다)", s.faceAlignmentEnabled)
 
     init { form.section("얼굴 동그라미") }
     private val ellipse = form.pair("동그라미 너비 비율", s.registerEllipseAxisXRatio, "동그라미 높이 비율", s.registerEllipseAxisYRatio)
@@ -145,9 +145,12 @@ class RegistrationTab(context: Context, s: KioskSettings) : SettingsTab {
     override val view = scroll(form)
 
     init { form.section("등록") }
-    private val circleSteps = form.switch("방향마다 동그라미 3단계 (보통 → 큰 → 작은 동그라미에 얼굴 맞추기)", s.registerCircleSteps)
+    private val includeFront = form.switch("정면도 모으기 (정면·왼쪽·오른쪽·위·아래)", s.registerIncludeFront)
+    private val circleSteps = form.switch("동그라미 3단계 (보통 → 가까이 → 멀리, 방향마다 하나씩)", s.registerCircleSteps)
     private val circleScales = form.pair("큰 동그라미 배율", s.registerBigCircleScale, "작은 동그라미 배율", s.registerSmallCircleScale)
-    private val perDirection = form.number("방향별 수집 장수 (동그라미 3단계를 쓰면 3)", s.registerSamplesPerDirection)
+    private val fill = form.pair("원에 맞는 얼굴 높이 (원 높이 대비)", s.registerFaceFill, "크기 허용 범위 (±)", s.registerSizeTolerance)
+    private val hold = form.number("저장 전 머무는 프레임 수", s.registerHoldFrames)
+    private val perDirection = form.number("방향별 수집 장수 (동그라미 3단계를 끄면 사용)", s.registerSamplesPerDirection)
     private val every = form.number("몇 프레임마다 샘플 수집", s.registerCaptureEveryNFrames)
     private val band = form.pair("샘플 유사도 하한", s.registerSimilarityLowerBoundary, "상한 (너무 비슷하면 제외)", s.registerSimilarityHigherBoundary)
     private val duplicate = form.number("이미 등록된 얼굴로 볼 유사도", s.duplicateThreshold)
@@ -162,7 +165,11 @@ class RegistrationTab(context: Context, s: KioskSettings) : SettingsTab {
 
     override fun applyTo(settings: KioskSettings) = settings.copy(
         registerSamplesPerDirection = perDirection.intValue(settings.registerSamplesPerDirection).coerceIn(1, 10),
+        registerIncludeFront = includeFront.isChecked,
         registerCircleSteps = circleSteps.isChecked,
+        registerFaceFill = fill.first.floatValue(settings.registerFaceFill).coerceIn(0.4f, 1.2f),
+        registerSizeTolerance = fill.second.floatValue(settings.registerSizeTolerance).coerceIn(0.04f, 0.3f),
+        registerHoldFrames = hold.intValue(settings.registerHoldFrames).coerceIn(1, 10),
         registerBigCircleScale = circleScales.first.floatValue(settings.registerBigCircleScale).coerceIn(1.05f, 1.6f),
         registerSmallCircleScale = circleScales.second.floatValue(settings.registerSmallCircleScale).coerceIn(0.5f, 0.95f),
         registerCaptureEveryNFrames = every.intValue(settings.registerCaptureEveryNFrames).coerceIn(1, 30),

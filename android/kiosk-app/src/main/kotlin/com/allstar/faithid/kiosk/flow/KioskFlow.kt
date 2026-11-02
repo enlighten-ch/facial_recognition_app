@@ -5,12 +5,13 @@ import com.allstar.faithid.core.model.PersonMetadata
 import com.allstar.faithid.core.recognition.AdaptiveSampler
 import com.allstar.faithid.core.recognition.CandidateStabilizer
 import com.allstar.faithid.core.recognition.Decision
-import com.allstar.faithid.core.recognition.FaceCircle
 import com.allstar.faithid.core.recognition.FaceIndex
 import com.allstar.faithid.core.recognition.HeadDirection
 import com.allstar.faithid.core.recognition.Match
 import com.allstar.faithid.core.recognition.RecognitionPolicy
+import com.allstar.faithid.core.recognition.RegistrationFrame
 import com.allstar.faithid.core.recognition.RegistrationSession
+import com.allstar.faithid.core.recognition.RegistrationSession.Outcome
 import java.util.Locale
 
 /**
@@ -23,6 +24,7 @@ import java.util.Locale
 class KioskFlow(
     private var config: FlowConfig,
     private val effects: FlowEffects,
+    private val clock: () -> Long = System::currentTimeMillis,
     private val onState: (UiState) -> Unit,
 ) {
     private var index: FaceIndex = FaceIndex.EMPTY
@@ -34,6 +36,7 @@ class KioskFlow(
     private var sampler = AdaptiveSampler(config.adaptiveEnabled, config.adaptiveMaxPerSession, config.adaptiveMinIntervalFrames)
     private var session = RegistrationSession(config.registration)
     private var stallCount = 0
+    private var record = RegistrationRecord(clock())
 
     /** Latest ranking per person key in this session, so a tapped candidate can be printed with its score. */
     private var lastMatches: Map<String, Match> = emptyMap()
@@ -119,54 +122,66 @@ class KioskFlow(
                     is Decision.Ambiguous -> showAmbiguous(decision.candidates)
                 }
             }
+            is Observation.Outside, is Observation.Several -> Unit // only reported while registering
         }
     }
 
     private fun capture(observation: Observation) {
-        if (state.duplicateOf != null) return
-        val expected = session.nextDirection ?: return
-        val message = when (observation) {
-            Observation.NoFace -> {
-                stallCount++
-                "얼굴을 찾지 못했습니다. 화면 중앙의 타원 안으로 와주세요."
-            }
-            is Observation.Face -> when (val outcome = session.offer(observation.direction, observation.embedding, observation.size)) {
-                is RegistrationSession.Outcome.Accepted -> {
-                    stallCount = 0
-                    if (session.isComplete) {
-                        finishCapture()
-                        return
+        if (state.duplicateOf != null || session.isComplete) return
+        var holding = 0f
+        val problem: CaptureProblem? = when (observation) {
+            Observation.NoFace -> CaptureProblem.NO_FACE.also { session.interrupt() }
+            is Observation.Outside -> (if (observation.screenDx < 0) CaptureProblem.OUTSIDE_LEFT else CaptureProblem.OUTSIDE_RIGHT).also { session.interrupt() }
+            is Observation.Several -> CaptureProblem.SEVERAL.also { session.interrupt() }
+            is Observation.Face -> {
+                val frame = RegistrationFrame(observation.embedding, observation.pose, observation.size, observation.sharpness)
+                when (val outcome = session.offer(frame)) {
+                    is Outcome.Accepted -> {
+                        effects.log(record.accepted(outcome, observation, session.totalCollected, session.totalTarget))
+                        if (session.isComplete) {
+                            effects.log(record.summary(clock(), finished = true))
+                            finishCapture()
+                            return
+                        }
+                        null
                     }
-                    "좋아요! 샘플을 저장했습니다."
+                    is Outcome.Holding -> {
+                        holding = outcome.frames / outcome.needed.toFloat()
+                        null
+                    }
+                    is Outcome.WrongDirection -> CaptureProblem.DIRECTION
+                    is Outcome.WrongSize -> if (outcome.ratio < 1f) CaptureProblem.COME_CLOSER else CaptureProblem.STEP_BACK
+                    Outcome.TooTurned -> CaptureProblem.TOO_TURNED
+                    is Outcome.TooSimilar -> CaptureProblem.TOO_SIMILAR
+                    is Outcome.TooDifferent -> CaptureProblem.OTHER_PERSON
+                    Outcome.AlreadyComplete -> return
                 }
-                is RegistrationSession.Outcome.WrongDirection -> {
-                    stallCount++
-                    "현재 방향: ${outcome.detected?.label ?: "정면"}"
-                }
-                is RegistrationSession.Outcome.TooSimilar -> {
-                    stallCount++
-                    "조금 더 다른 각도로 움직여 주세요."
-                }
-                is RegistrationSession.Outcome.WrongSize -> {
-                    stallCount++
-                    if (outcome.expected == FaceCircle.BIG) "큰 동그라미를 채우도록 조금 더 가까이 와 주세요." else "작은 동그라미에 들어가도록 조금 뒤로 물러나 주세요."
-                }
-                is RegistrationSession.Outcome.TooDifferent -> {
-                    stallCount++
-                    "같은 분이 계속 카메라 앞에 있어야 합니다."
-                }
-                RegistrationSession.Outcome.AlreadyComplete -> return
             }
         }
-        val next = session.nextDirection ?: expected
-        val hint = if (stallCount >= STALL_HINT_FRAMES) "\n잘 안되면 카메라에 조금 더 가까이 오거나 멀어져 보세요." else ""
+        record.count(problem, holding > 0f)
+        stallCount = if (problem == null) 0 else stallCount + 1
+        val next = session.suggestion ?: return
         publish(
             state.copy(
-                message = "${next.prompt}$hint",
-                detail = message,
-                registration = registrationView(),
+                message = next.direction.prompt,
+                detail = problemText(problem, observation),
+                registration = registrationView(holding, problem),
             ),
         )
+    }
+
+    /** The developer screen's line for the last frame. */
+    private fun problemText(problem: CaptureProblem?, observation: Observation): String = when (problem) {
+        null -> "좋아요! 그대로 잠시만 계세요."
+        CaptureProblem.NO_FACE -> "얼굴을 찾지 못했습니다. 화면 중앙의 원 안으로 와주세요."
+        CaptureProblem.OUTSIDE_LEFT, CaptureProblem.OUTSIDE_RIGHT -> "얼굴이 원 밖에 있습니다."
+        CaptureProblem.SEVERAL -> "얼굴이 ${(observation as? Observation.Several)?.count ?: 2}개 보입니다. 한 분씩 등록합니다."
+        CaptureProblem.TOO_TURNED -> "고개를 너무 많이 돌렸습니다."
+        CaptureProblem.DIRECTION -> "현재 방향: ${(observation as? Observation.Face)?.direction?.label ?: "사이"}"
+        CaptureProblem.COME_CLOSER -> "조금 더 가까이 와 주세요."
+        CaptureProblem.STEP_BACK -> "조금 뒤로 물러나 주세요."
+        CaptureProblem.TOO_SIMILAR -> "이미 모은 사진과 너무 비슷합니다."
+        CaptureProblem.OTHER_PERSON -> "같은 분이 계속 카메라 앞에 있어야 합니다."
     }
 
     private fun finishCapture() {
@@ -211,8 +226,9 @@ class KioskFlow(
         if (state.screen != Screen.MONITOR || readiness != Readiness.Ready) return
         session.reset()
         stallCount = 0
+        record = RegistrationRecord(clock())
         duplicate = null
-        val first = session.nextDirection ?: HeadDirection.LEFT
+        val first = session.nextDirection ?: HeadDirection.FRONT
         publish(
             UiState(
                 screen = Screen.REGISTER_CAPTURE,
@@ -339,6 +355,7 @@ class KioskFlow(
 
     fun goHome() {
         retrying = false
+        if (state.screen == Screen.REGISTER_CAPTURE && !session.isComplete) effects.log(record.summary(clock(), finished = false))
         session.reset()
         stabilizer.reset()
         sampler.resetSession()
@@ -421,13 +438,14 @@ class KioskFlow(
         )
     }
 
-    private fun registrationView() = RegistrationView(
-        collected = HeadDirection.entries.associateWith { session.collected(it) },
-        perDirection = session.target,
+    private fun registrationView(holding: Float = 0f, problem: CaptureProblem? = null) = RegistrationView(
+        cells = session.cells.map { it to session.has(it) },
         total = session.totalCollected,
         target = session.totalTarget,
         next = session.nextDirection,
         circle = session.nextCircle,
+        holding = holding,
+        problem = problem,
         stalled = stallCount >= STALL_HINT_FRAMES,
     )
 

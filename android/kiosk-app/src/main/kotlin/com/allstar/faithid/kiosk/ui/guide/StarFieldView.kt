@@ -16,8 +16,8 @@ import kotlin.math.sin
 
 /**
  * The registration stars: three per direction, on the side of the face circle the person is asked
- * to look at. Star sizes follow the circles (normal, big, small). A collected star pops; the next
- * one breathes and its group glows. Adults see plain dots instead of stars.
+ * to look at (front: below the circle on the left). Star sizes follow the circles (normal, big,
+ * small). A collected star pops; the next one breathes and its group glows. Adults see plain dots.
  */
 class StarFieldView @JvmOverloads constructor(
     context: Context,
@@ -28,11 +28,11 @@ class StarFieldView @JvmOverloads constructor(
     private val dot = Paint(Paint.ANTI_ALIAS_FLAG)
     private val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
     private val glow = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val popStart = LongArray(12)
+    private val popStart = LongArray(GROUPS * 3)
 
-    private var counts = IntArray(4)
-    private var perDirection = 3
+    private var done = Array(GROUPS) { BooleanArray(3) }
     private var next = -1
+    private var nextStep = -1
     private var kids = true
 
     /** The biggest face circle in this view's coordinates; the stars sit just outside it. */
@@ -42,27 +42,30 @@ class StarFieldView @JvmOverloads constructor(
             invalidate()
         }
 
-    /** [collected] per direction (LEFT, RIGHT, UP, DOWN); [nextDirection] = index or -1 when done. */
-    fun show(collected: IntArray, perDirection: Int, nextDirection: Int, kids: Boolean) {
+    /**
+     * [collected] per direction (FRONT, LEFT, RIGHT, UP, DOWN) and step (normal, big, small);
+     * [nextDirection] and [nextStep] mark the star asked for next, -1 when done.
+     */
+    fun show(collected: Array<BooleanArray>, nextDirection: Int, nextStep: Int, kids: Boolean) {
         val now = SystemClock.uptimeMillis()
-        for (d in 0 until 4) for (k in 0 until 3) {
-            if (collected[d] > k && counts[d] <= k && visibility == VISIBLE) popStart[d * 3 + k] = now
+        for (d in 0 until GROUPS) for (k in 0 until 3) {
+            if (collected[d][k] && !done[d][k] && visibility == VISIBLE) popStart[d * 3 + k] = now
         }
-        counts = collected.copyOf()
-        this.perDirection = perDirection
+        done = Array(GROUPS) { collected[it].copyOf() }
         next = nextDirection
+        this.nextStep = nextStep
         this.kids = kids
         invalidate()
     }
 
     fun reset() {
-        counts = IntArray(4)
+        done = Array(GROUPS) { BooleanArray(3) }
         popStart.fill(0)
         next = -1
         invalidate()
     }
 
-    /** Star centre for direction [d] (0..3) and step [k] (0 normal, 1 big, 2 small). */
+    /** Star centre for direction [d] (0 front, 1..4 left, right, up, down) and step [k] (0 normal, 1 big, 2 small). */
     private fun position(d: Int, k: Int, out: FloatArray) {
         // Clear of the biggest circle by the largest star's radius plus a margin.
         val gap = (sizeFor(1) / 2) + 18 * density
@@ -71,9 +74,15 @@ class StarFieldView @JvmOverloads constructor(
         val cx = circle.centerX()
         val cy = circle.centerY()
         when (d) {
-            0 -> { out[0] = circle.left - gap + a * 12 * density; out[1] = cy + o * 64 * density }
-            1 -> { out[0] = circle.right + gap - a * 12 * density; out[1] = cy + o * 64 * density }
-            2 -> { out[0] = cx + o * 72 * density; out[1] = circle.top - gap + a * 12 * density }
+            0 -> {
+                // Front: along the lower-left diagonal, clear of the other groups.
+                val r = 0.72f
+                out[0] = cx - circle.width() / 2 * r - gap * 0.75f + o * 52 * density
+                out[1] = cy + circle.height() / 2 * r + gap * 0.75f + o * 52 * density
+            }
+            1 -> { out[0] = circle.left - gap + a * 12 * density; out[1] = cy + o * 64 * density }
+            2 -> { out[0] = circle.right + gap - a * 12 * density; out[1] = cy + o * 64 * density }
+            3 -> { out[0] = cx + o * 72 * density; out[1] = circle.top - gap + a * 12 * density }
             else -> { out[0] = cx + o * 72 * density; out[1] = circle.bottom + gap - a * 12 * density }
         }
     }
@@ -85,7 +94,7 @@ class StarFieldView @JvmOverloads constructor(
         val now = SystemClock.uptimeMillis()
         val p = FloatArray(2)
         var animating = false
-        if (next in 0..3) {
+        if (next in 0 until GROUPS) {
             // Soft glow behind the group the person should look at.
             val c = FloatArray(2)
             position(next, 1, c)
@@ -95,9 +104,9 @@ class StarFieldView @JvmOverloads constructor(
             canvas.drawCircle(c[0], c[1], r, glow)
             animating = true
         }
-        for (d in 0 until 4) for (k in 0 until 3) {
+        for (d in 0 until GROUPS) for (k in 0 until 3) {
             position(d, k, p)
-            val on = counts[d] > k
+            val on = done[d][k]
             var size = sizeFor(k)
             val since = now - popStart[d * 3 + k]
             if (on && popStart[d * 3 + k] > 0 && since < 600) {
@@ -109,7 +118,7 @@ class StarFieldView @JvmOverloads constructor(
                 ring.strokeWidth = 4 * density
                 canvas.drawCircle(p[0], p[1], sizeFor(k) * (0.6f + 0.6f * t), ring)
                 animating = true
-            } else if (!on && d == next && k == counts[d]) {
+            } else if (!on && d == next && k == nextStep) {
                 size *= 1f + 0.12f * ((sin(now / 190.0) + 1) / 2).toFloat()
                 animating = true
             }
@@ -137,5 +146,9 @@ class StarFieldView @JvmOverloads constructor(
         val reach = sizeFor(1) + 18 * density
         r.inset(-reach, -reach)
         return RectF(max(0f, r.left), max(0f, r.top), min(width.toFloat(), r.right), min(height.toFloat(), r.bottom))
+    }
+
+    private companion object {
+        const val GROUPS = 5
     }
 }

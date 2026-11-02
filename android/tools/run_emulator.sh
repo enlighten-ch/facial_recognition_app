@@ -6,8 +6,11 @@ SDK_ROOT="${ANDROID_SDK_ROOT:-$HOME/Android/Sdk}"
 export PATH="$PATH:$SDK_ROOT/platform-tools:$SDK_ROOT/emulator"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 AVD_NAME="${AVD_NAME:-FaceTestbed_API35}"
+# Always the emulator: tablets connected over Wi-Fi must never get its screen size or apps.
+SERIAL="${EMULATOR_SERIAL:-emulator-5554}"
+adb() { command adb -s "$SERIAL" "$@"; }
 
-if ! adb devices | grep -q "emulator-"; then
+if ! command adb devices | grep -q "^$SERIAL"; then
   nohup emulator "@$AVD_NAME" -no-window -gpu swiftshader_indirect -no-snapshot-load -no-boot-anim \
     -camera-front emulated -camera-back emulated -no-audio > "$ROOT/build/emulator.log" 2>&1 < /dev/null &
 fi
@@ -21,4 +24,4 @@ adb shell wm density 320
 adb install -r -g "$ROOT/server-app/build/outputs/apk/debug/faith_db.apk"
 adb install -r -g "$ROOT/kiosk-app/build/outputs/apk/debug/faith_id.apk"
 adb shell appops set com.example.facedbserver MANAGE_EXTERNAL_STORAGE allow
-echo "Installed Faith DB Server and Faith ID on $(adb get-serialno)."
+echo "Installed Faith DB Server and Faith ID on $SERIAL."

@@ -54,8 +54,8 @@ data class KioskSettings(
     val ambiguousCandidateSwitchFrames: Int = 3,
     val selectedCandidateGraceFrames: Int = 5,
     val cameraIndex: Int = 0,
-    /** Aligns faces to the ArcFace template before embedding. Changes embeddings: re-register everyone after enabling. */
-    val faceAlignmentEnabled: Boolean = false,
+    /** Aligns faces to the ArcFace template before embedding. Changes embeddings: re-register everyone after changing it. */
+    val faceAlignmentEnabled: Boolean = true,
     /** Face circle (guide oval) half-widths relative to the screen, set below the guide's speech bubble. */
     val registerEllipseAxisXRatio: Float = 0.17f,
     val registerEllipseAxisYRatio: Float = 0.27f,
@@ -63,11 +63,20 @@ data class KioskSettings(
     val registerEllipseOutsideDimAlpha: Float = 0.35f,
 
     // Registration
+    /** Samples per direction when the circle steps are off. */
     val registerSamplesPerDirection: Int = 3,
-    /** Normal, big and small face circle for the samples of each direction (closer, then further). */
+    /** Collects frontal samples too: front, left, right, up and down. */
+    val registerIncludeFront: Boolean = true,
+    /** Normal, big and small face circle for every direction (stand normally, come closer, step back). */
     val registerCircleSteps: Boolean = true,
     val registerBigCircleScale: Float = 1.18f,
     val registerSmallCircleScale: Float = 0.73f,
+    /** Height of a face that fits a circle, relative to the circle's height. */
+    val registerFaceFill: Float = 0.75f,
+    /** A face fits a circle when its size is within this fraction of the circle's. */
+    val registerSizeTolerance: Float = 0.12f,
+    /** Analyzed frames the face must stay in the same place before a sample is kept. */
+    val registerHoldFrames: Int = 2,
     val registerCaptureEveryNFrames: Int = 4,
     val registerSimilarityLowerBoundary: Float = 0.35f,
     val registerSimilarityHigherBoundary: Float = 0.85f,
@@ -149,12 +158,15 @@ data class KioskSettings(
         ),
         registration = RegistrationConfig(
             samplesPerDirection = registerSamplesPerDirection.coerceAtLeast(1),
+            includeFront = registerIncludeFront,
             minSimilarity = registerSimilarityLowerBoundary,
             maxSimilarity = registerSimilarityHigherBoundary,
             duplicateThreshold = duplicateThreshold,
             circleSteps = registerCircleSteps,
             bigCircleScale = registerBigCircleScale,
             smallCircleScale = registerSmallCircleScale,
+            sizeTolerance = registerSizeTolerance,
+            holdFrames = registerHoldFrames.coerceAtLeast(1),
         ),
         candidateSwitchFrames = ambiguousCandidateSwitchFrames,
         selectedGraceFrames = selectedCandidateGraceFrames,
