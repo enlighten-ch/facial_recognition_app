@@ -1,0 +1,593 @@
+<title>어린 양 얼굴 안내</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&family=Gothic+A1:wght@400;600;700;800&display=swap">
+<style>
+/* Layout: option A v5, the young lamb. A lab bar picks eyes on/off, the audience, auto demo or
+   hands-on, a situation, and whether the test person is shown; the 1280x800 kiosk screen runs a
+   simulated camera, labelled as a test stand-in; notes on the lamb and the distance guide close the page. */
+:root {
+  --sky: #fff4ec;
+  --card: #fffdfb;
+  --ink: #33263f;
+  --ink-2: #6e6078;
+  --line: #f0dfd4;
+  --plum: #5b3f8c;
+  --plum-soft: #ece4f7;
+  --apricot: #ff9a62;
+  --font-kids: "Jua", "Gowun Dodum", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font: "Gowun Dodum", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+  --font-ui: "Gothic A1", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --sky: #1d1824; --card: #251e2e; --ink: #f4ecf7; --ink-2: #bcaec6; --line: #3a3045; --plum: #b49cf0; --plum-soft: #352a48; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --sky: #1d1824; --card: #251e2e; --ink: #f4ecf7; --ink-2: #bcaec6; --line: #3a3045; --plum: #b49cf0; --plum-soft: #352a48; color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--sky); color: var(--ink); font-family: var(--font-ui); line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 56px; }
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 22px; }
+.intro { display: grid; gap: 10px; max-width: 840px; }
+.eyebrow { font-size: .78rem; font-weight: 700; letter-spacing: .1em; color: var(--ink-2); }
+h1 { font-family: var(--font-kids); font-weight: 400; font-size: 2.5rem; margin: 0; line-height: 1.2; text-wrap: balance; }
+h2 { font-family: var(--font-kids); font-weight: 400; font-size: 1.6rem; margin: 0; }
+.intro p, section p { margin: 0; color: var(--ink-2); max-width: 70ch; }
+a { color: var(--plum); }
+code { font-size: .86em; background: var(--plum-soft); padding: 1px 6px; border-radius: 4px; }
+
+.lab { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 12px 14px; display: grid; gap: 8px; font-size: .9rem; }
+.lab-row { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; }
+.lab-label { color: var(--ink-2); font-weight: 700; font-size: .8rem; min-width: 52px; }
+.lab button { font: inherit; border: 1px solid var(--line); background: var(--sky); color: var(--ink); border-radius: 999px; padding: 4px 12px; cursor: pointer; }
+.lab .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 2px; background: var(--sky); flex-wrap: wrap; }
+.lab .seg button { border: 0; background: transparent; }
+.lab [aria-pressed="true"] { background: var(--plum); color: #fff; border-color: var(--plum); }
+.lab input[type="range"] { width: 160px; accent-color: var(--plum); }
+.lab .hint { color: var(--ink-2); font-size: .84rem; }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--apricot); outline-offset: 2px; }
+
+.device { position: relative; border-radius: 30px; overflow: hidden; box-shadow: 0 0 0 10px #2a2230, 0 22px 50px rgba(91,63,140,.22); margin: 10px; aspect-ratio: 1280 / 800; touch-action: none; }
+.stage { position: absolute; top: 0; left: 0; width: 1280px; height: 800px; transform-origin: 0 0; overflow: hidden; color: #33263f; font-family: var(--font-ui); }
+.stage canvas { position: absolute; inset: 0; width: 1280px; height: 800px; }
+
+.guide { position: absolute; top: 26px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 16px; max-width: 1100px; }
+.avatar { flex: none; width: 88px; height: 88px; border-radius: 50%; position: relative; background: radial-gradient(circle at 35% 30%, #ffd2b4, #ff9a62 72%); box-shadow: 0 6px 16px rgba(0,0,0,.18); }
+.avatar i { position: absolute; top: 40%; width: 10px; height: 15px; border-radius: 6px; background: #33263f; animation: blink 4.2s infinite; }
+.avatar i:first-child { left: 30%; } .avatar i:nth-child(2) { right: 30%; }
+.avatar b { position: absolute; left: 50%; top: 56%; width: 26px; height: 13px; margin-left: -13px; border: 4px solid #33263f; border-top: 0; border-radius: 0 0 20px 20px; }
+.avatar.hop { animation: hop .42s ease-out; }
+.avatar.tilt { animation: tilt 1.1s ease-in-out; }
+@keyframes blink { 0%, 94%, 100% { transform: scaleY(1); } 96% { transform: scaleY(.1); } }
+@keyframes hop { 30% { transform: translateY(-16px); } 75% { transform: translateY(0) scale(1.06, .92); } }
+@keyframes tilt { 25%, 75% { transform: rotate(14deg); } }
+.bubble { background: rgba(255,253,251,.86); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-radius: 28px; padding: 14px 26px; box-shadow: 0 8px 24px rgba(0,0,0,.14); display: grid; gap: 2px; }
+.bubble .say { font-family: var(--font-kids); font-size: 34px; line-height: 1.25; }
+.bubble .sub { font-family: var(--font); font-size: 22px; color: #6e6078; min-height: 1.3em; }
+.stage[data-aud="adults"] .avatar { width: 70px; height: 70px; }
+.stage[data-aud="adults"] .bubble .say { font-family: var(--font); font-weight: 700; font-size: 30px; }
+.bubble.alert { background: rgba(255,240,224,.93); box-shadow: 0 0 0 3px #ff9a62, 0 8px 24px rgba(0,0,0,.14); }
+
+.glass { background: rgba(255,255,255,.28); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.45); color: #fff; }
+.home { position: absolute; left: 28px; bottom: 26px; border-radius: 999px; padding: 12px 24px; font: 700 22px var(--font-ui); text-shadow: 0 1px 3px rgba(0,0,0,.35); }
+.count { position: absolute; right: 28px; bottom: 26px; border-radius: 999px; padding: 8px 20px; font: 400 26px var(--font-kids); text-shadow: 0 1px 3px rgba(0,0,0,.35); font-variant-numeric: tabular-nums; }
+.testtag { position: absolute; left: 28px; bottom: 96px; border-radius: 12px; padding: 6px 14px; font: 700 17px var(--font-ui); color: #fff; background: rgba(176,60,40,.82); letter-spacing: .02em; }
+.flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+.flash.go { animation: flash .35s ease-out; }
+@keyframes flash { 0% { opacity: .35; } 100% { opacity: 0; } }
+
+section.notes { display: grid; gap: 12px; }
+.note-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
+.note-grid div { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 12px 16px; font-size: .93rem; display: grid; gap: 4px; }
+.note-grid b { font-size: 1rem; }
+.note-grid button { justify-self: start; font: inherit; font-size: .84rem; border: 1px solid var(--line); background: var(--sky); color: var(--ink); border-radius: 999px; padding: 2px 10px; cursor: pointer; }
+@media (prefers-reduced-motion: reduce) { .avatar i, .avatar.hop, .avatar.tilt, .flash.go { animation: none; } }
+</style>
+
+<div class="wrap">
+  <div class="intro">
+    <span class="eyebrow">FAITH ID · 얼굴 등록 UI · A안 v5 · 2026-11-02</span>
+    <h1>어린 양을 따라 해요</h1>
+    <p>동글 머리를 바탕으로 반투명한 <b>어린 양</b>을 만들었습니다. 장식은 줄이고 모던하게, 매끈한 둥근 머리에 몽실한 털 다섯 덩이, 옆으로 늘어진 귀 두 개, 작은 주둥이만 더했습니다. 귀와 주둥이가 돌아가는 쪽으로 옮겨 가 고개 방향이 바로 보입니다. 거리는 먼저 <b>양의 크기</b>로 알려 주고, 3초 동안 맞추지 못하면 바닥에 <b>발자국</b>이 나타나 앞이나 뒤로 한 걸음을 보여 줍니다. <b>화면 속 사람은 테스트용 가상 인물입니다.</b> 실제 키오스크에서는 그 자리에 카메라 영상이 나옵니다(화면의 빨간 표시). 이전 다섯 가지 모양은 <a href="https://claude.ai/artifact/XiUhbhqn4BNB8wTjjbShLE">v4</a>에 있습니다.</p>
+  </div>
+
+  <div class="lab" role="group" aria-label="미리보기 조정">
+    <div class="lab-row"><span class="lab-label">양 얼굴</span>
+      <div class="seg" id="shapeSeg">
+        <button data-shape="plain" aria-pressed="true">눈 없음</button>
+        <button data-shape="eyes" aria-pressed="false">감은 눈</button>
+      </div>
+      <label class="hint" style="margin-left:8px"><input type="checkbox" id="showPerson" checked> 테스트 인물 보이기</label>
+    </div>
+    <div class="lab-row"><span class="lab-label">대상</span>
+      <div class="seg" id="audSeg"><button data-aud="kids" aria-pressed="true">어린이</button><button data-aud="adults" aria-pressed="false">어른</button></div>
+      <span class="lab-label" style="margin-left:12px">진행</span>
+      <div class="seg" id="modeSeg"><button data-mode="auto" aria-pressed="true">자동 시연</button><button data-mode="manual" aria-pressed="false">직접 해보기</button></div>
+      <label class="hint" id="distWrap" hidden>거리 <input type="range" id="dist" min="140" max="340" value="240" aria-label="카메라와의 거리 (얼굴 크기)"></label>
+    </div>
+    <div class="lab-row"><span class="lab-label">상황</span>
+      <button data-sc="two">두 사람이 함께 섬</button>
+      <button data-sc="off">동그라미 밖으로 비켜남</button>
+      <button data-sc="over">고개를 너무 많이 돌림</button>
+      <button data-sc="stuck">고개를 따라 하지 못함</button>
+      <button data-sc="nodist">거리를 맞추지 못함</button>
+      <button data-sc="away">화면 밖으로 나감</button>
+      <button data-sc="reset">처음부터</button>
+    </div>
+  </div>
+
+  <div class="device" id="device">
+    <div class="stage" id="stage" data-aud="kids">
+      <canvas id="cam" width="1280" height="800" aria-label="시뮬레이션 카메라 화면"></canvas>
+      <div class="flash" id="flash"></div>
+      <div class="guide"><div class="avatar" id="avatar" aria-hidden="true"><i></i><i></i><b></b></div>
+        <div class="bubble" id="bubble" aria-live="polite"><span class="say" id="say"></span><span class="sub" id="sub"></span></div></div>
+      <button class="home glass" tabindex="-1">처음으로</button>
+      <div class="count glass" id="count"></div>
+      <div class="testtag" id="testtag">테스트용 가상 인물 · 실제로는 카메라 영상</div>
+    </div>
+  </div>
+
+  <section class="notes" aria-labelledby="h-notes">
+    <h2 id="h-notes">어린 양이 알려 주는 것</h2>
+    <div class="note-grid">
+      <div><b>고개 방향: 귀와 주둥이</b>양이 목표 방향으로 고개를 돌리면 주둥이가 그쪽으로 가고 반대쪽 귀가 머리 뒤로 숨습니다. 위를 보면 털이 내려앉고 주둥이가 올라갑니다. 실제보다 조금 더 돌려 보여 방향이 분명합니다.</div>
+      <div><b>거리 1단계: 양의 크기</b>가까이 와야 할 때는 양이 커지고, 물러나야 할 때는 작아집니다. 크기가 맞지 않는 동안 양이 지금 내 얼굴 크기에서 목표 크기로 천천히 커지거나 작아지기를 되풀이합니다.</div>
+      <div><b>거리 2단계: 발자국</b>3초 동안 거리를 맞추지 못하면 바닥에 발자국 세 걸음이 차례로 찍힙니다. 앞으로 올 때는 화면 쪽으로 커지며 다가오고, 뒤로 갈 때는 작아지며 멀어집니다. <button data-sc="nodist">보기</button></div>
+      <div><b>모던하게</b>털은 다섯 덩이, 귀는 두 개, 주둥이 하나만. 무늬나 테두리 없이 반투명한 흰색과 부드러운 빛으로만 그립니다. 맞추는 동안 금색으로 바뀌고 둘레가 차오르는 것은 그대로입니다.</div>
+      <div><b>눈은 고를 수 있음</b>기본은 눈코입 없는 얼굴입니다. 위의 <b>감은 눈</b>을 누르면 웃는 듯 감은 눈 두 개가 생겨 더 다정해 보입니다. <button data-shape="eyes">보기</button></div>
+      <div><b>나머지는 그대로</b>못 따라 하면 양이 직접 고개를 돌려 보이기, 한 번에 한 명, 원 밖 안내, 정면 포함 15칸, 오른쪽 아래 별 개수는 v4와 같습니다.</div>
+    </div>
+  </section>
+</div>
+
+<script>
+'use strict';
+const W = 1280, H = 800, CX = 640, CY = 455;
+const DIRS = ['F', 'L', 'R', 'U', 'D'];
+const SIZES = ['N', 'B', 'S'];
+const FACE_W = { N: 240, B: 300, S: 178 };
+const POSE = { F: [0, 0], L: [-0.55, 0], R: [0.55, 0], U: [0, -0.5], D: [0, 0.5] };
+const HOLD_S = 0.5, STUCK_S = 3, SIZE_STUCK_S = 3;
+let sizeOffSince = 0;
+// How long the face has been the wrong size for the suggested circle.
+function sizeOffFor(now) { return sizeOffSince ? now - sizeOffSince : 0; }
+const DIR_NAME = { F: '정면', L: '왼쪽', R: '오른쪽', U: '위', D: '아래' };
+const DIR_KIDS = { F: '앞을 보면서', L: '왼쪽을 보면서', R: '오른쪽을 보면서', U: '위를 보면서', D: '아래를 보면서' };
+const DIR_ADULT = { F: '정면을 보고', L: '고개를 왼쪽으로 돌려', R: '고개를 오른쪽으로 돌려', U: '고개를 살짝 들어', D: '고개를 살짝 숙여' };
+const ROUND_KIDS = { N: '', B: '이번엔 가까이 와서 ', S: '이번엔 한 걸음 뒤로 가서 ' };
+const ROUND_ADULT = { N: '', B: '조금 가까이 와서 ', S: '한 걸음 물러나서 ' };
+
+const ui = { aud: 'kids', mode: 'auto', shape: 'plain', person: true };
+const $ = id => document.getElementById(id);
+const cv = $('cam'), g = cv.getContext('2d');
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const me = { x: CX, y: CY, fw: 230, yaw: 0, pitch: 0, look: 0 };
+const other = { x: 1060, y: 480, fw: 150, yaw: -0.25, pitch: 0.05, on: 0 };
+const pointer = { yaw: 0, pitch: 0, fw: 240 };
+const ghost = { yaw: 0, pitch: 0, fw: 240 };    // the shown white head, eased toward the target
+let scenario = null, scenarioUntil = 0;
+let got = new Set(), hold = 0, holdKey = null, pauseUntil = 0, doneAt = 0, aimSince = 0, lastTarget = '';
+const sparks = [];
+
+const key = (d, s) => d + s;
+function round() { return SIZES.find(s => DIRS.some(d => !got.has(key(d, s)))) || null; }
+function suggestion() { const s = round(); return s ? { d: DIRS.find(d => !got.has(key(d, s))), s } : null; }
+function classifyDir(p) {
+  if (Math.abs(p.yaw) > 0.85 || Math.abs(p.pitch) > 0.8) return 'over';
+  if (p.yaw <= -0.35) return 'L'; if (p.yaw >= 0.35) return 'R';
+  if (p.pitch <= -0.33) return 'U'; if (p.pitch >= 0.33) return 'D';
+  if (Math.abs(p.yaw) < 0.18 && Math.abs(p.pitch) < 0.18) return 'F';
+  return null;
+}
+function classifySize(fw) {
+  if (fw < 130) return null;
+  if (fw <= 202) return 'S'; if (fw >= 216 && fw <= 266) return 'N'; if (fw >= 280) return 'B';
+  return null;
+}
+function inCircle(p) { return Math.hypot((p.x - CX) / 150, (p.y - CY) / 190) < 1; }
+
+// ---------- words ----------
+function words(state, sg, stuck, feet) {
+  const k = ui.aud === 'kids';
+  if (state === 'done') return [k ? '별 15개 다 모았다!' : '얼굴 등록이 끝났습니다', k ? '이제 이름을 알려 줄래?' : '이름을 입력해 주세요'];
+  if (state === 'away') return [k ? '어디 갔어? 다시 화면 앞에 와 줄래?' : '화면 앞에 서 주세요', ''];
+  if (state === 'two') return [k ? '한 번에 한 친구만 등록할게!' : '한 번에 한 분씩 등록합니다', k ? '다른 친구는 뒤에서 잠깐 기다려 줄래?' : '다른 분은 잠시 화면 밖으로 비켜 주세요'];
+  if (state === 'off') {
+    const side = me.x > CX ? (k ? '왼쪽' : '왼쪽') : '오른쪽';
+    return [k ? '동그라미 쪽으로 조금만 와 줄래?' : '화면 가운데로 와 주세요', k ? `${side}으로 한 걸음!` : `${side}으로 조금 옮겨 주세요`];
+  }
+  if (state === 'over') return [k ? '우와, 너무 많이 돌렸어!' : '조금만 덜 돌려 주세요', k ? '아기 양만큼만 돌려 볼까?' : '양과 같은 만큼만 돌려 주세요'];
+  const say = stuck && sg.d !== 'F'
+    ? (k ? '아기 양처럼 해 봐! 고개를 이렇게 돌려' : '양이 돌리는 방향을 따라 해 주세요')
+    : (k ? `${ROUND_KIDS[sg.s]}${DIR_KIDS[sg.d]} 아기 양이랑 똑같이 해 볼까?` : `${ROUND_ADULT[sg.s]}${DIR_ADULT[sg.d]} 양에 맞춰 주세요`);
+  const want = FACE_W[sg.s];
+  let sub;
+  if (state === 'hold') sub = k ? '좋아, 그대로! 하나, 둘…' : '좋습니다. 잠시 그대로 계세요';
+  else if (me.fw < want * 0.88) sub = feet ? (k ? '발자국처럼 한 걸음 앞으로!' : '발자국처럼 한 걸음 앞으로 와 주세요') : (k ? '아기 양만큼 커지게 가까이 와 볼까?' : '양의 크기만큼 가까이 와 주세요');
+  else if (me.fw > want * 1.12) sub = feet ? (k ? '발자국처럼 한 걸음 뒤로!' : '발자국처럼 한 걸음 뒤로 물러나 주세요') : (k ? '아기 양만큼 작아지게 뒤로 가 볼까?' : '양의 크기만큼 뒤로 물러나 주세요');
+  else sub = k ? '크기는 딱 좋아! 이제 고개만' : '거리는 알맞습니다. 고개 방향을 맞춰 주세요';
+  return [say, sub];
+}
+
+// ---------- update ----------
+let last = performance.now(), lastSay = '', lastSub = '', lastAlert = false;
+function step(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  const t = now / 1000;
+  if (scenario && now > scenarioUntil) scenario = null;
+  const sg = suggestion();
+  const tKey = sg ? key(sg.d, sg.s) : '';
+  if (tKey !== lastTarget) { lastTarget = tKey; aimSince = now; }
+
+  // Where the person tries to be.
+  let ty = 0, tp = 0, tfw = 240, tx = CX;
+  if (ui.mode === 'manual') { ty = pointer.yaw; tp = pointer.pitch; tfw = pointer.fw; }
+  else if (sg && now > pauseUntil) { [ty, tp] = POSE[sg.d]; tfw = FACE_W[sg.s]; }
+  else if (sg) { ty = me.yaw * 0.5; tp = me.pitch * 0.5; tfw = me.fw; }
+  if (scenario === 'stuck' && sg) { ty = sg.d === 'F' ? 0.25 : -POSE[sg.d][0] * 0.3; tp = -POSE[sg.d][1] * 0.3; }
+  if (scenario === 'off') tx = CX + 300;
+  if (scenario === 'over') ty = (sg && sg.d === 'L' ? -1 : 1) * 1.0;
+  if (scenario === 'away') tx = CX + 900;
+  if (scenario === 'two' && ui.mode === 'auto') { ty = 0.1; tp = 0; }
+  if (scenario === 'nodist' && sg) tfw = FACE_W[sg.s] * ({ N: 0.86, B: 0.9, S: 1.15 })[sg.s];   // between two circles: no cell fits
+  const kTurn = ui.mode === 'manual' ? 10 : 2.4, kMove = ui.mode === 'manual' ? 8 : 1.6;
+  const wob = ui.mode === 'auto' && !reduced ? 0.03 : 0;
+  me.yaw += (ty + Math.sin(t * 2.1) * wob - me.yaw) * Math.min(1, kTurn * dt);
+  me.pitch += (tp + Math.sin(t * 1.7 + 1) * wob - me.pitch) * Math.min(1, kTurn * dt);
+  me.fw += (tfw - me.fw) * Math.min(1, kMove * dt);
+  me.x += (tx - me.x) * Math.min(1, 2.2 * dt);
+  other.on += ((scenario === 'two' ? 1 : 0) - other.on) * Math.min(1, 3 * dt);
+
+  // What the kiosk sees.
+  let state;
+  if (!sg) state = 'done';
+  else if (me.x > W - 60) state = 'away';
+  else if (other.on > 0.5) state = 'two';
+  else if (!inCircle(me)) state = 'off';
+  else {
+    const d = classifyDir(me), s = classifySize(me.fw);
+    if (d === 'over') state = 'over';
+    else if (d && s && !got.has(key(d, s))) {
+      state = 'hold';
+      const k = key(d, s);
+      if (holdKey !== k) { holdKey = k; hold = 0; }
+      hold += dt / HOLD_S;
+      if (hold >= 1) collect(k);
+    } else state = 'aim';
+  }
+  if (state !== 'hold') { hold = Math.max(0, hold - dt * 3); if (hold === 0) holdKey = null; }
+  if (state === 'hold') aimSince = now;
+  const stuck = state === 'aim' && now - aimSince > STUCK_S * 1000;
+  const sizeOff = sg && state === 'aim' && Math.abs(me.fw / FACE_W[sg.s] - 1) > 0.12;
+  if (!sizeOff) sizeOffSince = 0; else if (!sizeOffSince) sizeOffSince = now;
+  const feet = sizeOff && sizeOffFor(now) > SIZE_STUCK_S * 1000;
+  if (state === 'done' && !doneAt) { doneAt = now; celebrate(); }
+  if (doneAt && ui.mode === 'auto' && now - doneAt > 4500) restart();
+
+  // The white head eases toward the target; when stuck it demonstrates the turn from the front.
+  if (sg) {
+    let [gy, gp] = POSE[sg.d];
+    if (stuck && sg.d !== 'F' && !reduced) {
+      const ph = ((now - aimSince - STUCK_S * 1000) / 2400) % 1;       // 0..1 per demo
+      const e = ph < 0.15 ? 0 : ph < 0.65 ? 0.5 - 0.5 * Math.cos((ph - 0.15) / 0.5 * Math.PI) : 1;
+      gy *= e; gp *= e;
+    }
+    const kg = Math.min(1, (stuck ? 12 : 5) * dt);
+    ghost.yaw += (gy - ghost.yaw) * kg; ghost.pitch += (gp - ghost.pitch) * kg;
+    ghost.fw += (FACE_W[sg.s] - ghost.fw) * Math.min(1, 4 * dt);
+  }
+
+  const [say, sub] = words(state, sg, stuck, feet);
+  if (say !== lastSay) { $('say').textContent = say; lastSay = say; }
+  if (sub !== lastSub) { $('sub').textContent = sub; lastSub = sub; }
+  const alert = ['two', 'off', 'over', 'away'].includes(state);
+  if (alert !== lastAlert) { $('bubble').classList.toggle('alert', alert); if (alert) gesture('tilt'); lastAlert = alert; }
+
+  draw(state, sg, now);
+  for (let i = sparks.length - 1; i >= 0; i--) { const p = sparks[i]; p.t += dt; if (p.t > p.life) sparks.splice(i, 1); }
+  requestAnimationFrame(step);
+}
+
+function collect(k) {
+  got.add(k); hold = 0; holdKey = null;
+  pauseUntil = performance.now() + 450;
+  const f = $('flash'); f.classList.remove('go'); void f.offsetWidth; f.classList.add('go');
+  const from = facePoint(me);
+  sparks.push({ kind: 'fly', x0: from[0], y0: from[1], x1: 1180, y1: 760, t: 0, life: 0.7 });
+  for (let i = 0; i < (reduced ? 0 : 8); i++) sparks.push({ kind: 'burst', x0: from[0], y0: from[1], a: i / 8 * Math.PI * 2, t: 0, life: 0.6 });
+  gesture('hop');
+  renderChrome();
+}
+function celebrate() {
+  if (reduced) return;
+  for (let i = 0; i < 40; i++) sparks.push({ kind: 'confetti', x0: CX, y0: CY - 40, a: Math.random() * Math.PI * 2, v: 200 + Math.random() * 380, t: 0, life: 2.4, c: ['#ffc93c', '#ff9a62', '#b49cf0', '#7fd3b0'][i % 4] });
+  gesture('hop');
+}
+function restart() { got = new Set(); hold = 0; holdKey = null; doneAt = 0; pauseUntil = performance.now() + 600; me.fw = 230; renderChrome(); }
+function gesture(name) { const a = $('avatar'); a.classList.remove('hop', 'tilt'); void a.offsetWidth; a.classList.add(name); }
+
+// ---------- 3D ----------
+// Head-local axes: x right, y down, z toward the camera. Turning applies yaw, then pitch.
+function rot(v, yaw, pitch) {
+  const x = v[0] * Math.cos(yaw) + v[2] * Math.sin(yaw), z0 = -v[0] * Math.sin(yaw) + v[2] * Math.cos(yaw);
+  return [x, v[1] * Math.cos(pitch) + z0 * Math.sin(pitch), -v[1] * Math.sin(pitch) + z0 * Math.cos(pitch)];
+}
+function unrot(v, yaw, pitch) {
+  const y = v[1] * Math.cos(pitch) - v[2] * Math.sin(pitch), z0 = v[1] * Math.sin(pitch) + v[2] * Math.cos(pitch);
+  return [v[0] * Math.cos(yaw) - z0 * Math.sin(yaw), y, v[0] * Math.sin(yaw) + z0 * Math.cos(yaw)];
+}
+const YAW_RAD = 1.0, PITCH_RAD = 0.8;
+const L = (() => { const l = [-0.45, -0.55, 0.7], n = Math.hypot(...l); return l.map(c => c / n); })();
+
+// The person's head, ray-cast at half resolution: skin, hair, ears, eyes, brows, nose and mouth
+// all live on the head surface, so everything turns together.
+const headCanvas = document.createElement('canvas'), hg = headCanvas.getContext('2d');
+function renderHead(p, hair) {
+  const a = p.fw / 2, b = p.fw * 0.62, c = p.fw * 0.55;
+  const half = 2, wpx = Math.ceil(a * 2.3 / half), hpx = Math.ceil(b * 2.3 / half);
+  if (headCanvas.width !== wpx || headCanvas.height !== hpx) { headCanvas.width = wpx; headCanvas.height = hpx; }
+  const img = hg.createImageData(wpx, hpx), px = img.data;
+  const ya = p.yaw * YAW_RAD, pa = p.pitch * PITCH_RAD;
+  const ex = unrot([1, 0, 0], ya, pa), ey = unrot([0, 1, 0], ya, pa), d = unrot([0, 0, -1], ya, pa);
+  const ia = 1 / (a * a), ib = 1 / (b * b), ic = 1 / (c * c);
+  const A = d[0] * d[0] * ia + d[1] * d[1] * ib + d[2] * d[2] * ic;
+  for (let j = 0; j < hpx; j++) {
+    const v = (j + 0.5) * half - hpx * half / 2;
+    for (let i = 0; i < wpx; i++) {
+      const u = (i + 0.5) * half - wpx * half / 2;
+      const o0 = u * ex[0] + v * ey[0], o1 = u * ex[1] + v * ey[1], o2 = u * ex[2] + v * ey[2];
+      const B = 2 * (o0 * d[0] * ia + o1 * d[1] * ib + o2 * d[2] * ic);
+      const C = o0 * o0 * ia + o1 * o1 * ib + o2 * o2 * ic - 1;
+      const disc = B * B - 4 * A * C;
+      if (disc <= 0) continue;
+      const tt = (-B - Math.sqrt(disc)) / (2 * A);
+      const hx = o0 + tt * d[0], hy = o1 + tt * d[1], hz = o2 + tt * d[2];
+      const X = hx / a, Y = hy / b, Z = hz / c;
+      const n = rot([hx * ia, hy * ib, hz * ic], ya, pa), nl = Math.hypot(n[0], n[1], n[2]);
+      const lit = Math.max(0, (n[0] * L[0] + n[1] * L[1] + n[2] * L[2]) / nl);
+      let r = 246, gg = 207, bb = 178, shade = 0.55 + 0.5 * lit;
+      const ex2 = (X - 0.34), ex1 = (X + 0.34);
+      if (Math.abs(X) > 0.88 && ((Y - 0.08) / 0.2) ** 2 + ((Z + 0.02) / 0.3) ** 2 < 1) { r = 222; gg = 162; bb = 130; }   // ears
+      else if (Z < 0.02 || Y < -0.34 - 0.06 * Math.cos(X * 9) + 0.12 * X * X || (Math.abs(X) > 0.84 && Y < 0.12)) { [r, gg, bb] = hair; shade = 0.6 + 0.6 * lit; }   // hair
+      else if (Z > 0) {
+        if ((ex1 / 0.085) ** 2 + ((Y + 0.06) / 0.065) ** 2 < 1 || (ex2 / 0.085) ** 2 + ((Y + 0.06) / 0.065) ** 2 < 1) { r = 43; gg = 29; bb = 24; shade = 1; }   // eyes
+        else if ((Math.abs(ex1) < 0.13 || Math.abs(ex2) < 0.13) && Y > -0.25 - 0.08 * (Math.abs(X) - 0.34) ** 2 && Y < -0.2) { r = 70; gg = 46; bb = 34; shade = 1; }   // brows
+        else if (Math.abs(X) < 0.2 && Math.abs(Y - (0.4 + 0.07 * (1 - (X / 0.2) ** 2))) < 0.03) { r = 168; gg = 84; bb = 74; }   // smile
+        else if (Math.abs(X) < 0.08 && Y > 0.22 && Y < 0.27) { r = 196; gg = 140; bb = 112; }   // nose tip shadow
+        else if (X > 0.03 && X < 0.07 && Y > -0.02 && Y < 0.24) { shade *= 0.9; }                // nose ridge
+        else if (Math.abs(X) > 0.42 && Math.abs(X) < 0.66 && Y > 0.12 && Y < 0.3) { r = 250; gg = 190; bb = 170; }   // cheeks
+      }
+      const k = (j * wpx + i) * 4;
+      px[k] = Math.min(255, r * shade); px[k + 1] = Math.min(255, gg * shade); px[k + 2] = Math.min(255, bb * shade);
+      px[k + 3] = Math.min(255, Math.sqrt(disc) / (2 * A) / 4 * 255);   // soft edge: fades over the last few px of chord
+    }
+  }
+  hg.putImageData(img, 0, 0);
+  g.imageSmoothingEnabled = true;
+  g.drawImage(headCanvas, p.x - wpx * half / 2, p.y - hpx * half / 2, wpx * half, hpx * half);
+}
+function drawPerson(p, sweater, hair, alpha = 1) {
+  g.save(); g.globalAlpha = alpha;
+  const sh = p.yaw * p.fw * 0.12;
+  g.fillStyle = sweater;
+  g.beginPath(); g.ellipse(p.x - sh * 0.4, p.y + p.fw * 1.34, p.fw * 1.25, p.fw * 0.62, 0, Math.PI, 0); g.lineTo(p.x + p.fw * 1.25, H + 10); g.lineTo(p.x - p.fw * 1.25, H + 10); g.fill();
+  g.fillStyle = '#d9a383'; g.fillRect(p.x - p.fw * 0.2, p.y + p.fw * 0.3, p.fw * 0.4, p.fw * 0.62);
+  renderHead(p, hair);
+  g.restore();
+}
+function facePoint(p) { const f = rot([0, 0.05, 1], p.yaw * YAW_RAD, p.pitch * PITCH_RAD); return [p.x + f[0] * p.fw * 0.42, p.y + f[1] * p.fw * 0.5]; }
+
+// ---------- drawing ----------
+const bg = document.createElement('canvas'); bg.width = W; bg.height = H;
+(function paintRoom() {
+  const b = bg.getContext('2d');
+  const sky = b.createLinearGradient(0, 0, 0, H); sky.addColorStop(0, '#d9cbbd'); sky.addColorStop(1, '#a8968a');
+  b.fillStyle = sky; b.fillRect(0, 0, W, H);
+  b.filter = 'blur(18px)';
+  b.fillStyle = '#efe6d8'; b.fillRect(80, 60, 300, 380);
+  b.fillStyle = '#8a6f5c'; b.fillRect(900, 120, 320, 30); b.fillRect(900, 230, 320, 30);
+  b.fillStyle = '#6f8f7a'; b.beginPath(); b.ellipse(1010, 105, 40, 30, 0, 0, 7); b.fill();
+  b.fillStyle = '#c7a98f'; b.fillRect(0, 610, W, 190);
+  b.filter = 'none';
+})();
+
+function dimOutside(rx, ry, alpha) {
+  g.save(); g.fillStyle = `rgba(28,20,36,${alpha})`;
+  g.beginPath(); g.rect(0, 0, W, H); g.ellipse(CX, CY, rx, ry, 0, 0, 7); g.fill('evenodd'); g.restore();
+}
+function star(x, y, r, fill, stroke, lw = 3) {
+  g.beginPath();
+  for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? r * 0.5 : r; g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); }
+  g.closePath(); g.lineJoin = 'round';
+  if (fill) { g.fillStyle = fill; g.fill(); }
+  if (stroke) { g.strokeStyle = stroke; g.lineWidth = lw; g.stroke(); }
+}
+
+// ---------- the white face: three featureless shapes, ray-cast translucent ----------
+const ghostCanvas = document.createElement('canvas'), gc = ghostCanvas.getContext('2d');
+// Ray (origin o, direction d, head-local) against an ellipsoid: [t, chord] of the nearest hit or null.
+function hitEllipsoid(o, d, c, r) {
+  const ox = (o[0] - c[0]) / r[0], oy = (o[1] - c[1]) / r[1], oz = (o[2] - c[2]) / r[2];
+  const dx = d[0] / r[0], dy = d[1] / r[1], dz = d[2] / r[2];
+  const A = dx * dx + dy * dy + dz * dz, B = 2 * (ox * dx + oy * dy + oz * dz), C = ox * ox + oy * oy + oz * oz - 1;
+  const disc = B * B - 4 * A * C;
+  if (disc <= 0) return null;
+  return [(-B - Math.sqrt(disc)) / (2 * A), Math.sqrt(disc) / A, c, r];
+}
+// The young lamb: a smooth round head, a crown of five wool puffs, two drooping ears and a small
+// snout. Parts in head units (x right, y down, z toward the camera): [center, radii, kind].
+const LAMB = [
+  [[0, 0.02, 0], [1, 1.04, 0.95], 'head'],
+  [[0, -0.86, 0.12], [0.36, 0.3, 0.32], 'wool'],
+  [[-0.42, -0.74, 0.18], [0.32, 0.28, 0.3], 'wool'],
+  [[0.42, -0.74, 0.18], [0.32, 0.28, 0.3], 'wool'],
+  [[-0.24, -0.6, 0.5], [0.27, 0.24, 0.26], 'wool'],
+  [[0.24, -0.6, 0.5], [0.27, 0.24, 0.26], 'wool'],
+  [[-1.0, 0.08, -0.02], [0.3, 0.17, 0.14], 'ear'],
+  [[1.0, 0.08, -0.02], [0.3, 0.17, 0.14], 'ear'],
+  [[-1.24, 0.24, -0.02], [0.22, 0.16, 0.12], 'ear'],
+  [[1.24, 0.24, -0.02], [0.22, 0.16, 0.12], 'ear'],
+  [[0, 0.4, 0.66], [0.38, 0.27, 0.3], 'snout'],
+];
+function ghostShape(shape, cx, cy, R, yaw, pitch, rgb, alpha) {
+  // Turned a little further than the person needs to, so the direction is unmistakable.
+  const a = yaw * 1.35, b = pitch * 1.35;
+  const [cr, cgr, cb] = rgb.split(',').map(Number);
+  const half = 2, w = Math.ceil(R * 3.4 / half), h = Math.ceil(R * 3.0 / half);
+  if (ghostCanvas.width !== w || ghostCanvas.height !== h) { ghostCanvas.width = w; ghostCanvas.height = h; }
+  const img = gc.createImageData(w, h), px = img.data;
+  const ex = unrot([1, 0, 0], a, b), ey = unrot([0, 1, 0], a, b), d = unrot([0, 0, -1], a, b);
+  for (let j = 0; j < h; j++) {
+    const v = ((j + 0.5) * half - h * half * 0.52) / R;
+    for (let i = 0; i < w; i++) {
+      const u = ((i + 0.5) * half - w * half / 2) / R;
+      if (u * u + v * v > 2.6) continue;                             // outside every part
+      const o = [u * ex[0] + v * ey[0], u * ex[1] + v * ey[1], u * ex[2] + v * ey[2]];
+      let best = null, kind = '';
+      for (const [c, r, k] of LAMB) {
+        const hit = hitEllipsoid(o, d, c, r);
+        if (hit && (!best || hit[0] < best[0])) { best = hit; kind = k; }
+      }
+      if (!best) continue;
+      const [t, chord, c, r] = best;
+      const hp = [o[0] + t * d[0], o[1] + t * d[1], o[2] + t * d[2]];
+      const nl = [(hp[0] - c[0]) / (r[0] * r[0]), (hp[1] - c[1]) / (r[1] * r[1]), (hp[2] - c[2]) / (r[2] * r[2])];
+      const nw = rot(nl, a, b), nn = Math.hypot(nw[0], nw[1], nw[2]);
+      const facing = Math.max(0, nw[2] / nn);
+      const lit = Math.max(0, (nw[0] * L[0] + nw[1] * L[1] + nw[2] * L[2]) / nn);
+      let o2 = 0.16 + 0.34 * lit + 0.4 * Math.pow(1 - facing, 3);
+      if (kind === 'wool') o2 += 0.16;
+      if (kind === 'snout') o2 += 0.1;
+      if (kind === 'head') o2 += 0.22 * Math.pow(Math.max(0, hp[2] / 0.95), 2.4);   // the face side glows softly
+      let pr = cr, pg = cgr, pb = cb;
+      if (kind === 'ear' && hp[2] > 0) { pr = Math.min(255, cr); pg = Math.round(cgr * 0.9); pb = Math.round(cb * 0.92); }   // a hint of pink inside
+      if (shape === 'eyes' && kind === 'head' && hp[2] > 0) {
+        // Two closed, smiling eyes: short arcs on the face.
+        for (const sx of [-0.34, 0.34]) {
+          const dx = (hp[0] - sx) / 0.13, arc = -0.06 + 0.07 * dx * dx;
+          if (Math.abs(dx) < 1 && Math.abs(hp[1] - arc) < 0.028) { pr = 70; pg = 56; pb = 80; o2 = 0.75; }
+        }
+      }
+      const edge = Math.min(1, chord * R / half / 3);
+      const k = (j * w + i) * 4;
+      px[k] = pr; px[k + 1] = pg; px[k + 2] = pb; px[k + 3] = 255 * Math.min(1, o2 * alpha) * edge;
+    }
+  }
+  gc.putImageData(img, 0, 0);
+  g.drawImage(ghostCanvas, cx - w * half / 2, cy - h * half * 0.52, w * half, h * half);
+}
+
+// Footprints on the floor: three steps toward the camera (come closer, growing) or away (step back).
+function footprint(x, y, s, flip, alpha) {
+  g.save(); g.translate(x, y); g.scale(flip ? -s : s, s); g.globalAlpha = alpha; g.fillStyle = '#fff';
+  g.shadowColor = 'rgba(40,28,48,.45)'; g.shadowBlur = 10;
+  g.beginPath(); g.ellipse(0, 0, 13, 24, 0.12, 0, 7); g.fill();                 // sole, toes toward the viewer
+  g.beginPath(); g.ellipse(-2, -30, 10, 9, 0, 0, 7); g.fill();                   // heel
+  [[-9, 27, 4.5], [-2, 30, 4.8], [5, 29, 4.4], [11, 25, 3.8], [15, 19, 3.2]].forEach(([tx, ty, tr]) => { g.beginPath(); g.arc(tx, ty, tr, 0, 7); g.fill(); });
+  g.restore();
+}
+function footsteps(now, closer) {
+  const steps = [[-26, 0], [26, 1], [-26, 2]];                                   // left, right, left
+  const cycle = 2400, t = (now % cycle) / cycle;
+  steps.forEach(([dx, i]) => {
+    const k = closer ? i : 2 - i;
+    const start = i * 0.22, life = t - start;
+    if (life < 0) return;
+    const y = 662 + k * 42, s = 1.05 + k * 0.25;
+    footprint(CX + dx * s, y, s, dx > 0, Math.max(0, Math.min(1, life * 6)) * Math.max(0, 1 - Math.max(0, t - 0.75) * 4) * 0.85);
+  });
+}
+
+function draw(state, sg, now) {
+  g.drawImage(bg, 0, 0);
+  if (other.on > 0.02) drawPerson(other, '#8c6f9e', [92, 60, 40], other.on);
+  if (ui.person) drawPerson(me, '#5d7fae', [52, 37, 30]);   // test stand-in for the camera image
+  if (other.on > 0.3) {
+    g.save(); g.globalAlpha = other.on; g.strokeStyle = 'rgba(255,255,255,.85)'; g.lineWidth = 3; g.setLineDash([8, 8]);
+    const bx = other.x - other.fw * 0.62, by = other.y - other.fw * 0.8;
+    g.strokeRect(bx, by, other.fw * 1.24, other.fw * 1.6); g.setLineDash([]);
+    g.fillStyle = 'rgba(51,38,63,.72)'; const label = ui.aud === 'kids' ? '잠깐 기다려 줘' : '잠시만 기다려 주세요';
+    g.font = '700 20px "Gothic A1", sans-serif'; const tw = g.measureText(label).width;
+    g.beginPath(); g.roundRect(other.x - tw / 2 - 14, by - 46, tw + 28, 36, 18); g.fill();
+    g.fillStyle = '#fff'; g.textAlign = 'center'; g.fillText(label, other.x, by - 21); g.restore();
+  }
+  if (sg) {
+    const R = ghost.fw * 0.52;
+    dimOutside(R * 1.55, R * 1.6, 0.22);
+    const busy = state === 'two' || state === 'away';
+    const ok = state === 'hold';
+    // Closeness of my pose to the target, 0..1, brightens the face side.
+    const [ty, tp] = POSE[sg.d];
+    const near = Math.max(0, 1 - Math.hypot(me.yaw - ty, me.pitch - tp) / 0.7);
+    const alpha = busy ? 0.35 : 1;
+    ghostShape(ui.shape, CX, CY, R, ghost.yaw, ghost.pitch, ok ? '255,214,102' : '255,255,255', alpha * (0.8 + 0.4 * near));
+    if (!busy) {
+      // Distance: first the lamb's size. While the size is off it grows or shrinks from my face's
+      // size to the target again and again; after a while footprints show the step to take.
+      const want = FACE_W[sg.s], ratio = me.fw / want;
+      if (Math.abs(ratio - 1) > 0.12 && !reduced) {
+        const ph = (now % 1600) / 1600, e = ph < 0.6 ? 0.5 - 0.5 * Math.cos(ph / 0.6 * Math.PI) : 1;
+        const s = ratio + (1 - ratio) * e;
+        g.save(); g.strokeStyle = `rgba(255,255,255,${0.55 * (1 - e * 0.6)})`; g.lineWidth = 3; g.setLineDash([10, 10]);
+        g.beginPath(); g.ellipse(CX, CY, R * s, R * 1.08 * s, 0, 0, 7); g.stroke(); g.restore();
+        if (sizeOffFor(now) > SIZE_STUCK_S * 1000) footsteps(now, ratio < 1);
+      }
+      if (hold > 0) {
+        g.save(); g.strokeStyle = '#ffc93c'; g.lineWidth = 9; g.lineCap = 'round';
+        g.beginPath(); g.ellipse(CX, CY, R + 18, R * 1.12 + 18, 0, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, hold)); g.stroke(); g.restore();
+      }
+    }
+  } else dimOutside(170, 220, 0.25);
+  for (const p of sparks) {
+    const k = p.t / p.life;
+    if (p.kind === 'fly') { const e = 1 - Math.pow(1 - k, 3); star(p.x0 + (p.x1 - p.x0) * e, p.y0 + (p.y1 - p.y0) * e - Math.sin(k * Math.PI) * 120, 26 * (1 - k * 0.4), '#ffc93c', '#f4a81d'); }
+    if (p.kind === 'burst') { const dd = 30 + k * 90; g.globalAlpha = 1 - k; star(p.x0 + Math.cos(p.a) * dd, p.y0 + Math.sin(p.a) * dd, 10, '#ffe08a'); g.globalAlpha = 1; }
+    if (p.kind === 'confetti') { g.globalAlpha = Math.max(0, 1 - k * 0.8); star(p.x0 + Math.cos(p.a) * p.v * p.t, p.y0 + Math.sin(p.a) * p.v * p.t + 160 * p.t * p.t, 14, p.c); g.globalAlpha = 1; }
+  }
+}
+
+// ---------- page chrome ----------
+function renderChrome() {
+  const k = ui.aud === 'kids';
+  $('count').textContent = k ? `★ ${got.size} / 15` : `${got.size} / 15`;
+}
+function fit() { $('stage').style.transform = `scale(${$('device').clientWidth / W})`; }
+new ResizeObserver(fit).observe($('device'));
+
+function press(segId, attr, value) { document.querySelectorAll(`#${segId} button`).forEach(b => b.setAttribute('aria-pressed', String(b.dataset[attr] === value))); }
+$('showPerson').addEventListener('change', e => { ui.person = e.target.checked; $('testtag').hidden = !ui.person; });
+function pickShape(shape) { ui.shape = shape; press('shapeSeg', 'shape', shape); }
+document.querySelectorAll('[data-shape]').forEach(b => b.addEventListener('click', () => {
+  pickShape(b.dataset.shape);
+  if (b.closest('.notes')) $('device').scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center' });
+}));
+$('audSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; ui.aud = b.dataset.aud; press('audSeg', 'aud', ui.aud); $('stage').dataset.aud = ui.aud; lastSay = ''; renderChrome(); });
+$('modeSeg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return; ui.mode = b.dataset.mode; press('modeSeg', 'mode', ui.mode);
+  $('distWrap').hidden = ui.mode !== 'manual'; pointer.fw = +$('dist').value; restart();
+});
+document.querySelectorAll('[data-sc]').forEach(b => b.addEventListener('click', () => {
+  if (b.dataset.sc === 'reset') { scenario = null; restart(); return; }
+  scenario = b.dataset.sc; scenarioUntil = performance.now() + ({ two: 4200, stuck: 9000, nodist: 9000 })[scenario] || 3200;
+  if (b.closest('.notes')) $('device').scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center' });
+}));
+$('dist').addEventListener('input', e => { pointer.fw = +e.target.value; });
+const dev = $('device');
+function aim(e) {
+  if (ui.mode !== 'manual') return;
+  const r = dev.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * W, y = (e.clientY - r.top) / r.height * H;
+  pointer.yaw = Math.max(-1, Math.min(1, (x - CX) / 380));
+  pointer.pitch = Math.max(-1, Math.min(1, (y - CY) / 280));
+}
+dev.addEventListener('pointermove', aim);
+dev.addEventListener('pointerdown', aim);
+dev.addEventListener('wheel', e => {
+  if (ui.mode !== 'manual') return; e.preventDefault();
+  pointer.fw = Math.max(140, Math.min(340, pointer.fw - Math.sign(e.deltaY) * 12)); $('dist').value = pointer.fw;
+}, { passive: false });
+
+renderChrome(); fit(); requestAnimationFrame(step);
+</script>
