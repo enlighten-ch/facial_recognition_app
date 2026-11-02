@@ -128,7 +128,10 @@ class KioskFlow(
 
     private fun capture(observation: Observation) {
         if (state.duplicateOf != null || session.isComplete) return
+        val suggested = session.suggestion
         var holding = 0f
+        var other = false
+        var bonus = false
         val problem: CaptureProblem? = when (observation) {
             Observation.NoFace -> CaptureProblem.NO_FACE.also { session.interrupt() }
             is Observation.Outside -> (if (observation.screenDx < 0) CaptureProblem.OUTSIDE_LEFT else CaptureProblem.OUTSIDE_RIGHT).also { session.interrupt() }
@@ -137,6 +140,7 @@ class KioskFlow(
                 val frame = RegistrationFrame(observation.embedding, observation.pose, observation.size, observation.sharpness)
                 when (val outcome = session.offer(frame)) {
                     is Outcome.Accepted -> {
+                        bonus = outcome.cell != suggested
                         effects.log(record.accepted(outcome, observation, session.totalCollected, session.totalTarget))
                         if (session.isComplete) {
                             effects.log(record.summary(clock(), finished = true))
@@ -147,6 +151,7 @@ class KioskFlow(
                     }
                     is Outcome.Holding -> {
                         holding = outcome.frames / outcome.needed.toFloat()
+                        other = outcome.cell != suggested
                         null
                     }
                     is Outcome.WrongDirection -> CaptureProblem.DIRECTION
@@ -165,7 +170,7 @@ class KioskFlow(
             state.copy(
                 message = next.direction.prompt,
                 detail = problemText(problem, observation),
-                registration = registrationView(holding, problem),
+                registration = registrationView(holding, problem).copy(holdingOther = other, bonus = bonus),
             ),
         )
     }

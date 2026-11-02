@@ -106,6 +106,10 @@ data class RegistrationView(
     val problem: CaptureProblem? = null,
     /** Several frames in a row were not kept; the screen gives the reason more weight. */
     val stalled: Boolean = false,
+    /** The face is held in an empty cell other than the suggested one ("그것도 좋아!"). */
+    val holdingOther: Boolean = false,
+    /** The sample just kept was not the suggested one. */
+    val bonus: Boolean = false,
 ) {
     val complete: Boolean get() = total >= target
 

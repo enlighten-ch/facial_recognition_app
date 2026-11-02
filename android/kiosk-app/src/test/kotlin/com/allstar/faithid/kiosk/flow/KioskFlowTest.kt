@@ -145,6 +145,7 @@ class KioskFlowTest {
         // A big face looking left is not what the guide asked for, but its cell is empty: kept.
         flow.onObservation(sized(HeadDirection.LEFT, 1.18f))
         assertEquals(2, r().total)
+        assertTrue("kept a sample other than the suggested one", r().bonus)
         assertEquals(HeadDirection.LEFT to FaceCircle.NORMAL, r().next to r().circle)
         listOf(HeadDirection.LEFT, HeadDirection.RIGHT, HeadDirection.UP, HeadDirection.DOWN).forEach { flow.onObservation(sized(it, 1f)) }
         assertEquals(HeadDirection.FRONT to FaceCircle.BIG, r().next to r().circle)
@@ -160,6 +161,7 @@ class KioskFlowTest {
         val r = { flow.state.registration!! }
         flow.onObservation(sized(HeadDirection.FRONT, 1f))
         assertEquals(0.5f, r().holding)
+        assertFalse(r().holdingOther)
         flow.onObservation(Observation.Several(2))
         assertEquals(CaptureProblem.SEVERAL, r().problem)
         assertEquals(0f, r().holding)

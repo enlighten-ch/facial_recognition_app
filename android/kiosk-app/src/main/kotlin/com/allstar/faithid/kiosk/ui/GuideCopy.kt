@@ -67,6 +67,9 @@ class GuideCopy(
         if (duplicate != null) return Line(line("confirm", duplicate.metadata?.name ?: duplicate.label), line("confirmSub"))
         val r = state.registration ?: return Line(state.message)
         val next = r.next ?: return Line(line("celebration", count = r.target))
+        // Another empty sample than the suggested one is fine too.
+        if (r.bonus) return bonus()
+        if (r.holdingOther && r.holding > 0f) return Line(line("other"), line("otherSub"))
         // Problems that stop collecting come first and replace the request.
         when (r.problem) {
             CaptureProblem.SEVERAL -> return Line(line("several"), line("severalSub"))
@@ -104,6 +107,9 @@ class GuideCopy(
         val output = state.output ?: return Line(state.message)
         return Line(line("done", output.metadata.name), countdown(output.secondsLeft))
     }
+
+    /** Said for a moment after a sample other than the suggested one was kept. */
+    fun bonus(): Line = Line(line("bonus"), line("bonusSub"))
 
     fun countdown(seconds: Int): String = if (kids) "${seconds}초 뒤에 처음으로 돌아가요" else "${seconds}초 후 처음 화면으로 돌아갑니다"
 
@@ -182,6 +188,10 @@ class GuideCopy(
             Entry("frontBig", "등록: 큰 동그라미 (정면)", "이번엔 가까이 와서 앞을 보면서 큰 동그라미를 꽉 채워 줄래?", "조금 가까이 와서 정면을 보고 커진 원을 채워 주세요"),
             Entry("frontSmall", "등록: 작은 동그라미 (정면)", "이번엔 한 걸음 뒤로 가서 작은 동그라미에 쏙 들어와 볼까?", "한 걸음 물러나서 정면을 보고 작아진 원 안에 얼굴을 넣어 주세요"),
             Entry("hold", "등록: 맞췄을 때 둘째 줄", "좋아, 그대로! 하나, 둘…", "좋습니다. 잠시 그대로 계세요"),
+            Entry("other", "등록: 권하지 않은 자세를 맞출 때", "오, 그것도 좋아! 그대로 있어 줘", "그 자세도 좋습니다"),
+            Entry("otherSub", "등록: 권하지 않은 자세 둘째 줄", "하나, 둘…", "잠시 그대로 계세요"),
+            Entry("bonus", "등록: 권하지 않은 자세를 모았을 때", "음… 그것도 좋아!", "그 자세도 좋습니다"),
+            Entry("bonusSub", "등록: 권하지 않은 자세를 모았을 때 둘째 줄", "별 하나 더 모았어", "하나 더 저장했습니다"),
             Entry("closer", "등록: 더 가까이 둘째 줄", "조금 더 가까이 와 볼까?", "조금 더 가까이 와 주세요"),
             Entry("back", "등록: 더 멀리 둘째 줄", "조금만 뒤로 가 볼까?", "조금 뒤로 물러나 주세요"),
             Entry("turnLikePicture", "등록: 방향이 안 맞을 때 둘째 줄", "그림처럼 고개를 돌려 볼까?", "그림과 같은 방향으로 고개를 돌려 주세요"),

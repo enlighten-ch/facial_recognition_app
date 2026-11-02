@@ -75,6 +75,15 @@ class GuideCopyTest {
     }
 
     @Test
+    fun `another sample than the suggested one is fine too`() {
+        val holding = UiState(screen = Screen.REGISTER_CAPTURE, registration = RegistrationView(emptyList(), 1, 15, HeadDirection.LEFT, FaceCircle.NORMAL, holding = 0.5f, holdingOther = true))
+        assertEquals(GuideCopy.Line("오, 그것도 좋아! 그대로 있어 줘", "하나, 둘…"), kids.bubble(holding))
+        val kept = UiState(screen = Screen.REGISTER_CAPTURE, registration = RegistrationView(emptyList(), 2, 15, HeadDirection.LEFT, FaceCircle.NORMAL, bonus = true))
+        assertEquals(GuideCopy.Line("음… 그것도 좋아!", "별 하나 더 모았어"), kids.bubble(kept))
+        assertEquals("그 자세도 좋습니다", adults.bubble(kept).title)
+    }
+
+    @Test
     fun `the celebration counts the stars of this registration`() {
         val done = UiState(screen = Screen.REGISTER_CAPTURE, registration = RegistrationView(emptyList(), 15, 15, null))
         assertEquals("별 15개 다 모았다!", kids.bubble(done).title)

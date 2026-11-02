@@ -308,9 +308,14 @@ class OperationScreen(
         greetedKey = greeted
     }
 
+    /** "그것도 좋아!" stays a moment after a sample other than the suggested one was kept. */
+    private var bonusUntil = 0L
+
     private fun drawCapture(state: UiState) {
         val r = state.registration ?: return
-        setBubble(copy.bubble(state))
+        val now = SystemClock.uptimeMillis()
+        if (r.bonus) bonusUntil = now + BONUS_MS
+        setBubble(if (now < bonusUntil && r.next != null) copy.bonus() else copy.bubble(state))
         replies.removeAllViews()
         stars.show(starFlags(r), r.next?.ordinal ?: -1, starStep(r), kids)
         head.done = r.next == null
@@ -642,6 +647,7 @@ class OperationScreen(
     companion object {
         private const val APRICOT = 0xFFFFB183.toInt()
         private const val SETTINGS_HOLD_MS = 1_200L
+        private const val BONUS_MS = 1_700L
         private const val REGISTERED_NOTICE_MS = 3_000L
     }
 }
