@@ -230,7 +230,8 @@ footer { color: var(--muted); font-size: 0.86rem; border-top: 1px solid var(--li
   <section aria-labelledby="h-decide">
     <h2 id="h-decide">정한 것 (11-02)</h2>
     <div class="decide">
-      <div><b>화면 안: A 하얀 얼굴</b><span>선 없이 눈코입 없는 반투명 얼굴로 단순화합니다. 깔끔한 반투명 둥근 얼굴에 귀 두 개와 시선을 보여 주는 얼굴 선 두 개(가운데 세로선, 눈 높이 가로선). 안내 캐릭터도 같은 방향으로 3D로 돌고 거리에 따라 커지거나 작아집니다. 거리는 먼저 얼굴 크기로, 3초 동안 못 맞추면 구두 밑창 발자국으로 알려 줍니다: <a href="https://claude.ai/artifact/DsP3WG8m77jGGgyr1sFuHD">v6</a>, v7은 이 문서의 화면 시안 링크. 보통·가까이·멀리 진행 표시는 넣지 않습니다.</span></div>
+      <div><b>화면 안: 최종안</b><span>귀 달린 반투명 둥근 얼굴과 두 얼굴 선(가운데 세로선, 눈 높이 가로선), 같은 방향으로 3D로 돌고 거리에 따라 커지거나 작아지는 안내 캐릭터. 거리는 먼저 얼굴 크기로, 3초 동안 못 맞추면 구두 밑창 발자국으로 알려 줍니다. 보통·가까이·멀리 진행 표시는 넣지 않습니다. <a href="https://claude.ai/artifact/CtupGk88pnyBrpPZnTvsJq">얼굴 등록 화면 최종안 (v8)</a></span></div>
+      <div><b>구현할 때 지킬 것</b><span>비어 있는 칸이면 어느 것이든 모으므로, 사람이 권하지 않은 다른 칸을 맞추고 있는 동안에는 하얀 얼굴·캐릭터·문구가 그 칸(크기와 방향)으로 바뀌어야 합니다. 노란 테두리는 하얀 얼굴이 그 칸을 보여 준 뒤에만 차오릅니다. 그러려면 <code>RegistrationView</code>가 권하는 칸과 함께 머무는 중인 칸을 알려 줘야 합니다.</span></div>
       <div><b>칸 수: 정면 포함 15칸</b><span>정면·왼쪽·오른쪽·위·아래 × 보통·가까이·멀리.</span></div>
       <div><b>얼굴 정렬: 켬</b><span>새 기본값이고, 이미 설치된 키오스크도 한 번 켜집니다. 정렬 전에 등록된 사람은 다시 등록해야 합니다(현재 1명).</span></div>
     </div>
