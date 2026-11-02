@@ -20,7 +20,7 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-/** "출석": one day's attendance as a table, with department summary, filters and export buttons. */
+/** "출석": one day's attendance as a table, with a summary by the chosen column (부서 by default), filters and export buttons. */
 internal class AttendancePage(
     root: View,
     private val actions: Actions,
@@ -29,6 +29,9 @@ internal class AttendancePage(
         fun showDate(date: LocalDate)
         fun saveSheet(date: LocalDate)
         fun exportRange(endDate: LocalDate)
+
+        /** The column the summary, filter and table are grouped by was chosen in the 분류 menu. */
+        fun groupAttendance(column: String)
     }
 
     private val context = root.context
@@ -37,6 +40,7 @@ internal class AttendancePage(
     private val footer: TextView = root.findViewById(R.id.attendanceFooterText)
     private val search: EditText = root.findViewById(R.id.attendanceSearchInput)
     private val departments: LinearLayout = root.findViewById(R.id.attendanceDepartmentSummary)
+    private val groupButton: TextView = root.findViewById(R.id.attendanceGroupButton)
     private val shows = mapOf(
         AttendanceShow.ALL to root.findViewById<TextView>(R.id.showAllButton),
         AttendanceShow.PRESENT to root.findViewById(R.id.showPresentButton),
@@ -56,7 +60,10 @@ internal class AttendancePage(
         private set
     private var rows: List<AttendanceRow> = emptyList()
     private var formatTime: (Long) -> String = { it.toString() }
-    private var department: String? = null
+    /** The chosen summary button: a value of the grouping column. */
+    private var group: String? = null
+    private var grouping: Grouping? = null
+    private var choices: List<RosterColumn> = emptyList()
     private var show = AttendanceShow.ALL
     private var sort = SortState(AttendanceTable.STATUS)
 
@@ -86,7 +93,10 @@ internal class AttendancePage(
         }
     }
 
-    fun render(date: LocalDate, rows: List<AttendanceRow>, formatTime: (Long) -> String) {
+    fun render(date: LocalDate, rows: List<AttendanceRow>, formatTime: (Long) -> String, grouping: Grouping?, choices: List<RosterColumn>) {
+        if (grouping?.column != this.grouping?.column) group = null
+        this.grouping = grouping
+        this.choices = choices
         this.date = date
         this.rows = rows
         this.formatTime = formatTime
@@ -104,34 +114,38 @@ internal class AttendancePage(
     }
 
     private fun applyFilter() {
-        val summaries = AttendanceTable.summary(rows)
-        if (department != null && summaries.none { it.department == department }) department = null
+        groupButton.groupMenu(choices, choices.firstOrNull { it.key == grouping?.column }) { actions.groupAttendance(it) }
+        val summaries = AttendanceTable.summary(rows, grouping)
+        if (group != null && summaries.none { it.value == group }) group = null
         departments.removeAllViews()
         summaries.forEach { departments.addView(summaryButton(it)) }
         shows.forEach { (value, view) -> view.isSelected = value == show }
-        headers.forEach { (key, view) -> view.text = headerLabels.getValue(key) + sort.arrow(key) }
-        val visible = AttendanceTable.rows(rows, search.text?.toString().orEmpty(), department, show, sort)
+        headers.forEach { (key, view) ->
+            val label = if (key == AttendanceTable.DEPARTMENT) grouping?.label ?: headerLabels.getValue(key) else headerLabels.getValue(key)
+            view.text = label + sort.arrow(key)
+        }
+        val visible = AttendanceTable.rows(rows, search.text?.toString().orEmpty(), group, show, sort, grouping)
         adapter.submit(visible)
         footer.text = "${visible.size}명 표시 중 · 시각은 처음 키오스크에 온 시각"
     }
 
-    private fun summaryButton(s: DepartmentSummary): View = LinearLayout(context).apply {
+    private fun summaryButton(s: GroupSummary): View = LinearLayout(context).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
         minimumHeight = context.dp(48)
         setPadding(context.dp(12), 0, context.dp(12), 0)
         setBackgroundResource(R.drawable.bg_summary_button)
-        isSelected = s.department == department
-        contentDescription = "${s.department} ${s.present}명 출석, 명단 ${s.roster}명. 눌러서 이 부서만 보기"
+        isSelected = s.value == group
+        contentDescription = "${s.value} ${s.present}명 출석, 명단 ${s.roster}명. 눌러서 이것만 보기"
         addView(TextView(context).apply {
-            val label = SpannableString("●  ${s.department.ifBlank { "부서 없음" }}")
-            label.setSpan(ForegroundColorSpan(Departments.color(s.department)), 0, 1, 0)
+            val label = SpannableString("●  ${s.value.ifBlank { "${grouping?.label ?: "부서"} 없음" }}")
+            label.setSpan(ForegroundColorSpan(Departments.color(s.value)), 0, 1, 0)
             text = label
             textSize = 15f
             setTextColor(ContextCompat.getColor(context, R.color.ink))
         })
         addView(
-            MeterView(context, ContextCompat.getColor(context, R.color.accent_soft), Departments.color(s.department)).apply {
+            MeterView(context, ContextCompat.getColor(context, R.color.accent_soft), Departments.color(s.value)).apply {
                 fraction = if (s.roster == 0) 0f else s.present.toFloat() / s.roster
             },
             LinearLayout.LayoutParams(context.dp(46), context.dp(8)).apply { marginStart = context.dp(10) },
@@ -143,7 +157,7 @@ internal class AttendancePage(
             setTextColor(ContextCompat.getColor(context, R.color.ink_muted))
         }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginStart = context.dp(8) })
         setOnClickListener {
-            department = if (department == s.department) null else s.department
+            group = if (group == s.value) null else s.value
             applyFilter()
         }
         layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, context.dp(48)).apply { marginEnd = context.dp(8) }
@@ -176,7 +190,8 @@ internal class AttendancePage(
 
         override fun onBindViewHolder(holder: Holder, position: Int) {
             val row = rows[position]
-            val color = if (row.onRoster) Departments.color(row.department) else Departments.NONE_COLOR
+            val value = grouping?.of(row) ?: row.department
+            val color = if (row.onRoster) Departments.color(value) else Departments.NONE_COLOR
             if (row.present) holder.status.pill(if (row.checkIns > 1) "✓ 출석 ${row.checkIns}회" else "✓ 출석", PillKind.IN) else holder.status.pill("아직", PillKind.OUT)
             holder.initial.text = initialOf(row.name)
             holder.initial.tint(color)
@@ -186,7 +201,7 @@ internal class AttendancePage(
             holder.dot.visibility = if (row.onRoster) View.VISIBLE else View.GONE
             holder.dot.tint(color)
             holder.guest.visibility = if (row.onRoster) View.GONE else View.VISIBLE
-            holder.department.text = row.department
+            holder.department.text = value
             holder.grade.text = row.grade
             holder.first.text = row.firstAt?.let(formatTime) ?: "–"
             holder.kiosk.text = row.kiosks.joinToString(" ").ifBlank { "–" }

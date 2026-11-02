@@ -8,6 +8,7 @@ import com.allstar.faithid.server.ServerConfig
 import com.allstar.faithid.server.ServerLog
 import com.allstar.faithid.server.attendance.AttendanceLedger
 import com.allstar.faithid.server.auth.ClientRegistry
+import com.allstar.faithid.server.people.DatabaseBackups
 import com.allstar.faithid.server.people.PeopleRepository
 import io.ktor.server.cio.CIO
 import io.ktor.server.engine.ApplicationEngine
@@ -32,20 +33,51 @@ class FaithServer private constructor(
     private val peopleStore: PeopleStore,
     private val stateDb: SqlDatabase,
     private val attendanceDb: SqlDatabase,
+    private val sqlFactory: SqlDatabaseFactory,
     private val log: ServerLog,
 ) : Closeable {
 
     val updates = UpdateBroadcaster(log)
+    val backups = DatabaseBackups(File(config.dataDir, BACKUP_DIR), people::backupTo, Clock.SYSTEM, config.zone, log)
     private var engine: ApplicationEngine? = null
     private val csvExecutor = Executors.newSingleThreadExecutor { Thread(it, "faith-csv-export").apply { isDaemon = true } }
     private val csvExportQueued = AtomicBoolean(false)
 
     init {
+        people.beforeBulkChange = { reason -> backups.make(reason) }
         people.onChanged = { revision ->
             updates.broadcast(revision, people.epoch)
             scheduleCsvExport()
+            attendance.rosterChanged()
+            csvExecutor.execute { backups.dailyIfDue() }
         }
-        scheduleCsvExport()
+        // face_db.csv is read only here, when the server starts (and by "지금 반영"), never polled.
+        csvExecutor.execute {
+            runCatching { people.applyCsvFile() }.onFailure { log.log("face_db.csv apply failed: ${it.javaClass.simpleName}: ${it.message}") }
+            backups.dailyIfDue()
+        }
+    }
+
+    /** "지금 반영": applies the edits in face_db.csv without waiting for the next start. */
+    fun applyCsvNow(): PeopleRepository.CsvResult = people.applyCsvFile()
+
+    /**
+     * Puts a backup's people, deletion records and column names back (the current state is backed
+     * up first). Every kiosk downloads the whole list again.
+     */
+    fun restore(backup: File) {
+        val work = File(config.stateDir, "restore-work").apply { deleteRecursively(); mkdirs() }
+        try {
+            backup.copyTo(File(work, PeopleStore.DB_FILE))
+            val (persons, tombstones, labels) = PeopleStore.open(work, sqlFactory).use { copy ->
+                Triple(copy.loadPeople(), copy.loadTombstones(), com.allstar.faithid.core.sync.ColumnLabels.decode(copy.meta(PeopleRepository.META_COLUMN_LABELS)))
+            }
+            people.restore(persons, tombstones, labels)
+            people.exportCsv(force = true)
+            log.log("restored from ${backup.name}")
+        } finally {
+            work.deleteRecursively()
+        }
     }
 
     val isRunning: Boolean get() = engine != null
@@ -120,6 +152,7 @@ class FaithServer private constructor(
         const val STATE_DB = "server_state.db"
         const val ATTENDANCE_DB = "attendance.db"
         const val LEGACY_AUTH_FILE = "auth_state.json"
+        const val BACKUP_DIR = "backups"
 
         fun create(
             config: ServerConfig,
@@ -135,8 +168,8 @@ class FaithServer private constructor(
             val clients = ClientRegistry(stateDb, clock, log)
             clients.migrateLegacyAuthFile(File(config.stateDir, LEGACY_AUTH_FILE))
             val attendanceDb = sqlFactory.open(File(config.dataDir, ATTENDANCE_DB))
-            val attendance = AttendanceLedger(attendanceDb, config.dataDir, config.zone, clock, log) { people.list() }
-            return FaithServer(config, people, clients, attendance, store, stateDb, attendanceDb, log)
+            val attendance = AttendanceLedger(attendanceDb, config.dataDir, config.zone, clock, log, { people.list() }, { people.columnLabels })
+            return FaithServer(config, people, clients, attendance, store, stateDb, attendanceDb, sqlFactory, log)
         }
     }
 }

@@ -41,6 +41,9 @@ class KioskData(
         fun canApplyRemoteChanges(): Boolean
         fun onStatus(status: SyncStatus)
         fun onIndexChanged(index: FaceIndex)
+
+        /** The server's column names ("department" → "반") for the form's labels. */
+        fun onColumnLabels(labels: Map<String, String>) {}
     }
 
     /** Set by the screen while it exists; it is told the current index and status right away. */
@@ -50,6 +53,7 @@ class KioskData(
             field = value
             value?.onIndexChanged(repository.index)
             value?.onStatus(status)
+            value?.onColumnLabels(repository.columnLabels())
         }
 
     private val background = Executors.newSingleThreadExecutor { Thread(it, "faith-data") }
@@ -87,6 +91,11 @@ class KioskData(
                     override fun onRemoteChangesApplied(changedPeople: Int, fullSnapshot: Boolean) = Unit
 
                     override fun onLog(message: String) = log.log("동기화: $message")
+
+                    override fun onColumnLabels(labels: Map<String, String>) {
+                        log.log("열 이름: " + labels.entries.joinToString(", ") { "${it.key}=${it.value}" }.ifEmpty { "기본" })
+                        host?.onColumnLabels(labels)
+                    }
                 },
                 canApplyNow = { host?.canApplyRemoteChanges() ?: true },
             )

@@ -164,60 +164,26 @@ class PeopleCsvTest {
     private val faces = FakeFaces(seed = 2, dim = 8)
 
     @Test
-    fun `export then edit in a spreadsheet then apply`() {
+    fun `export lists people by number with one column per metadata column`() {
         val hong = faces.person("홍길동", "청년부", "3학년", key = "hong")
         val kim = faces.person("김철수", "중등부", "1학년", key = "kim")
         val numbers = mapOf("hong" to 1L, "kim" to 2L)
-        val exported = PeopleCsv.export(listOf(kim, hong), numbers)
-        val table = Csv.parse(exported)
-        assertEquals(listOf("person_idx", "name", "department", "grade", "embedding_count", "updated_at", "person_key"), table[0])
-        assertEquals("홍길동", table[1][1])
-
-        val edited = table.toMutableList()
-        edited[1] = edited[1].toMutableList().also { it[3] = "4학년" }
-        val withExtraColumn = edited.mapIndexed { i, row -> row + if (i == 0) "비고" else "메모$i" }
-        val edits = PeopleCsv.parseEdits(Csv.write(withExtraColumn))
-        val result = PeopleCsv.applyEdits(listOf(hong, kim), numbers, edits, now = 99)
-        assertEquals(2, result.changed.size)
-        val changedHong = result.changed.first { it.key == "hong" }
-        assertEquals("4학년", changedHong.grade)
-        assertEquals("메모1", changedHong.metadata["비고"])
-        assertEquals(99, changedHong.updatedAt)
-        assertTrue(result.unmatched.isEmpty())
+        val table = Csv.parse(PeopleCsv.export(listOf(kim, hong), numbers))
+        assertEquals(listOf("person_idx", "family_name", "given_name", "department", "grade", "embedding_count", "updated_at", "person_key"), table[0])
+        assertEquals(listOf("홍", "길동"), table[1].subList(1, 3))
     }
 
     @Test
-    fun `rows without a key match by number or unique identity and unknown rows are reported`() {
-        val hong = faces.person("홍길동", "청년부", "3학년", key = "hong")
-        val csv = Csv.write(
-            listOf(
-                listOf("이름", "부서", "학년"),
-                listOf("홍길동", "청년부", "3학년"),
-                listOf("모르는사람", "", ""),
-            ),
-        )
-        val result = PeopleCsv.applyEdits(listOf(hong), mapOf("hong" to 1L), PeopleCsv.parseEdits(csv), now = 1)
-        assertEquals(1, result.unmatched.size)
-        assertEquals("모르는사람", result.unmatched.single().metadata.name)
-        // Same values under Korean headers count as a change of column names only.
-        assertEquals(1, result.changed.size)
-    }
-
-    @Test
-    fun `a column only some people use is not a change for the others`() {
-        val kang = Person("kang", PersonMetadata.of("강", "율", "찬양팀", ""), faces.samples("kang", 2))
-        val hong = faces.person("홍길동", "청년부", "3학년", key = "hong")
-        val numbers = mapOf("jung" to 1L, "hong" to 2L)
-        val exported = PeopleCsv.export(listOf(kang, hong), numbers)
-        assertTrue(Csv.parse(exported)[0].contains("family_name"))
-        val unchanged = PeopleCsv.applyEdits(listOf(kang, hong), numbers, PeopleCsv.parseEdits(exported), now = 5)
-        assertTrue(unchanged.changed.isEmpty())
-
-        // Renaming the department column to 반 moves the values into a new column.
-        val renamed = Csv.parse(exported).mapIndexed { i, row -> if (i == 0) row.map { if (it == "department") "반" else it } else row }
-        val result = PeopleCsv.applyEdits(listOf(kang, hong), numbers, PeopleCsv.parseEdits(Csv.write(renamed)), now = 6)
-        val changedHong = result.changed.first { it.key == "hong" }
-        assertEquals("청년부", changedHong.metadata["반"])
-        assertEquals("", changedHong.department)
+    fun `aliases fold into one column, names from the app become headers, the name is split`() {
+        val korean = Person("a", PersonMetadata.of(linkedMapOf("이름" to "홍길동", "부서" to "청년부")), faces.samples("a", 1))
+        val split = Person("b", PersonMetadata.of("강", "율", "찬양팀", ""), faces.samples("b", 1))
+        val twoSyllables = Person("c", PersonMetadata.of("하은", "", ""), faces.samples("c", 1))
+        val export = PeopleCsv.exportTable(listOf(korean, split, twoSyllables), mapOf("a" to 1L, "b" to 2L, "c" to 3L), mapOf("department" to "반"))
+        assertEquals(listOf("family_name", "given_name", "department", "grade"), export.columns)
+        val table = Csv.parse(export.text)
+        assertEquals(listOf("person_idx", "family_name", "given_name", "반", "grade", "embedding_count", "updated_at", "person_key"), table[0])
+        assertEquals(listOf("홍", "길동", "청년부"), table[1].subList(1, 4))
+        assertEquals(listOf("강", "율"), table[2].subList(1, 3))
+        assertEquals(listOf("", "하은"), table[3].subList(1, 3))
     }
 }

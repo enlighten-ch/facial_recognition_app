@@ -66,6 +66,13 @@
                     android:textColor="#FFFFFF"
                     android:textSize="64sp" />
 
+                <TextView
+                    android:id="@+id/todayGroupButton"
+                    style="@style/GroupButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="#FFFFFF" />
+
                 <LinearLayout
                     android:id="@+id/todayDepartments"
                     android:layout_width="match_parent"

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- face_db.csv in the shared data folder (default /sdcard/faceDB), opened in a spreadsheet app. -->
+<paths>
+    <external-path name="storage" path="." />
+</paths>

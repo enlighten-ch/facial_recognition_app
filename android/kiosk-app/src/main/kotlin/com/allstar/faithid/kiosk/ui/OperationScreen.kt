@@ -92,7 +92,10 @@ class OperationScreen(
     private val familyNameInput: EditText = v(R.id.opFamilyNameInput)
     private val nameInput: EditText = v(R.id.opNameInput)
     private val departmentChips: ChipGroup = v(R.id.opDepartmentChips)
-    private val gradeLabel: View = v(R.id.opGradeLabel)
+    private val gradeLabel: TextView = v(R.id.opGradeLabel)
+    private val familyNameLabel: TextView = v(R.id.opFamilyNameLabel)
+    private val nameLabel: TextView = v(R.id.opNameLabel)
+    private val departmentLabel: TextView = v(R.id.opDepartmentLabel)
     private val gradeChips: ChipGroup = v(R.id.opGradeChips)
     private val departmentInput: EditText = v(R.id.opDepartmentInput)
     private val gradeInput: EditText = v(R.id.opGradeInput)
@@ -176,6 +179,15 @@ class OperationScreen(
         main.postDelayed(idleGesture, GuideGestures.IDLE_GESTURE_MIN_MS)
         guideOverlay.onOvalChanged = { placeAroundOval() }
         root.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> placeAroundOval() }
+    }
+
+    fun setColumnLabels(names: FormLabels) {
+        familyNameLabel.text = names.familyName
+        nameLabel.text = names.name
+        departmentLabel.text = names.department
+        gradeLabel.text = names.grade
+        departmentInput.hint = "${names.department} 직접 입력"
+        gradeInput.hint = "${names.grade} 직접 입력"
     }
 
     fun configure(settings: KioskSettings) {

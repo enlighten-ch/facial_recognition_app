@@ -1,0 +1,316 @@
+<title>명단·CSV 개선 보고서</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@500;700&family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: 2026-10-25 현황 보고서와 같은 틀. 한 단 본문, 넓은 화면에서는 왼쪽 목차. 색은 앱 로고의 별 파랑과 금색. */
+:root {
+  --paper: #f4f6fa;
+  --surface: #ffffff;
+  --surface-2: #eaeef6;
+  --ink: #161d2f;
+  --ink-2: #3a4458;
+  --muted: #646e83;
+  --line: #d6dce8;
+  --blue: #2346a6;
+  --blue-soft: #e3e9f8;
+  --gold: #d99410;
+  --gold-soft: #fbefd4;
+  --crit: #b8322a;
+  --crit-soft: #f8e1de;
+  --warn: #a8670f;
+  --warn-soft: #f7ead2;
+  --ok: #2c7a4b;
+  --ok-soft: #dcefe3;
+
+  --font-display: "Hahmlet", "Nanum Myeongjo", "AppleMyungjo", serif;
+  --font-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+  --font-mono: "IBM Plex Mono", "D2Coding", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  --step--1: 0.8125rem;
+  --step-0: 0.9688rem;
+  --step-1: 1.125rem;
+  --step-2: 1.375rem;
+  --step-3: 1.75rem;
+  --step-4: 2.4rem;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --paper: #0f1421; --surface: #161d2d; --surface-2: #1d2639;
+    --ink: #e7ebf4; --ink-2: #c3cad9; --muted: #96a0b6; --line: #2b3449;
+    --blue: #86a3ff; --blue-soft: #1f2b4d; --gold: #f0b440; --gold-soft: #3a2f16;
+    --crit: #f07a6c; --crit-soft: #3d1f1d; --warn: #e7a84f; --warn-soft: #3a2c16;
+    --ok: #66c792; --ok-soft: #173326;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #0f1421; --surface: #161d2d; --surface-2: #1d2639;
+  --ink: #e7ebf4; --ink-2: #c3cad9; --muted: #96a0b6; --line: #2b3449;
+  --blue: #86a3ff; --blue-soft: #1f2b4d; --gold: #f0b440; --gold-soft: #3a2f16;
+  --crit: #f07a6c; --crit-soft: #3d1f1d; --warn: #e7a84f; --warn-soft: #3a2c16;
+  --ok: #66c792; --ok-soft: #173326;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--paper); color: var(--ink);
+  font-family: var(--font-body); font-size: var(--step-0); line-height: 1.7;
+  word-break: keep-all; overflow-wrap: anywhere;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.shell { max-width: 1120px; margin: 0 auto; padding-block: 40px 96px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 40px; }
+@media (min-width: 1060px) { .shell { grid-template-columns: 190px minmax(0, 1fr); } }
+nav.toc { display: none; }
+@media (min-width: 1060px) {
+  nav.toc { display: block; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 24px); align-self: start; font-size: var(--step--1); }
+}
+nav.toc p { margin: 0 0 10px; font-size: 0.72rem; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
+nav.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+nav.toc a { display: block; padding: 4px 10px; border-left: 2px solid var(--line); color: var(--ink-2); text-decoration: none; }
+nav.toc a:hover, nav.toc a:focus-visible { border-left-color: var(--blue); color: var(--blue); outline: none; }
+main { min-width: 0; display: grid; gap: 56px; }
+section { display: grid; gap: 16px; min-width: 0; scroll-margin-top: 24px; }
+header.top { display: grid; gap: 12px; }
+.eyebrow { font-size: var(--step--1); color: var(--muted); letter-spacing: 0.04em; font-family: var(--font-mono); }
+h1 { font-family: var(--font-display); font-size: var(--step-4); line-height: 1.25; margin: 0; text-wrap: balance; }
+h2 { font-family: var(--font-display); font-size: var(--step-3); line-height: 1.3; margin: 0; text-wrap: balance; }
+h3 { font-size: var(--step-1); margin: 8px 0 0; }
+p { margin: 0; max-width: 68ch; }
+.lede { font-size: var(--step-1); color: var(--ink-2); max-width: 64ch; }
+ul.plain { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; max-width: 72ch; }
+code, .mono { font-family: var(--font-mono); font-size: 0.9em; }
+code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+.fact { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: grid; gap: 4px; }
+.fact b { font-size: var(--step-2); font-family: var(--font-display); font-variant-numeric: tabular-nums; }
+.fact span { color: var(--muted); font-size: var(--step--1); }
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 620px; font-size: var(--step--1); }
+th, td { text-align: left; vertical-align: top; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+th { background: var(--surface-2); font-weight: 600; color: var(--ink-2); }
+tr:last-child td { border-bottom: 0; }
+td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pill { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 0.78rem; font-weight: 600; white-space: nowrap; }
+.pill.ok { background: var(--ok-soft); color: var(--ok); }
+.pill.warn { background: var(--warn-soft); color: var(--warn); }
+.pill.crit { background: var(--crit-soft); color: var(--crit); }
+.pill.plain { background: var(--blue-soft); color: var(--blue); }
+.note { background: var(--gold-soft); border-radius: 10px; padding: 14px 16px; display: grid; gap: 6px; max-width: 76ch; }
+.note b { color: var(--warn); }
+figure { margin: 0; display: grid; gap: 8px; }
+figure svg { width: 100%; height: auto; max-width: 100%; color: var(--ink-2); }
+figcaption { font-size: var(--step--1); color: var(--muted); max-width: 72ch; }
+.steps { counter-reset: s; list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; max-width: 72ch; }
+.steps li { counter-increment: s; display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; }
+.steps li::before { content: counter(s); width: 24px; height: 24px; border-radius: 50%; background: var(--blue); color: var(--surface); font-size: 0.8rem; font-weight: 700; display: grid; place-items: center; margin-top: 2px; }
+</style>
+
+<div class="shell">
+  <nav class="toc" aria-label="목차">
+    <p>목차</p>
+    <ol>
+      <li><a href="#summary">요약</a></li>
+      <li><a href="#csv">CSV 반영</a></li>
+      <li><a href="#columns">열 이름과 칸 고치기</a></li>
+      <li><a href="#grouping">분류 선택</a></li>
+      <li><a href="#safety">삭제와 백업</a></li>
+      <li><a href="#sheet">출석부</a></li>
+      <li><a href="#bugs">찾아서 고친 문제</a></li>
+      <li><a href="#tests">검증</a></li>
+      <li><a href="#limits">제한과 남은 일</a></li>
+      <li><a href="#howto">사용 방법</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <header class="top">
+      <span class="eyebrow">FAITH DB SERVER · 2026-11-02 · 이슈 #26 · 브랜치 improve/stability-attendance</span>
+      <h1>명단·CSV 개선 보고서</h1>
+      <p class="lede">서버 앱의 명단을 face_db.csv와 맞물려 움직이게 했습니다. CSV를 고치면 서버를 다시 시작할 때 반영되고, 명단에서 칸과 열 이름을 길게 눌러 바로 고칠 수 있으며, 바뀐 내용은 CSV·키오스크·출석부에 함께 나타납니다. 지우는 일에는 안전장치와 백업을 붙였습니다.</p>
+    </header>
+
+    <section id="summary" aria-labelledby="h-summary">
+      <h2 id="h-summary">요약</h2>
+      <div class="facts">
+        <div class="fact"><b>CSV ↔ DB</b><span>서버 시작 때 읽고, 고친 칸만 반영</span></div>
+        <div class="fact"><b>길게 누르기</b><span>칸 값 고치기 · 열 이름 바꾸기 · 열 숨기기</span></div>
+        <div class="fact"><b>분류 3곳</b><span>오늘의 순서 · 명단 · 출석을 아무 열로</span></div>
+        <div class="fact"><b>백업</b><span>매일 1번 + CSV 반영·되돌리기 전</span></div>
+      </div>
+      <ul class="plain">
+        <li>CSV는 이름을 <b>성</b>(family_name)과 <b>이름</b>(given_name) 두 열로 씁니다. 화면과 이름표가 둘 중 원하는 쪽을 골라 쓸 수 있습니다.</li>
+        <li>열 이름을 바꾸면(예: 부서 → 반) 내용은 그대로 두고 이름만 바뀝니다. 명단 머리글, CSV 머리글, 키오스크 입력 칸, 출석부 머리글이 함께 바뀝니다.</li>
+        <li>CSV에서 줄을 지우면 그 사람은 DB에서도 지워집니다. 파일이 없거나 비었거나 한꺼번에 많이 빠지면 지우지 않습니다.</li>
+        <li>태블릿(Galaxy Tab S7+, 실제 명단 18명)에서 사람 정보를 바꾸지 않는 방법으로 모두 확인했고, 끝난 뒤 원래 상태로 돌려놓았습니다.</li>
+      </ul>
+    </section>
+
+    <section id="csv" aria-labelledby="h-csv">
+      <h2 id="h-csv">CSV 반영</h2>
+      <p>서버는 face_db.csv를 계속 들여다보지 않습니다. 앱을 열거나 서버를 시작할 때 한 번 읽고, 기다리기 싫으면 개발자 화면의 ‘CSV 지금 반영’을 누릅니다.</p>
+      <figure>
+        <svg viewBox="0 0 880 210" role="img" aria-label="CSV를 고치면 서버가 덮어쓰지 않고 기다렸다가, 시작할 때 마지막으로 쓴 사본과 비교해 백업 후 반영하고, CSV·키오스크·출석부를 새로 씁니다">
+          <defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+          <g fill="none" stroke="currentColor" stroke-width="1.4">
+            <rect x="8" y="70" width="150" height="64" rx="8"/>
+            <rect x="214" y="70" width="170" height="64" rx="8"/>
+            <rect x="440" y="70" width="190" height="64" rx="8"/>
+            <rect x="690" y="14" width="180" height="46" rx="8"/>
+            <rect x="690" y="82" width="180" height="46" rx="8"/>
+            <rect x="690" y="150" width="180" height="46" rx="8"/>
+            <line x1="158" y1="102" x2="210" y2="102" marker-end="url(#arr)"/>
+            <line x1="384" y1="102" x2="436" y2="102" marker-end="url(#arr)"/>
+            <line x1="630" y1="96" x2="686" y2="40" marker-end="url(#arr)"/>
+            <line x1="630" y1="102" x2="686" y2="105" marker-end="url(#arr)"/>
+            <line x1="630" y1="108" x2="686" y2="170" marker-end="url(#arr)"/>
+          </g>
+          <g fill="currentColor" font-family="IBM Plex Sans KR, sans-serif" font-size="13" text-anchor="middle">
+            <text x="83" y="98">엑셀·PC에서</text><text x="83" y="116">face_db.csv 고침</text>
+            <text x="299" y="98">서버는 덮어쓰지 않음</text><text x="299" y="116">‘편집 대기 중’ 표시</text>
+            <text x="535" y="92">서버 시작 · 지금 반영</text><text x="535" y="110">마지막 사본과 비교</text><text x="535" y="126">→ 백업 → 반영</text>
+            <text x="780" y="42">CSV 다시 씀</text>
+            <text x="780" y="110">키오스크에 바로 알림</text>
+            <text x="780" y="178">오늘 출석부 다시 씀</text>
+          </g>
+        </svg>
+        <figcaption>고친 파일은 서버가 마지막으로 쓴 사본과 비교합니다. 그 사이에 앱에서 등록하거나 고친 내용은 그대로 남고, 같은 칸을 양쪽에서 고쳤다면 CSV가 이깁니다.</figcaption>
+      </figure>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>CSV에서 한 일</th><th>서버가 하는 일</th></tr></thead>
+          <tbody>
+            <tr><td>칸 값을 바꿈</td><td>그 사람의 그 값만 바꿈</td></tr>
+            <tr><td>성 · 이름 칸을 바꿈</td><td>이름 전체(성+이름)를 다시 만들고 나뉘는 자리를 기억</td></tr>
+            <tr><td>머리글 이름을 바꿈 (값은 그대로)</td><td>열 이름만 바꿈. 열을 옮기거나 새 열을 같이 넣어도 값이 같으면 이름 바꾸기로 봄</td></tr>
+            <tr><td>새 열을 더함</td><td>그 열을 더함 (값이 있는 사람만)</td></tr>
+            <tr><td>열을 지움</td><td>그 열을 지움. 성 · 이름 열은 지워도 무시 (실수로 모두의 이름이 바뀌지 않게)</td></tr>
+            <tr><td>줄을 지움</td><td>그 사람을 지움 (아래 ‘삭제와 백업’의 안전장치 적용)</td></tr>
+            <tr><td>명단에 없는 줄을 더함</td><td>얼굴이 없어 사람을 만들 수 없음. 로그와 결과 창에 알림</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <ul class="plain">
+        <li>줄은 숨은 열 <code>person_key</code>로 사람과 맞춥니다. 그 칸이 망가지면 <code>person_idx</code> 번호로 맞춥니다.</li>
+        <li>한국어 엑셀의 ‘CSV’ 저장(CP949)과 ‘CSV UTF-8’ 저장을 모두 읽습니다.</li>
+        <li>‘CSV 편집 열기’ 버튼(명단 탭, 개발자 화면)은 태블릿의 문서 앱으로 파일을 엽니다. 테스트 태블릿에서는 Hancom Office Viewer, Microsoft 365, Polaris Office가 나왔습니다. 돌아오면 바뀐 것을 알아채고 ‘지금 반영할까요?’를 묻습니다.</li>
+      </ul>
+    </section>
+
+    <section id="columns" aria-labelledby="h-columns">
+      <h2 id="h-columns">열 이름과 칸 고치기</h2>
+      <ul class="plain">
+        <li><b>머리글을 길게 누르기</b>: ‘열 이름 바꾸기’ 창이 뜹니다. 비우면 기본 설정값(부서, 학년 · 나이 등)으로 돌아갑니다. ‘열 숨기기’도 여기서 합니다.</li>
+        <li><b>칸을 길게 누르기</b>: 그 사람의 그 칸 하나만 고칩니다. 저장하면 CSV에 바로 쓰이고 키오스크에 바로 알립니다.</li>
+        <li>열 이름은 명단 DB에 함께 저장되어 백업·되돌리기에 포함되고, 키오스크는 명단을 받을 때 같이 받아 등록 화면의 입력 칸 이름으로 씁니다.</li>
+        <li>개발자 화면 › 설정 › 명단 열에서 모든 열의 이름과 보이기를 한 번에 바꿀 수 있습니다.</li>
+      </ul>
+      <div class="note">
+        <b>키오스크 등록 화면</b>
+        <p>열 <em>이름</em>은 등록 화면에 반영됩니다(성, 이름, 부서, 학년 칸의 이름). 부서·학년 선택 버튼은 명단에 있는 값으로 만들어서 CSV에서 바꾼 값도 나타납니다. CSV에 새로 더한 열(예: 메모)은 등록 화면에 입력 칸이 생기지 않습니다.</p>
+      </div>
+    </section>
+
+    <section id="grouping" aria-labelledby="h-grouping">
+      <h2 id="h-grouping">분류 선택</h2>
+      <p>오늘의 순서의 출석 현황, 명단의 분류 버튼, 출석 탭의 요약과 표를 부서뿐 아니라 이름을 뺀 아무 CSV 열(학년, 반, 메모 등)로 나눌 수 있습니다. 각 탭의 ‘분류: 부서 ▾’를 눌러 고르고, 고른 값은 config.yaml에 저장되어 앱을 다시 열어도 그대로입니다. 고른 열이 CSV에서 사라지면 부서로 돌아갑니다.</p>
+    </section>
+
+    <section id="safety" aria-labelledby="h-safety">
+      <h2 id="h-safety">삭제와 백업</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>상황</th><th>결과</th></tr></thead>
+          <tbody>
+            <tr><td>CSV 파일이 없어짐</td><td>아무도 지우지 않고 지금 명단으로 CSV를 새로 만듦</td></tr>
+            <tr><td>CSV에 줄이 하나도 없음</td><td>아무도 지우지 않음 (에뮬레이터에서 321명 모두 보존 확인)</td></tr>
+            <tr><td>한꺼번에 10명 넘게, 그리고 30% 넘게 빠짐</td><td>지우지 않고 다른 수정만 반영, 경고 표시</td></tr>
+            <tr><td>엑셀이 열려 있는 동안 키오스크에서 새로 등록</td><td>그 사람은 지워지지 않음 (예전 사본에서 왔는지 찾아 비교)</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <ul class="plain">
+        <li>얼굴 DB 백업은 데이터 폴더의 <code>backups</code>에 쌓입니다. 하루 한 번(14개까지), 그리고 CSV 반영 전·되돌리기 전(20개까지).</li>
+        <li>개발자 화면 › 데이터 › DB 백업에서 ‘되돌리기’를 누르면 그때의 명단·얼굴 사진·열 이름으로 돌아가고, 모든 키오스크가 명단을 새로 받습니다. 출석 기록은 그대로입니다. 지금 상태는 먼저 백업합니다.</li>
+      </ul>
+    </section>
+
+    <section id="sheet" aria-labelledby="h-sheet">
+      <h2 id="h-sheet">출석부</h2>
+      <p>태블릿의 오늘 출석부(attendance_2026-11-02.csv)를 열어 보니 17시 35분에 쓴 뒤 그대로여서, 그 뒤 명단에서 고친 부서 값(3빈 → 3반) 하나가 빠져 있었습니다. 지금은 명단이 바뀌면(사람, 값, 열 이름) 오늘 출석부를 바로 다시 쓰고, 머리글도 열 이름을 따릅니다. 지난 날짜의 출석부는 그날 그대로 둡니다.</p>
+      <p>고친 뒤 다시 열어 확인: 18줄 모두 지금 명단과 같고, 출석 1명, 머리글은 바꾼 열 이름을 따랐습니다.</p>
+    </section>
+
+    <section id="bugs" aria-labelledby="h-bugs">
+      <h2 id="h-bugs">찾아서 고친 문제</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>문제</th><th>어떻게 찾았나</th><th>고친 내용</th></tr></thead>
+          <tbody>
+            <tr><td><span class="pill crit">심각</span> 엑셀이 열린 동안 등록된 사람이 CSV 저장 후 지워짐</td><td>8대 키오스크 시뮬레이션에서 등록 2건 사라짐</td><td>최근 사본 20개를 두고 파일이 온 사본을 찾아, 그 뒤에 등록된 사람은 지우지 않음</td></tr>
+            <tr><td><span class="pill crit">심각</span> 새 열을 넣으면서 부서 → 반으로 바꾸면 부서 값이 모두 비워짐</td><td>에뮬레이터 평가(테스트 명단 309명)</td><td>이름 바꾸기를 열 위치가 아니라 값으로 알아봄</td></tr>
+            <tr><td><span class="pill warn">중간</span> 비밀번호를 비우고 로그인하면 서버 앱이 꺼짐</td><td>태블릿 테스트 중 앱 종료 로그</td><td>빈 비밀번호는 오류 없이 거절</td></tr>
+            <tr><td><span class="pill warn">중간</span> 오늘 출석부가 명단 수정을 따라가지 않음</td><td>태블릿 출석부 파일을 직접 열어 비교</td><td>명단이 바뀌면 오늘 출석부를 다시 씀</td></tr>
+            <tr><td><span class="pill plain">작음</span> ‘CSV 편집 열기’가 문서 앱을 못 찾음</td><td>태블릿에 앱이 있는데 ‘없음’ 안내</td><td>Android 11 이상의 앱 보기 선언 추가</td></tr>
+            <tr><td><span class="pill warn">중간</span> 아무도 고치지 않았는데 ‘CSV 편집 대기’로 보고 CSV를 더 쓰지 않음</td><td>에뮬레이터 평가 (칸 고치기가 CSV에 안 나옴)</td><td>파일 시각·크기 대신 서버가 쓴 내용의 지문(SHA-256)과 비교. 공용 저장소가 방금 바꾼 파일의 시각을 늦게 알려 주는 경우가 있음</td></tr>
+            <tr><td><span class="pill plain">작음</span> CSV를 고쳐도 ‘DB와 같음’으로 보임</td><td>태블릿 개발자 화면</td><td>화면을 그릴 때 파일 내용으로 판단 (시각·크기가 바뀐 때만 다시 읽음)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="tests" aria-labelledby="h-tests">
+      <h2 id="h-tests">검증</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>무엇을</th><th>어디서</th><th>결과</th></tr></thead>
+          <tbody>
+            <tr><td>단위 테스트 (core, server, client, kiosk, server 앱) + 8대 키오스크 시뮬레이션</td><td>PC</td><td><span class="pill ok">모두 통과</span></td></tr>
+            <tr><td>CSV·명단 열 평가 (tools/e2e_roster_columns.sh): 편집 대기, 시작 때 반영, 이름 바꾸기, 새 열, 줄 삭제, 백업, 길게 누르기, 되돌리기, 빈 CSV, CSV 열기</td><td>에뮬레이터 (테스트 명단 322명)</td><td><span class="pill ok">17 / 17 통과</span></td></tr>
+            <tr><td>헤더 길게 눌러 부서 · 학년 · 나이 이름 바꾸기 → 명단·CSV 머리글·키오스크 입력 칸이 따라옴 → 기본값으로 되돌림</td><td>태블릿</td><td><span class="pill ok">통과</span></td></tr>
+            <tr><td>칸 길게 누르기 창 열고 취소 (저장 안 함)</td><td>태블릿</td><td><span class="pill ok">통과</span></td></tr>
+            <tr><td>CSV 직접 수정: 테스트 열 추가 + 학년 머리글 이름 바꾸기 → 다시 시작 때 반영(백업 생김) → 같은 방법으로 되돌림 → 처음 CSV와 머리글·값 모두 같음</td><td>태블릿</td><td><span class="pill ok">통과</span></td></tr>
+            <tr><td>서버 다시 시작: CSV 읽기, 매일 백업, 18명 그대로</td><td>태블릿</td><td><span class="pill ok">통과</span></td></tr>
+            <tr><td>분류 메뉴 3곳에서 학년으로 바꾸기 → 앱 다시 열어도 유지 → 부서로 돌려놓음</td><td>태블릿</td><td><span class="pill ok">통과</span></td></tr>
+            <tr><td>오늘 출석부를 열어 지금 명단과 비교</td><td>태블릿</td><td><span class="pill ok">고친 뒤 일치</span></td></tr>
+            <tr><td>CSV 편집 열기 → 문서 앱 선택 창</td><td>태블릿</td><td><span class="pill ok">통과</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>태블릿 테스트 전에 데이터 폴더 전체(26개 파일, 172 MB)를 PC의 <code>local-data/tab-s7-faceDB-20261102-201146</code>에 복사해 두었습니다(git에 올리지 않음). 실제 사람의 이름·값은 바꾸지 않았고, 테스트로 바꾼 열 이름·열은 모두 되돌렸습니다.</p>
+    </section>
+
+    <section id="limits" aria-labelledby="h-limits">
+      <h2 id="h-limits">제한과 남은 일</h2>
+      <ul class="plain">
+        <li>예전 CSV 파일을 통째로 다시 넣으면, 서버가 예전에 쓴 사본과 똑같은 경우 ‘고친 것 없음’으로 봅니다(엑셀이 열어 둔 파일을 그대로 저장한 경우와 구별할 수 없음). 되돌리려면 지금 CSV를 고치거나 DB 백업을 쓰세요.</li>
+        <li>CSV에 새로 더한 열은 키오스크 등록 화면에 입력 칸을 만들지 않습니다.</li>
+        <li>Polaris Office는 처음에 자기 앱의 파일 접근 권한을 묻습니다. 12.4인치 태블릿의 Microsoft Excel 편집은 Microsoft 365 구독이 필요할 수 있습니다.</li>
+        <li>성을 따로 받기 전에 등록된 두 글자 이름은 성과 이름을 나눌 수 없어 이름 칸에 통째로 들어갑니다. CSV의 성 칸에 성을 적으면 나뉩니다.</li>
+        <li>사용 설명서(docs/user-guide)의 등록 화면과 ‘○○ 맞아요?’ 설명은 아직 고치지 않았습니다.</li>
+        <li>서버를 운영할 태블릿(지금은 Tab S7+가 서버와 키오스크를 함께 실행)에서 실제 예배 중 쓰는 모습은 아직 보지 못했습니다.</li>
+      </ul>
+    </section>
+
+    <section id="howto" aria-labelledby="h-howto">
+      <h2 id="h-howto">사용 방법</h2>
+      <h3>CSV로 한꺼번에 고치기</h3>
+      <ol class="steps">
+        <li><span>명단 탭의 ‘CSV 편집 열기’로 face_db.csv를 엽니다(또는 PC로 옮겨 엑셀로 고친 뒤 같은 이름으로 다시 넣습니다).</span></li>
+        <li><span>값, 머리글 이름, 열, 줄을 고치고 저장합니다. 명단에 ‘CSV 편집 대기 중’이 보입니다.</span></li>
+        <li><span>서버를 다시 시작하거나 개발자 화면 › 데이터 › ‘CSV 지금 반영’을 누릅니다. 결과 창에 바뀐 사람·지운 사람·열 이름이 나옵니다.</span></li>
+      </ol>
+      <h3>한 칸이나 열 이름만 고치기</h3>
+      <ol class="steps">
+        <li><span>명단 탭에서 칸을 길게 눌러 값을 고치거나, 머리글을 길게 눌러 열 이름을 바꿉니다.</span></li>
+        <li><span>저장하면 CSV와 키오스크에 바로 반영됩니다.</span></li>
+      </ol>
+      <h3>실수했을 때</h3>
+      <ol class="steps">
+        <li><span>개발자 화면 › 데이터 › DB 백업에서 시각을 보고 ‘되돌리기’를 누릅니다. ‘CSV 반영 전’ 백업이 그 직전 상태입니다.</span></li>
+      </ol>
+    </section>
+  </main>
+</div>

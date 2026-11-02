@@ -79,3 +79,18 @@ internal class MeterView(context: Context, private val track: Int, private val f
         }
     }
 }
+
+/**
+ * The 분류 button of a tab ("분류: 부서 ▾"): opens a menu of the columns people can be grouped by
+ * and reports the chosen column key.
+ */
+internal fun TextView.groupMenu(choices: List<RosterColumn>, selected: RosterColumn?, onPick: (String) -> Unit) {
+    text = "분류: ${selected?.label ?: "-"} ▾"
+    contentDescription = "분류 바꾸기, 지금은 ${selected?.label ?: "없음"}"
+    setOnClickListener {
+        val menu = android.widget.PopupMenu(context, this)
+        choices.forEachIndexed { i, column -> menu.menu.add(0, i, i, if (column.key == selected?.key) "✓ ${column.label}" else column.label) }
+        menu.setOnMenuItemClickListener { item -> onPick(choices[item.itemId].key); true }
+        menu.show()
+    }
+}

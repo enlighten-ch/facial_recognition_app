@@ -36,4 +36,7 @@ interface SyncListener {
     fun onRemoteChangesApplied(changedPeople: Int, fullSnapshot: Boolean) {}
 
     fun onLog(message: String) {}
+
+    /** The server's column names changed (form labels such as "반" instead of "부서"). */
+    fun onColumnLabels(labels: Map<String, String>) {}
 }

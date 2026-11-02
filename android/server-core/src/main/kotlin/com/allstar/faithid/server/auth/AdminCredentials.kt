@@ -18,6 +18,8 @@ data class AdminCredentials(
     val mustChangePassword: Boolean,
 ) {
     fun verify(id: String, password: String): Boolean {
+        // Android's PBKDF2 refuses an empty password (it threw and closed the app at login).
+        if (password.isEmpty()) return false
         val idMatches = MessageDigest.isEqual(id.trim().toByteArray(), adminId.toByteArray())
         val hashMatches = MessageDigest.isEqual(hash(password, salt).toByteArray(), passwordHash.toByteArray())
         return idMatches && hashMatches

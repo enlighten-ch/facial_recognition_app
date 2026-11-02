@@ -70,11 +70,18 @@ class AttendanceReport(private val zone: ZoneId) {
         return rows.sortedWith(ROW_ORDER)
     }
 
-    fun dailyCsv(date: LocalDate, rows: List<AttendanceRow>): String {
+    private fun personHeaders(labels: Map<String, String>) =
+        listOf(labels["name"] ?: "이름", labels["department"] ?: "부서", labels["grade"] ?: "학년")
+
+    /**
+     * [labels] are the column names set on the server ("department" → "반"); the sheet's name,
+     * department and grade headers follow them.
+     */
+    fun dailyCsv(date: LocalDate, rows: List<AttendanceRow>, labels: Map<String, String> = emptyMap()): String {
         val present = rows.count { it.present }
         val table = mutableListOf(
             listOf("출석부", date.toString(), "출석 $present 명 / 명단 ${rows.count { it.onRoster }} 명"),
-            listOf("이름", "부서", "학년", "출석여부", "첫 출석", "마지막 출석", "횟수", "키오스크", "확인 방법", "비고"),
+            personHeaders(labels) + listOf("출석여부", "첫 출석", "마지막 출석", "횟수", "키오스크", "확인 방법", "비고"),
         )
         rows.forEach { row ->
             table += listOf(
@@ -94,7 +101,7 @@ class AttendanceReport(private val zone: ZoneId) {
     }
 
     /** Person × date matrix for a period, for monthly or quarterly records. */
-    fun rangeCsv(from: LocalDate, to: LocalDate, roster: List<Person>, events: List<AttendanceEvent>): String {
+    fun rangeCsv(from: LocalDate, to: LocalDate, roster: List<Person>, events: List<AttendanceEvent>, labels: Map<String, String> = emptyMap()): String {
         require(!to.isBefore(from)) { "invalid range $from..$to" }
         val dates = generateSequence(from) { it.plusDays(1) }.takeWhile { !it.isAfter(to) }.toList()
         val daysByRowKey = LinkedHashMap<String, Pair<AttendanceRow, MutableSet<LocalDate>>>()
@@ -105,7 +112,7 @@ class AttendanceReport(private val zone: ZoneId) {
                 if (row.present) entry.second += date
             }
         }
-        val header = listOf("이름", "부서", "학년", "출석 일수") + dates.map { it.format(SHORT_DATE) }
+        val header = personHeaders(labels) + listOf("출석 일수") + dates.map { it.format(SHORT_DATE) }
         val table = mutableListOf(listOf("출석 기록", "$from ~ $to"), header)
         daysByRowKey.values
             .sortedWith(compareBy<Pair<AttendanceRow, MutableSet<LocalDate>>, AttendanceRow>(ROW_ORDER) { it.first })

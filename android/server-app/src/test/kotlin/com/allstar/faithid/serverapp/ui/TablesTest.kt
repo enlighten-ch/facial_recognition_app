@@ -75,6 +75,29 @@ class TablesTest {
     }
 
     @Test
+    fun `tabs can group by any column but the name, falling back to the department`() {
+        val withClass = people.mapIndexed { i, p -> p.copy(metadata = p.metadata.withValue("반", if (i < 2) "1반" else "2반")) }
+        val choices = Grouping.choices(RosterColumns.all(withClass, mapOf("반" to "우리 반"), emptySet()))
+        assertEquals(listOf("department", "grade", "반"), choices.map { it.key })
+        assertEquals("반", Grouping.pick("반", choices)!!.key)
+        assertEquals("department", Grouping.pick("없는열", choices)!!.key)
+
+        val grouping = Grouping("반", "우리 반", withClass.associateBy { it.key })
+        val rows = listOf(
+            row("a", "김하은", "유년부", "2학년", first = 300),
+            row("b", "이준호", "초등부", "5학년"),
+            row("c", "박서윤", "유치부", "6세", first = 100),
+            row("d", "최도윤", "유년부", "1학년"),
+            row("", "손님", "유년부", "", first = 200, onRoster = false),
+        )
+        assertEquals(listOf(GroupSummary("1반", 1, 2), GroupSummary("2반", 1, 2)), AttendanceTable.summary(rows, grouping))
+        assertEquals(listOf("김하은", "이준호"), AttendanceTable.rows(rows, "", "1반", AttendanceShow.ALL, SortState(AttendanceTable.NAME), grouping).map { it.name })
+        // 명단: the chips use the chosen column.
+        val columns = RosterColumns.shown(withClass, emptyMap(), emptySet())
+        assertEquals(listOf("박서윤", "최도윤"), PeopleTable.rows(withClass, emptySet(), "", columns, "2반", SortState(PeopleTable.NAME), groupColumn = "반").map { it.person.name })
+    }
+
+    @Test
     fun `attendance default order puts arrivals first by time then the absent by department`() {
         val rows = listOf(
             row("a", "김하은", "유년부", "2학년", first = 300, kiosk = "본당 로비"),
@@ -87,7 +110,7 @@ class TablesTest {
         assertEquals(listOf("최도윤", "이준호"), AttendanceTable.rows(rows, "", null, AttendanceShow.ABSENT, SortState(AttendanceTable.STATUS)).map { it.name })
         assertEquals(listOf("김하은", "최도윤"), AttendanceTable.rows(rows, "", "유년부", AttendanceShow.ALL, SortState(AttendanceTable.NAME)).map { it.name })
         assertEquals(
-            listOf(DepartmentSummary("유치부", 1, 1), DepartmentSummary("유년부", 1, 2), DepartmentSummary("초등부", 0, 1)),
+            listOf(GroupSummary("유치부", 1, 1), GroupSummary("유년부", 1, 2), GroupSummary("초등부", 0, 1)),
             AttendanceTable.summary(rows),
         )
     }

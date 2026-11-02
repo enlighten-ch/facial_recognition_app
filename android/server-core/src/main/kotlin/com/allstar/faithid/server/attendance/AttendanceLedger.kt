@@ -30,6 +30,8 @@ class AttendanceLedger(
     private val clock: Clock,
     private val log: ServerLog,
     private val roster: () -> List<Person>,
+    /** Column names set on the server, for the sheets' headers. */
+    private val labels: () -> Map<String, String> = { emptyMap() },
 ) {
     private val report = AttendanceReport(zone)
     private val sheetWriter = Executors.newSingleThreadExecutor { Thread(it, "faith-attendance-sheet").apply { isDaemon = true } }
@@ -42,6 +44,17 @@ class AttendanceLedger(
                 "grade TEXT, kiosk_id TEXT, occurred_at INTEGER, source TEXT, score REAL, received_at INTEGER, client_id TEXT)",
         )
         db.execute("CREATE INDEX IF NOT EXISTS events_occurred ON events(occurred_at)")
+    }
+
+    /**
+     * The roster changed (a name, a department, a column name): today's sheet is rewritten so it
+     * shows the current roster. Earlier sheets stay as they were on their day.
+     */
+    fun rosterChanged() {
+        val today = java.time.Instant.ofEpochMilli(clock.now()).atZone(zone).toLocalDate()
+        if (!File(outputDir, AttendanceReport.fileName(today)).exists()) return
+        staleSheets += today
+        sheetWriter.execute(::writeStaleSheets)
     }
 
     /** Stores new events and refreshes the affected daily sheets. Returns how many were new. */
@@ -105,7 +118,7 @@ class AttendanceLedger(
 
     fun writeDailyCsv(date: LocalDate): File {
         val file = File(outputDir, AttendanceReport.fileName(date))
-        val text = report.dailyCsv(date, dailyRows(date))
+        val text = report.dailyCsv(date, dailyRows(date), labels())
         synchronized(fileLock) { writeAtomically(file, text) }
         return file
     }
@@ -131,7 +144,7 @@ class AttendanceLedger(
     /** Writes `attendance_<from>_<to>.csv` with one column per day. */
     fun exportRange(from: LocalDate, to: LocalDate): File {
         val file = File(outputDir, "attendance_${from}_$to.csv")
-        val text = report.rangeCsv(from, to, roster(), eventsBetween(from, to))
+        val text = report.rangeCsv(from, to, roster(), eventsBetween(from, to), labels())
         synchronized(fileLock) { writeAtomically(file, text) }
         log.log("attendance exported: ${file.name}")
         return file

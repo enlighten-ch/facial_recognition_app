@@ -35,6 +35,21 @@ print(hits[n - 1] if len(hits) >= n else "")' "$cls" "$nth")
   set -- $(echo "$bounds" | tr '[],' '   ')
   adbs shell input tap $(( ($1 + $3) / 2 )) $(( ($2 + $4) / 2 ))
 }
+# Long press (1 s) on the first view whose text, content description or id matches.
+ui_longpress() {
+  local bounds
+  bounds=$(ui_dump | python3 -c '
+import re, sys
+xml, q = sys.stdin.read(), sys.argv[1]
+for node in re.findall(r"<node [^>]*>", xml):
+    a = dict(re.findall(r"([\w-]+)=\"([^\"]*)\"", node))
+    if q in (a.get("text"), a.get("content-desc")) or a.get("resource-id", "").endswith(":id/" + q):
+        print(a["bounds"]); break' "$1")
+  [ -z "$bounds" ] && return 1
+  set -- $(echo "$bounds" | tr '[],' '   ')
+  local x=$(( ($1 + $3) / 2 )) y=$(( ($2 + $4) / 2 ))
+  adbs shell input swipe $x $y $x $y 1000
+}
 ui_type() { adbs shell input text "$1"; }
 ui_shot() { adbs exec-out screencap -p > "$1"; }
 # Closes another app's "keeps stopping" dialog (seen with Samsung's smart suggestions service on one tablet).

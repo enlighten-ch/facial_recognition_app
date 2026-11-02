@@ -110,6 +110,16 @@ class KioskScreen(activity: Activity, private val actions: Actions, people: () -
         activity.v<Button>(R.id.syncNowButton).setOnClickListener { actions.syncNow() }
     }
 
+    /** Form labels after the server's column names ("부서" → "반"); missing names keep the defaults. */
+    fun setColumnLabels(labels: Map<String, String>) {
+        val names = FormLabels(labels)
+        familyNameInput.hint = names.familyName
+        nameInput.hint = "${names.name} (${names.familyName} 빼고)"
+        departmentInput.hint = names.department
+        gradeInput.hint = names.grade
+        operation.setColumnLabels(names)
+    }
+
     fun configure(settings: KioskSettings) {
         developerMode = settings.developerViewEnabled
         printButton.text = settings.uiOutputButtonText

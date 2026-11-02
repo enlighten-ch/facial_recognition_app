@@ -25,6 +25,9 @@ internal class TodayPage(
         fun approve(clientId: String)
         fun saveTodaySheet()
         fun showAttendance()
+
+        /** The column the attendance status is grouped by was chosen in the 분류 menu. */
+        fun groupToday(column: String)
     }
 
     data class State(
@@ -37,6 +40,8 @@ internal class TodayPage(
         val rosterCount: Int,
         val sampleCount: Int,
         val today: List<AttendanceRow>?,
+        val grouping: Grouping?,
+        val groupChoices: List<RosterColumn>,
     )
 
     private val context = root.context
@@ -45,6 +50,7 @@ internal class TodayPage(
     private val steps: LinearLayout = root.findViewById(R.id.todaySteps)
     private val count: TextView = root.findViewById(R.id.todayCountText)
     private val departments: LinearLayout = root.findViewById(R.id.todayDepartments)
+    private val groupButton: TextView = root.findViewById(R.id.todayGroupButton)
     private var last: State? = null
 
     init {
@@ -85,8 +91,9 @@ internal class TodayPage(
 
         val rows = state.today.orEmpty()
         count.text = "${rows.count { it.present }}명"
+        groupButton.groupMenu(state.groupChoices, state.groupChoices.firstOrNull { it.key == state.grouping?.column }) { actions.groupToday(it) }
         departments.removeAllViews()
-        AttendanceTable.summary(rows).forEach { departments.addView(departmentRow(it)) }
+        AttendanceTable.summary(rows, state.grouping).forEach { departments.addView(groupRow(it, state.grouping?.label ?: "부서")) }
     }
 
     private fun step(n: Int, done: Boolean, title: String, detail: String, button: Pair<String, () -> Unit>? = null, later: Boolean = false, ghost: Boolean = false) {
@@ -141,19 +148,19 @@ internal class TodayPage(
         steps.addView(row)
     }
 
-    private fun departmentRow(summary: DepartmentSummary): View {
+    private fun groupRow(summary: GroupSummary, label: String): View {
         val row = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(0, context.dp(5), 0, context.dp(5))
         }
         row.addView(TextView(context).apply {
-            text = summary.department.ifBlank { "부서 없음" }
+            text = summary.value.ifBlank { "$label 없음" }
             textSize = 15f
             setTextColor(0xFFFFFFFF.toInt())
         }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         row.addView(
-            MeterView(context, 0x40FFFFFF, Departments.color(summary.department)).apply {
+            MeterView(context, 0x40FFFFFF, Departments.color(summary.value)).apply {
                 fraction = if (summary.roster == 0) 0f else summary.present.toFloat() / summary.roster
             },
             LinearLayout.LayoutParams(context.dp(120), context.dp(9)),

@@ -2,6 +2,7 @@ package com.allstar.faithid.server.http
 
 import com.allstar.faithid.core.attendance.AttendanceCodec
 import com.allstar.faithid.core.sync.ChangeSetCodec
+import com.allstar.faithid.core.sync.ColumnLabels
 import com.allstar.faithid.core.sync.KeyValueText
 import com.allstar.faithid.core.sync.PersonOpCodec
 import com.allstar.faithid.core.sync.Protocol
@@ -19,6 +20,7 @@ import io.ktor.server.application.call
 import io.ktor.server.application.install
 import io.ktor.server.request.header
 import io.ktor.server.request.receiveChannel
+import io.ktor.server.response.header
 import io.ktor.server.response.respondBytes
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
@@ -76,6 +78,8 @@ internal fun Application.faithModule(
             val since = call.request.queryParameters[Protocol.PARAM_SINCE]?.toLongOrNull() ?: 0L
             val epoch = call.request.queryParameters[Protocol.PARAM_EPOCH]
             val bytes = withContext(Dispatchers.IO) { ChangeSetCodec.encode(people.changesSince(since, epoch)) }
+            // Kiosks name their form fields after the server's column names.
+            people.columnLabels.takeIf { it.isNotEmpty() }?.let { call.response.header(Protocol.HEADER_COLUMN_LABELS, ColumnLabels.encode(it)) }
             call.respondBytes(bytes, ContentType.Application.OctetStream)
             if (since <= 0) log.log("full download: client=$clientId, bytes=${bytes.size}")
         }

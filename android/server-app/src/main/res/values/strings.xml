@@ -77,7 +77,11 @@
     <string name="revert">되돌리기</string>
     <string name="config_file">config.yaml</string>
     <string name="data_title">데이터 폴더</string>
-    <string name="import_csv">CSV 편집 반영</string>
+    <string name="import_csv">CSV 지금 반영</string>
+    <string name="open_csv">CSV 편집 열기</string>
+    <string name="backups_title">DB 백업</string>
+    <string name="backup_now">지금 백업</string>
+    <string name="backups_hint">하루에 한 번, 그리고 CSV 편집을 반영하거나 되돌리기 전에 얼굴 DB를 데이터 폴더의 backups에 복사합니다(매일 백업 14개, 그 밖의 백업 20개까지). 되돌리면 그 시점의 명단·얼굴 사진·열 이름으로 바뀌고, 모든 키오스크가 명단을 새로 받습니다. 지금 상태도 먼저 백업합니다.</string>
     <string name="export_csv">CSV 저장</string>
     <string name="reload_db">DB 다시 읽기</string>
     <string name="reload_help">DB 다시 읽기: 서버를 중지하고 face_meta.db를 백업 파일로 바꾼 뒤(-wal, -shm은 지우기) 서버를 시작하고 누릅니다. 모든 키오스크가 전체 DB를 새로 받습니다.</string>
@@ -85,5 +89,5 @@
     <string name="copy">복사</string>
     <string name="clear">지우기</string>
     <string name="roster_columns">명단 열</string>
-    <string name="roster_columns_hint">명단에 보일 열과 머리글입니다. 열은 face_db.csv의 열을 따라갑니다. 엑셀에서 열을 더하거나 이름을 바꾸고 \'CSV 편집 반영\'을 누르면 여기와 명단에 바로 나타납니다. 맨 위에 보이는 열로 명단의 분류 버튼을 만듭니다. 값이 하나도 없는 열은 명단에서 빠집니다.</string>
+    <string name="roster_columns_hint">명단에 보일 열과 이름입니다. 열은 face_db.csv의 열을 따라갑니다. CSV에서 열을 더하거나 이름을 바꾸면 서버를 다시 시작할 때(또는 \'CSV 지금 반영\'을 누르면) 여기와 명단에 나타납니다. 열 이름은 CSV 머리글과 키오스크 입력 칸에도 쓰입니다. 맨 위에 보이는 열로 명단의 분류 버튼을 만듭니다. 값이 하나도 없는 열은 명단에서 빠집니다.</string>
 </resources>

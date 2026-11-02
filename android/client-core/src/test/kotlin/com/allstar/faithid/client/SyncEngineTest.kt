@@ -60,6 +60,7 @@ class SyncEngineTest {
     ) {
         val statuses = CopyOnWriteArrayList<SyncStatus>()
         val logs = CopyOnWriteArrayList<String>()
+        val labels = CopyOnWriteArrayList<Map<String, String>>()
         val repo = LocalFaceRepository(PeopleStore.open(temp.newFolder(id), JdbcSqlDatabase.FACTORY))
         val engine = SyncEngine(
             SyncConfig(url, KioskIdentity(id, "secret-for-$id-0123456789", "Tab $id"), connectTimeoutMillis = 1_000, applyIdleWaitMillis = applyIdleWaitMillis),
@@ -67,6 +68,7 @@ class SyncEngineTest {
             object : SyncListener {
                 override fun onStatus(status: SyncStatus) { statuses += status }
                 override fun onLog(message: String) { logs += message }
+                override fun onColumnLabels(labels: Map<String, String>) { this@Kiosk.labels += labels }
             },
             canApplyNow,
         ).also { engines += it }
@@ -116,6 +118,24 @@ class SyncEngineTest {
         assertNull(a.repo.get(person.key))
         assertNull(b.repo.get(person.key))
         assertNull(server.people.get(person.key))
+    }
+
+    @Test
+    fun `column names set on the server reach the kiosk and are kept there`() {
+        val kiosk = Kiosk("kiosk-a")
+        kiosk.sync()
+        server.clients.approve("kiosk-a")
+        kiosk.sync()
+        assertTrue(kiosk.labels.isEmpty())
+        server.people.setColumnLabel("department", "반")
+        kiosk.sync()
+        assertEquals(listOf(mapOf("department" to "반")), kiosk.labels.toList())
+        assertEquals(mapOf("department" to "반"), kiosk.repo.columnLabels())
+        kiosk.sync() // unchanged: no second notice
+        server.people.setColumnLabel("department", null)
+        kiosk.sync()
+        assertEquals(emptyMap<String, String>(), kiosk.repo.columnLabels())
+        assertEquals(2, kiosk.labels.size)
     }
 
     @Test

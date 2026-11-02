@@ -82,6 +82,10 @@ class MainActivity : AppCompatActivity() {
                 refreshReadiness()
             }
         }
+
+        override fun onColumnLabels(labels: Map<String, String>) {
+            main.post { screen.setColumnLabels(labels) }
+        }
     }
 
     /** Data actions that arrived before the service was connected (main thread only). */

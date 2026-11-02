@@ -1,81 +1,54 @@
 package com.allstar.faithid.core.storage
 
 import com.allstar.faithid.core.codec.Csv
-import com.allstar.faithid.core.codec.CsvHeader
-import com.allstar.faithid.core.codec.cell
 import com.allstar.faithid.core.model.Person
 import com.allstar.faithid.core.model.PersonMetadata
+import com.allstar.faithid.core.model.PersonNames
 
 /**
- * `face_db.csv`: the people list as a spreadsheet. Administrators may edit names, departments,
- * grades and add their own columns in Excel; [parseEdits] and [applyEdits] bring those edits back.
- * Face samples are never part of the CSV.
+ * `face_db.csv`: the people list as a spreadsheet. Administrators may edit it in Excel; [CsvMerge]
+ * brings those edits back. Face samples are never part of the CSV.
  */
 object PeopleCsv {
 
-    fun export(people: List<Person>, displayNumbers: Map<String, Long>): String {
+    fun export(people: List<Person>, displayNumbers: Map<String, Long>, labels: Map<String, String> = emptyMap()): String =
+        exportTable(people, displayNumbers, labels).text
+
+    /** The written CSV and, in header order, the column key behind each metadata column. */
+    data class Export(val text: String, val columns: List<String>)
+
+    /**
+     * The CSV with one column per metadata column (aliases such as "부서" folded into "department").
+     * The name is written as two columns, family_name and given_name, so screens and labels can use
+     * either part; the full name is both together. A column with a name from the administrator
+     * ([labels], "department" → "반") uses it as header.
+     */
+    fun exportTable(people: List<Person>, displayNumbers: Map<String, Long>, labels: Map<String, String> = emptyMap()): Export {
         val metadataColumns = LinkedHashSet<String>()
-        people.forEach { person -> person.metadata.entries.keys.forEach { key -> if (metadataColumns.none { it.equals(key, true) }) metadataColumns += key } }
-        val header = listOf("person_idx") + metadataColumns + listOf("embedding_count", "updated_at", "person_key")
+        people.forEach { person ->
+            person.metadata.entries.keys.forEach { raw ->
+                when (val key = PersonMetadata.canonicalColumn(raw)) {
+                    PersonMetadata.CANONICAL_FAMILY_NAME -> Unit
+                    PersonMetadata.CANONICAL_NAME -> { metadataColumns += PersonMetadata.CANONICAL_FAMILY_NAME; metadataColumns += PersonMetadata.CSV_GIVEN_NAME }
+                    else -> if (metadataColumns.none { it.equals(key, true) }) metadataColumns += key
+                }
+            }
+        }
+        val header = listOf("person_idx") + metadataColumns.map { labels[it]?.takeIf { l -> l.isNotBlank() } ?: it } + listOf("embedding_count", "updated_at", "person_key")
         val rows = people
             .sortedWith(compareBy<Person> { displayNumbers[it.key] ?: Long.MAX_VALUE }.thenBy { it.name })
             .map { person ->
                 listOf((displayNumbers[person.key] ?: 0L).toString()) +
-                    metadataColumns.map { person.metadata[it] } +
+                    metadataColumns.map { cellOf(person.metadata, it) } +
                     listOf(person.embeddings.size.toString(), person.updatedAt.toString(), person.key)
             }
-        return Csv.write(listOf(header) + rows)
+        return Export(Csv.write(listOf(header) + rows), metadataColumns.toList())
     }
 
-    data class Edit(val personKey: String, val displayNumber: Long?, val metadata: PersonMetadata)
-
-    fun parseEdits(text: String): List<Edit> {
-        val rows = Csv.parse(text)
-        if (rows.isEmpty()) return emptyList()
-        val header = CsvHeader(rows.first())
-        val keyIndex = header.indexOf("person_key")
-        val idxIndex = header.indexOf("person_idx", "person_id")
-        val metadataColumns = header.columns.withIndex().filter { (_, name) -> name.lowercase() !in LegacyImport.NON_METADATA_COLUMNS }
-        return rows.drop(1).mapNotNull { row ->
-            val metadata = PersonMetadata.of(metadataColumns.associate { (index, name) -> name to row.cell(index) })
-            if (metadata.name.isBlank()) null else Edit(row.cell(keyIndex), row.cell(idxIndex).toLongOrNull(), metadata)
-        }
-    }
-
-    /**
-     * Drops empty cells of columns the person does not have yet: a column another person uses (such as
-     * family_name) is not a change for everyone else. Emptying a column the person has still counts.
-     */
-    private fun withoutNewBlanks(edited: PersonMetadata, current: PersonMetadata): PersonMetadata =
-        PersonMetadata.of(
-            edited.entries.filter { (key, value) ->
-                value.isNotBlank() || current.entries.keys.any { it.equals(key, ignoreCase = true) }
-            },
-        )
-
-    data class ApplyResult(val changed: List<Person>, val unmatched: List<Edit>)
-
-    /**
-     * Matches each edit to a person by key, then by display number, then by a unique
-     * name/department/grade, and returns the people whose metadata actually changed.
-     */
-    fun applyEdits(people: List<Person>, displayNumbers: Map<String, Long>, edits: List<Edit>, now: Long): ApplyResult {
-        val byKey = people.associateBy { it.key }
-        val byNumber = people.associateBy { displayNumbers[it.key] }
-        val byIdentity = people.groupBy { it.metadata.identityKey() }.filterValues { it.size == 1 }.mapValues { it.value.single() }
-        val changed = LinkedHashMap<String, Person>()
-        val unmatched = mutableListOf<Edit>()
-        edits.forEach { edit ->
-            val target = byKey[edit.personKey]
-                ?: edit.displayNumber?.let { byNumber[it] }
-                ?: byIdentity[edit.metadata.identityKey()]
-            if (target == null || target.key in changed) {
-                unmatched += edit
-            } else {
-                val metadata = withoutNewBlanks(edit.metadata, target.metadata)
-                if (target.metadata != metadata) changed[target.key] = target.copy(metadata = metadata, updatedAt = now)
-            }
-        }
-        return ApplyResult(changed.values.toList(), unmatched)
+    /** A CSV cell: the name's parts as [PersonNames] splits it, other columns as stored. */
+    fun cellOf(metadata: PersonMetadata, column: String): String = when (column) {
+        PersonMetadata.CANONICAL_FAMILY_NAME -> PersonNames.family(metadata)
+        PersonMetadata.CSV_GIVEN_NAME -> PersonNames.given(metadata)
+        else -> metadata.valueOf(column)
     }
 }

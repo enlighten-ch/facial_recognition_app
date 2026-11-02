@@ -20,6 +20,8 @@ object Protocol {
 
     const val HEADER_CLIENT_ID = "X-Faith-Client-Id"
     const val HEADER_DEVICE_NAME = "X-Faith-Device-Name"
+    /** On [CHANGES]: the column names set on the server ([ColumnLabels]); older kiosks ignore it. */
+    const val HEADER_COLUMN_LABELS = "X-Faith-Column-Labels"
     const val HEADER_AUTHORIZATION = "Authorization"
     const val BEARER = "Bearer "
 
@@ -49,6 +51,23 @@ object KeyValueText {
             .map { it.trim() }
             .filter { it.isNotEmpty() && it.contains('=') }
             .associate { line -> line.substringBefore('=').trim() to line.substringAfter('=').trim() }
+}
+
+/**
+ * Column names chosen on the server ("department" → "반"), as one header value: form-encoded
+ * key=label pairs, so Korean names stay ASCII on the wire.
+ */
+object ColumnLabels {
+    fun encode(labels: Map<String, String>): String =
+        labels.entries.joinToString("&") { (key, label) -> enc(key) + "=" + enc(label) }
+
+    fun decode(text: String?): Map<String, String> =
+        text.orEmpty().split('&').filter { it.contains('=') }.associate { pair ->
+            dec(pair.substringBefore('=')) to dec(pair.substringAfter('='))
+        }.filter { (key, label) -> key.isNotBlank() && label.isNotBlank() }
+
+    private fun enc(s: String) = java.net.URLEncoder.encode(s, "UTF-8")
+    private fun dec(s: String) = runCatching { java.net.URLDecoder.decode(s, "UTF-8") }.getOrDefault("")
 }
 
 /** Response to POST [Protocol.OPS]: the revision after applying, and one verdict per operation. */

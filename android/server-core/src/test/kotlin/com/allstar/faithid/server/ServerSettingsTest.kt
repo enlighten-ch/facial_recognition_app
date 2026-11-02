@@ -44,16 +44,22 @@ class ServerSettingsTest {
     }
 
     @Test
-    fun `roster columns keep their headers and hidden columns, with the family name hidden by default`() {
+    fun `hidden roster columns are kept, with the family name hidden by default`() {
         val file = File(temp.root, "config.yaml")
         val store = ServerSettingsStore(file)
         assertEquals(setOf("family_name"), store.load().rosterHiddenColumns)
-        store.save(store.load().copy(rosterColumnLabels = mapOf("department" to "반", "비고" to "메모"), rosterHiddenColumns = setOf("grade")))
+        assertEquals("department", store.load().groupToday)
+        store.save(store.load().copy(rosterHiddenColumns = setOf("grade"), groupToday = "grade", groupPeople = "반", groupAttendance = "grade"))
         val loaded = store.load()
-        assertEquals(mapOf("department" to "반", "비고" to "메모"), loaded.rosterColumnLabels)
         assertEquals(setOf("grade"), loaded.rosterHiddenColumns)
+        assertEquals(listOf("grade", "반", "grade"), listOf(loaded.groupToday, loaded.groupPeople, loaded.groupAttendance))
         store.save(loaded.copy(rosterHiddenColumns = emptySet()))
         assertEquals(emptySet<String>(), store.load().rosterHiddenColumns)
+    }
+
+    @Test
+    fun `an empty password is refused without an error`() {
+        assertFalse(AdminCredentials.defaults().verify("admin", ""))
     }
 
     @Test

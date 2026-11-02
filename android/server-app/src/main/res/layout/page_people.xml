@@ -27,6 +27,13 @@
             android:layout_marginStart="12dp"
             android:layout_marginBottom="6dp"
             android:layout_weight="1" />
+
+        <Button
+            android:id="@+id/peopleOpenCsvButton"
+            style="@style/Button.Ghost"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/open_csv" />
     </LinearLayout>
 
     <LinearLayout
@@ -45,10 +52,17 @@
             android:importantForAutofill="no"
             android:inputType="text" />
 
+        <TextView
+            android:id="@+id/peopleGroupButton"
+            style="@style/GroupButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp" />
+
         <HorizontalScrollView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
+            android:layout_marginStart="4dp"
             android:layout_weight="1"
             android:scrollbars="none">
 

@@ -105,7 +105,7 @@ class AttendanceLedgerTest {
     @Test
     fun `stores each event once and keeps the daily sheet current`() {
         val out = temp.newFolder("faceDB")
-        val ledger = AttendanceLedger(JdbcSqlDatabase(temp.newFile("a.db")), out, zone, Clock { at(12) }, ServerLog.NONE) { roster }
+        val ledger = AttendanceLedger(JdbcSqlDatabase(temp.newFile("a.db")), out, zone, Clock { at(12) }, ServerLog.NONE, roster = { roster })
         assertEquals(2, ledger.record(listOf(event("e1", "hong", at(9)), event("e2", "kim", at(10))), "kiosk-1"))
         assertEquals(0, ledger.record(listOf(event("e1", "hong", at(9))), "kiosk-1"))
         assertEquals(1, ledger.record(listOf(event("e3", "hong", at(11))), "kiosk-2"))
@@ -121,9 +121,28 @@ class AttendanceLedgerTest {
     }
 
     @Test
+    fun `a roster change rewrites today's sheet with the current roster and column names`() {
+        val out = temp.newFolder("faceDB")
+        var people = roster
+        var labels = emptyMap<String, String>()
+        val ledger = AttendanceLedger(JdbcSqlDatabase(temp.newFile("a.db")), out, zone, Clock { at(12) }, ServerLog.NONE, { people }, { labels })
+        ledger.rosterChanged() // no sheet yet today: none is made
+        assertTrue(!File(out, "attendance_2026-10-25.csv").exists())
+        ledger.record(listOf(event("e1", "hong", at(9))), "kiosk-1")
+        ledger.flushSheets()
+        people = roster.map { if (it.key == "hong") it.copy(metadata = it.metadata.withValue("department", "고등부")) else it }
+        labels = mapOf("department" to "반")
+        ledger.rosterChanged()
+        ledger.flushSheets()
+        val sheet = Csv.parse(File(out, "attendance_2026-10-25.csv").readText())
+        assertEquals("반", sheet[1][1])
+        assertEquals("고등부", sheet.first { it[0] == "홍길동" }[1])
+    }
+
+    @Test
     fun `range export covers every day of the period`() {
         val out = temp.newFolder("faceDB")
-        val ledger = AttendanceLedger(JdbcSqlDatabase(temp.newFile("a.db")), out, zone, Clock { 0 }, ServerLog.NONE) { roster }
+        val ledger = AttendanceLedger(JdbcSqlDatabase(temp.newFile("a.db")), out, zone, Clock { 0 }, ServerLog.NONE, roster = { roster })
         ledger.record(listOf(event("e1", "hong", at(9)), event("e2", "hong", at(9, day.plusDays(6)))), "k")
         val file = ledger.exportRange(day, day.plusDays(6))
         ledger.flushSheets()

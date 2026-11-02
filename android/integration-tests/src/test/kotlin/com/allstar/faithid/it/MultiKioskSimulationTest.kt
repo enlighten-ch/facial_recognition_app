@@ -161,13 +161,13 @@ class MultiKioskSimulationTest {
                         }
                         3 -> {
                             // Spreadsheet round trip: change one grade in face_db.csv and re-import it.
-                            val table = Csv.parse(server.people.exportCsv().readText()).toMutableList()
+                            val table = Csv.parse(server.people.exportCsv(force = true)!!.readText()).toMutableList()
                             if (table.size > 1) {
                                 val gradeColumn = table[0].indexOf("grade")
                                 val row = 1 + random.nextInt(table.size - 1)
                                 table[row] = table[row].toMutableList().also { it[gradeColumn] = "CSV${random.nextInt(9)}" }
-                                val result = server.people.importCsvEdits(Csv.write(table))
-                                result.changed.forEach { truth.lastEdit[it.key] = it.metadata }
+                                val result = server.people.applyCsvText(Csv.write(table))
+                                result.changes.values.keys.forEach { key -> server.people.get(key)?.let { truth.lastEdit[key] = it.metadata } }
                             }
                         }
                         else -> Unit

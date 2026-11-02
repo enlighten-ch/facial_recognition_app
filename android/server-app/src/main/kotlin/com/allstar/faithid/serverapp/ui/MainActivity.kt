@@ -122,6 +122,75 @@ class MainActivity : AppCompatActivity(), ServerService.Listener {
     override fun onResume() {
         super.onResume()
         ticker.post(tick)
+        if (csvOpened) {
+            csvOpened = false
+            checkCsvAfterEditing()
+        }
+    }
+
+    /** Set while face_db.csv is open in a spreadsheet app; on return the server looks whether it changed. */
+    private var csvOpened = false
+
+    /** Opens face_db.csv in a spreadsheet app that can save it back; without one, says where the file is. */
+    private fun openCsv() {
+        val file = File(settings.dataDir, "face_db.csv")
+        if (!file.exists()) {
+            toast("face_db.csv가 아직 없습니다. 서버를 시작하면 만들어집니다.")
+            return
+        }
+        val uri = androidx.core.content.FileProvider.getUriForFile(this, "$packageName.files", file)
+        val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        val edit = Intent(Intent.ACTION_EDIT).setDataAndType(uri, "text/csv").addFlags(flags)
+        val view = Intent(Intent.ACTION_VIEW).setDataAndType(uri, "text/csv").addFlags(flags)
+        val intent = listOf(edit, view).firstOrNull { it.resolveActivity(packageManager) != null }
+        if (intent == null) {
+            Dialogs.info(
+                this,
+                "CSV를 열 앱이 없습니다",
+                "이 태블릿에 CSV를 고칠 수 있는 앱(예: Microsoft Excel)이 없습니다.\n파일 위치: ${file.absolutePath}\n\nPC에서 고친 뒤 같은 이름으로 넣어도 됩니다. 고친 내용은 서버를 다시 시작하거나 'CSV 지금 반영'을 누르면 반영됩니다.",
+            )
+            return
+        }
+        csvOpened = true
+        startActivity(Intent.createChooser(intent, "face_db.csv 편집"))
+    }
+
+    /** Back from the spreadsheet app: if the file changed, offer to apply it now instead of at the next start. */
+    private fun checkCsvAfterEditing() {
+        service?.run({ it.people.exportCsv() }) { written ->
+            if (written != null) return@run
+            runOnUiThread {
+                Dialogs.confirm(
+                    this,
+                    "CSV가 바뀌었습니다",
+                    "고친 내용을 지금 반영할까요? 나중에 해도 서버를 다시 시작할 때 반영됩니다. 반영하기 전에 얼굴 DB를 백업합니다.",
+                    "지금 반영",
+                ) { applyCsvNow() }
+            }
+        }
+    }
+
+    private fun applyCsvNow() {
+        service?.run({ it.applyCsvNow() }) { result ->
+            runOnUiThread {
+                if (result == null) {
+                    toast("CSV를 반영하지 못했습니다. 로그를 확인해 주세요.")
+                    return@runOnUiThread
+                }
+                val c = result.changes
+                val lines = buildList {
+                    if (!result.found) add("face_db.csv 파일이 없어 지금 명단으로 새로 만들었습니다.")
+                    if (result.found && c.isEmpty && c.heldDeletions == 0 && c.unmatched.isEmpty()) add("바뀐 내용이 없습니다.")
+                    if (result.changedPeople > 0) add("고친 사람 ${result.changedPeople}명")
+                    if (c.deleted.isNotEmpty()) add("삭제 ${c.deleted.size}명")
+                    if (c.renamed.isNotEmpty()) add("열 이름: " + c.renamed.entries.joinToString { "${RosterColumns.label(it.key, emptyMap())} → ${it.value}" })
+                    if (c.removedColumns.isNotEmpty()) add("지운 열: " + c.removedColumns.joinToString())
+                    if (c.heldDeletions > 0) add("한꺼번에 ${c.heldDeletions}명이 빠져 있어 삭제하지 않았습니다. 정말 지우려면 명단 탭에서 지우거나 나눠서 지워 주세요.")
+                    if (c.unmatched.isNotEmpty()) add("명단에 없는 줄 ${c.unmatched.size}개(얼굴 없이 새 사람은 만들 수 없습니다): " + c.unmatched.take(5).joinToString())
+                }
+                Dialogs.info(this, "CSV 반영", lines.joinToString("\n"))
+            }
+        }
     }
 
     override fun onPause() {
@@ -254,16 +323,20 @@ class MainActivity : AppCompatActivity(), ServerService.Listener {
                     rosterCount = people.size,
                     sampleCount = samples,
                     today = today,
+                    grouping = grouping(settings.groupToday),
+                    groupChoices = groupChoices(),
                 ),
             )
             Tab.PEOPLE -> peoplePage.render(
                 people,
                 today.orEmpty().filter { it.present && it.onRoster }.map { it.personKey }.toSet(),
-                settings.rosterColumnLabels,
+                server?.people?.columnLabels.orEmpty(),
                 settings.rosterHiddenColumns,
+                server?.people?.csvEditPending == true,
+                grouping(settings.groupPeople)?.column ?: ServerSettings.DEFAULT_GROUP,
             )
             Tab.ATTENDANCE -> if (attendanceDate == LocalDate.now() && today != null) {
-                server?.attendance?.let { ledger -> attendancePage.render(attendanceDate, today, ledger::formatTime) }
+                server?.attendance?.let { ledger -> attendancePage.render(attendanceDate, today, ledger::formatTime, grouping(settings.groupAttendance), groupChoices()) }
             }
             Tab.KIOSKS -> kiosksPage.render(kiosks, settings.port)
         }
@@ -283,7 +356,10 @@ class MainActivity : AppCompatActivity(), ServerService.Listener {
                     todayOffRoster = today.orEmpty().count { it.present && !it.onRoster },
                     kiosks = kiosks,
                     appVersion = appVersion(),
-                    rosterColumns = RosterColumns.all(people, settings.rosterColumnLabels, settings.rosterHiddenColumns),
+                    rosterColumns = RosterColumns.all(people, server?.people?.columnLabels.orEmpty(), settings.rosterHiddenColumns),
+                    columnLabels = server?.people?.columnLabels.orEmpty(),
+                    backups = server?.backups?.list().orEmpty(),
+                    csvEditPending = server?.people?.csvEditPending == true,
                 ),
             )
         }
@@ -346,6 +422,7 @@ class MainActivity : AppCompatActivity(), ServerService.Listener {
         override fun approve(clientId: String) = this@MainActivity.approve(clientId)
         override fun saveTodaySheet() = saveSheet(LocalDate.now())
         override fun showAttendance() = showTab(Tab.ATTENDANCE)
+        override fun groupToday(column: String) = saveGroup { it.copy(groupToday = column) }
     }
 
     private val kioskActions = object : KiosksPage.Actions {
@@ -378,6 +455,24 @@ class MainActivity : AppCompatActivity(), ServerService.Listener {
             }
         }
 
+        override fun renameColumn(column: String, label: String?) {
+            service?.run({ it.people.setColumnLabel(column, label) }) {
+                runOnUiThread { toast("열 이름을 바꿨습니다. CSV와 모든 키오스크에 반영됩니다.") }
+            }
+        }
+
+        override fun hideColumn(column: String) {
+            val next = settings.copy(rosterHiddenColumns = settings.rosterHiddenColumns + column)
+            settings = next
+            settingsStore.save(next)
+            toast("열을 숨겼습니다. 개발자 화면 › 설정 › 명단 열에서 다시 보이게 할 수 있습니다.")
+            refresh()
+        }
+
+        override fun openCsv() = this@MainActivity.openCsv()
+
+        override fun groupPeople(column: String) = saveGroup { it.copy(groupPeople = column) }
+
         override fun delete(person: Person) {
             Dialogs.confirm(
                 this@MainActivity,
@@ -392,6 +487,7 @@ class MainActivity : AppCompatActivity(), ServerService.Listener {
         override fun showDate(date: LocalDate) = loadAttendance(date)
         override fun saveSheet(date: LocalDate) = this@MainActivity.saveSheet(date)
         override fun exportRange(endDate: LocalDate) = this@MainActivity.exportRange(endDate)
+        override fun groupAttendance(column: String) = saveGroup { it.copy(groupAttendance = column) }
     }
 
     private val devActions = object : DevPage.Actions {
@@ -429,27 +525,37 @@ class MainActivity : AppCompatActivity(), ServerService.Listener {
             refresh()
         }
 
-        override fun importCsv() {
-            service?.run({ server ->
-                val file = File(server.config.dataDir, "face_db.csv")
-                if (!file.exists()) null else server.people.importCsvEdits(file.readText())
-            }) { result ->
+        override fun importCsv() = applyCsvNow()
+
+        override fun exportCsv() {
+            service?.run({ it.people.exportCsv() }) { file ->
                 runOnUiThread {
-                    when {
-                        result == null -> toast("face_db.csv 파일이 없습니다.")
-                        else -> Dialogs.info(
-                            this@MainActivity,
-                            "CSV 편집 반영",
-                            "바뀐 사람 ${result.changed.size}명" +
-                                if (result.unmatched.isEmpty()) "" else "\n찾지 못한 줄 ${result.unmatched.size}개: " + result.unmatched.take(5).joinToString { it.metadata.name },
-                        )
-                    }
+                    toast(if (file == null) "CSV에 반영하지 않은 편집이 있어 덮어쓰지 않았습니다. 'CSV 지금 반영'을 먼저 눌러 주세요." else "저장했습니다: ${file.absolutePath}")
                 }
             }
         }
 
-        override fun exportCsv() {
-            service?.run({ it.people.exportCsv() }) { file -> runOnUiThread { toast("저장했습니다: ${file?.absolutePath}") } }
+        override fun openCsv() = this@MainActivity.openCsv()
+
+        override fun backupNow() {
+            service?.run({ it.backups.make("manual") }) { file ->
+                runOnUiThread { toast(if (file == null) "백업하지 못했습니다. 로그를 확인해 주세요." else "백업했습니다: ${file.name}") }
+            }
+        }
+
+        override fun restore(backup: com.allstar.faithid.server.people.DatabaseBackups.Backup) {
+            Dialogs.confirm(
+                this@MainActivity,
+                "백업으로 되돌리기",
+                "${backup.file.name}\n\n명단·얼굴 사진·열 이름을 이 백업 때로 되돌립니다. 그 뒤에 등록되거나 고친 내용은 없어집니다(지금 상태는 먼저 백업합니다). 모든 키오스크가 명단을 새로 받습니다. 출석 기록은 그대로입니다.",
+                "되돌리기",
+            ) {
+                service?.run({ it.restore(backup.file) }) { runOnUiThread { toast("되돌렸습니다: ${backup.file.name}") } }
+            }
+        }
+
+        override fun saveColumnLabels(changes: Map<String, String?>) {
+            service?.run({ server -> changes.forEach { (column, label) -> server.people.setColumnLabel(column, label) } })
         }
 
         override fun reloadDatabase() {
@@ -481,8 +587,29 @@ class MainActivity : AppCompatActivity(), ServerService.Listener {
         attendanceDate = date
         service?.run({ server -> server.attendance.dailyRows(date) to server.attendance }) { result ->
             val (rows, ledger) = result ?: return@run
-            runOnUiThread { attendancePage.render(date, rows, ledger::formatTime) }
+            runOnUiThread { attendancePage.render(date, rows, ledger::formatTime, grouping(settings.groupAttendance), groupChoices()) }
         }
+    }
+
+    /** Columns the tabs can group people by (every CSV column with values except the name). */
+    private fun groupChoices(): List<RosterColumn> {
+        val people = service?.server?.people
+        return Grouping.choices(RosterColumns.all(people?.list().orEmpty(), people?.columnLabels.orEmpty(), emptySet()))
+    }
+
+    /** A tab's saved grouping column, or the department (or first column) when it is gone from the CSV. */
+    private fun grouping(saved: String): Grouping? {
+        val people = service?.server?.people
+        val column = Grouping.pick(saved, groupChoices()) ?: return null
+        return Grouping(column.key, column.label, people?.list().orEmpty().associateBy { it.key })
+    }
+
+    /** Saves a tab's 분류 choice in config.yaml, so it stays after a restart. */
+    private fun saveGroup(change: (ServerSettings) -> ServerSettings) {
+        settings = change(settings)
+        settingsStore.save(settings)
+        refresh()
+        if (tab == Tab.ATTENDANCE) loadAttendance(attendanceDate)
     }
 
     private fun savePassword(password: String) {

@@ -492,11 +492,18 @@
                         android:layout_marginTop="12dp"
                         android:orientation="horizontal">
                 <Button
-                    android:id="@+id/importCsvButton"
+                    android:id="@+id/devOpenCsvButton"
                     style="@style/Button.Dev"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="0dp"
+                    android:text="@string/open_csv" />
+                <Button
+                    android:id="@+id/importCsvButton"
+                    style="@style/Button.Dev"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
                     android:text="@string/import_csv" />
                 <Button
                     android:id="@+id/exportCsvButton"
@@ -534,6 +541,42 @@
                     android:layout_marginStart="8dp"
                     android:text="@string/export_range" />
                     </LinearLayout>
+
+                    <!-- Backups of the face database: list and restore, filled in by DevPage. -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="18dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/backups_title"
+                            android:textColor="@color/dev_ink"
+                            android:textSize="16sp"
+                            android:textStyle="bold" />
+                        <Button
+                            android:id="@+id/devBackupButton"
+                            style="@style/Button.Dev"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/backup_now" />
+                    </LinearLayout>
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="@string/backups_hint"
+                        android:textColor="@color/dev_muted"
+                        android:textSize="13sp" />
+                    <LinearLayout
+                        android:id="@+id/devBackupList"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:orientation="vertical" />
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"

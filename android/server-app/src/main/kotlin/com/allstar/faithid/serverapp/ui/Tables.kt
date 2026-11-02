@@ -3,6 +3,7 @@ package com.allstar.faithid.serverapp.ui
 import com.allstar.faithid.core.attendance.AttendanceRow
 import com.allstar.faithid.core.model.Person
 import com.allstar.faithid.core.model.PersonMetadata
+import com.allstar.faithid.core.storage.PeopleCsv
 
 /** Which column a table is sorted by; tapping the same header again reverses it. */
 internal data class SortState(val key: String, val ascending: Boolean = true) {
@@ -97,11 +98,13 @@ internal object PeopleTable {
     const val SAMPLES = "samples"
     const val TODAY = "today"
 
-    fun rows(people: List<Person>, present: Set<String>, query: String, columns: List<RosterColumn>, group: String?, sort: SortState): List<PersonRow> {
+    /** [groupColumn] is the column of the filter chips ([group] is the chosen value); by default the first column. */
+    fun rows(people: List<Person>, present: Set<String>, query: String, columns: List<RosterColumn>, group: String?, sort: SortState, groupColumn: String? = null): List<PersonRow> {
         val q = query.trim()
-        val groupColumn = columns.firstOrNull()
+        val groupKey = groupColumn ?: columns.firstOrNull()?.key
+        fun groupOf(p: Person) = groupKey?.let { PeopleCsv.cellOf(p.metadata, it) }.orEmpty()
         val filtered = people.filter { p ->
-            (group == null || groupColumn?.valueOf(p) == group) &&
+            (group == null || groupOf(p) == group) &&
                 (q.isEmpty() || (listOf(p.name) + columns.map { it.valueOf(p) }).any { it.contains(q, ignoreCase = true) })
         }.map { PersonRow(it, it.key in present) }
         val byName = compareBy<PersonRow> { it.person.name }
@@ -109,7 +112,7 @@ internal object PeopleTable {
         val primary: Comparator<PersonRow> = when {
             sort.key == SAMPLES -> compareBy { it.person.embeddings.size }
             sort.key == TODAY -> compareBy { !it.presentToday }
-            column != null && column == groupColumn ->
+            column != null && column.key == groupKey ->
                 compareBy<PersonRow, String>(Departments.comparator) { column.valueOf(it.person) }
                     .thenBy { r -> columns.drop(1).joinToString("\u0001") { it.valueOf(r.person) } }
             column != null -> compareBy<PersonRow> { column.valueOf(it.person).isBlank() }.thenBy { column.valueOf(it.person) }
@@ -121,7 +124,33 @@ internal object PeopleTable {
 
 internal enum class AttendanceShow { ALL, PRESENT, ABSENT }
 
-internal data class DepartmentSummary(val department: String, val present: Int, val roster: Int)
+internal data class GroupSummary(val value: String, val present: Int, val roster: Int)
+
+/**
+ * The column a tab groups people by (부서 by default, or any other CSV column but the name).
+ * Roster rows take the value from the person; people not on the roster only have a department and
+ * a grade from their label.
+ */
+internal class Grouping(val column: String, val label: String, private val people: Map<String, Person>) {
+    fun of(row: AttendanceRow): String =
+        people[row.personKey]?.let { PeopleCsv.cellOf(it.metadata, column) } ?: when (column) {
+            PersonMetadata.CANONICAL_DEPARTMENT -> row.department
+            PersonMetadata.CANONICAL_GRADE -> row.grade
+            else -> ""
+        }
+
+    fun of(person: Person): String = PeopleCsv.cellOf(person.metadata, column)
+
+    companion object {
+        /** Columns to group by: every column with values except the name and its parts. */
+        fun choices(columns: List<RosterColumn>): List<RosterColumn> =
+            columns.filter { it.hasValues && it.key != PersonMetadata.CANONICAL_FAMILY_NAME }
+
+        /** The saved column if it still exists, else the department, else the first choice. */
+        fun pick(saved: String, choices: List<RosterColumn>): RosterColumn? =
+            choices.firstOrNull { it.key == saved } ?: choices.firstOrNull { it.key == PersonMetadata.CANONICAL_DEPARTMENT } ?: choices.firstOrNull()
+    }
+}
 
 /** The 출석 table: department summary, filters and the sortable columns. */
 internal object AttendanceTable {
@@ -131,15 +160,15 @@ internal object AttendanceTable {
     const val TIME = "time"
     const val KIOSK = "kiosk"
 
-    fun summary(rows: List<AttendanceRow>): List<DepartmentSummary> =
-        rows.filter { it.onRoster }.groupBy { it.department }
-            .map { (dept, list) -> DepartmentSummary(dept, list.count { it.present }, list.size) }
-            .sortedWith(compareBy(Departments.comparator) { it.department })
+    fun summary(rows: List<AttendanceRow>, grouping: Grouping? = null): List<GroupSummary> =
+        rows.filter { it.onRoster }.groupBy { grouping?.of(it) ?: it.department }
+            .map { (value, list) -> GroupSummary(value, list.count { it.present }, list.size) }
+            .sortedWith(compareBy(Departments.comparator) { it.value })
 
-    fun rows(rows: List<AttendanceRow>, query: String, department: String?, show: AttendanceShow, sort: SortState): List<AttendanceRow> {
+    fun rows(rows: List<AttendanceRow>, query: String, group: String?, show: AttendanceShow, sort: SortState, grouping: Grouping? = null): List<AttendanceRow> {
         val q = query.trim()
         val filtered = rows.filter { r ->
-            (department == null || (r.onRoster && r.department == department)) &&
+            (group == null || (r.onRoster && (grouping?.of(r) ?: r.department) == group)) &&
                 (q.isEmpty() || r.name.contains(q, ignoreCase = true)) &&
                 when (show) {
                     AttendanceShow.ALL -> true
@@ -148,7 +177,7 @@ internal object AttendanceTable {
                 }
         }
         val byName = compareBy<AttendanceRow> { it.name }
-        val byDepartment = compareBy<AttendanceRow> { !it.onRoster }.then(compareBy(Departments.comparator) { it.department }).thenBy { it.grade }
+        val byDepartment = compareBy<AttendanceRow> { !it.onRoster }.then(compareBy(Departments.comparator) { grouping?.of(it) ?: it.department }).thenBy { it.grade }
         val byTime = compareBy<AttendanceRow> { it.firstAt ?: Long.MAX_VALUE }
         val primary: Comparator<AttendanceRow> = when (sort.key) {
             NAME -> byName

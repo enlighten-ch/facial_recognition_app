@@ -3,6 +3,7 @@ package com.allstar.faithid.client.sync
 import com.allstar.faithid.client.store.LocalFaceRepository
 import com.allstar.faithid.core.attendance.AttendanceCodec
 import com.allstar.faithid.core.sync.ChangeSetCodec
+import com.allstar.faithid.core.sync.ColumnLabels
 import com.allstar.faithid.core.sync.KeyValueText
 import com.allstar.faithid.core.sync.OpsResponse
 import com.allstar.faithid.core.sync.PersonOpCodec
@@ -194,7 +195,12 @@ class SyncEngine(
             .addQueryParameter(Protocol.PARAM_SINCE, position.revision.toString())
             .apply { position.epoch?.let { addQueryParameter(Protocol.PARAM_EPOCH, it) } }
             .build()
-        val changes = execute(authorized(Protocol.CHANGES).url(url).get().build()) { ChangeSetCodec.decode(it.body!!.bytes()) }
+        var labels: Map<String, String> = emptyMap()
+        val changes = execute(authorized(Protocol.CHANGES).url(url).get().build()) {
+            labels = ColumnLabels.decode(it.header(Protocol.HEADER_COLUMN_LABELS))
+            ChangeSetCodec.decode(it.body!!.bytes())
+        }
+        if (repository.setColumnLabels(labels)) listener.onColumnLabels(labels)
         // Same epoch and revision: nothing to apply, even when the server sent an (empty) full snapshot.
         val unchanged = changes.serverRevision == position.revision && changes.serverEpoch == position.epoch
         if (unchanged && changes.persons.isEmpty() && changes.tombstones.isEmpty()) {

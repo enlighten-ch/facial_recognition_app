@@ -630,6 +630,7 @@
                                     android:layout_width="0dp"
                                     android:layout_height="wrap_content"
                                     android:layout_weight="0.4"
+                                    android:id="@+id/opFamilyNameLabel"
                                     android:labelFor="@id/opFamilyNameInput"
                                     android:text="성" />
 
@@ -639,6 +640,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_marginStart="12dp"
                                     android:layout_weight="1"
+                                    android:id="@+id/opNameLabel"
                                     android:labelFor="@id/opNameInput"
                                     android:text="이름" />
                             </LinearLayout>
@@ -684,6 +686,7 @@
                             </LinearLayout>
 
                             <TextView
+                                android:id="@+id/opDepartmentLabel"
                                 style="@style/FormLabel"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"

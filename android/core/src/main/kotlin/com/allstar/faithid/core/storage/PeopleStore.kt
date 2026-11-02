@@ -100,6 +100,20 @@ class PeopleStore private constructor(
 
     fun <T> transaction(block: () -> T): T = db.transaction(block)
 
+    /**
+     * Writes a consistent copy of the database to [target] (which must not exist yet). Uses
+     * VACUUM INTO where SQLite has it (3.27+, Android 11+); otherwise the write-ahead log is folded
+     * into the file first and the file is copied. Call it while no change is being written.
+     */
+    fun backupTo(target: File) {
+        target.parentFile?.mkdirs()
+        val vacuumed = runCatching { db.execute("VACUUM INTO ?", target.absolutePath) }.isSuccess && target.length() > 0
+        if (vacuumed) return
+        target.delete()
+        runCatching { db.query("PRAGMA wal_checkpoint(TRUNCATE)") { it.long("busy") } }
+        File(directory, DB_FILE).copyTo(target, overwrite = false)
+    }
+
     /** Direct access for components that keep their own tables in the same file (kiosk outbox). */
     val database: SqlDatabase get() = db
 

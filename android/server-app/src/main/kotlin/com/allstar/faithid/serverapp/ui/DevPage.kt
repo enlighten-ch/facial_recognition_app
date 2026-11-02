@@ -18,6 +18,7 @@ import android.widget.Toast
 import androidx.core.content.ContextCompat
 import com.allstar.faithid.server.ServerSettings
 import com.allstar.faithid.server.auth.AdminCredentials
+import com.allstar.faithid.server.people.DatabaseBackups
 import com.allstar.faithid.serverapp.R
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.materialswitch.MaterialSwitch
@@ -44,6 +45,12 @@ internal class DevPage(
         fun saveSettings(next: ServerSettings)
         fun importCsv()
         fun exportCsv()
+        fun openCsv()
+        fun backupNow()
+        fun restore(backup: DatabaseBackups.Backup)
+
+        /** New column names by column key; null = back to the column's own name. */
+        fun saveColumnLabels(changes: Map<String, String?>)
         fun reloadDatabase()
         fun saveTodaySheet()
         fun exportRange()
@@ -68,6 +75,10 @@ internal class DevPage(
         val appVersion: String,
         /** Every column of the people's CSV columns, for the 명단 열 settings. */
         val rosterColumns: List<RosterColumn>,
+        val columnLabels: Map<String, String>,
+        val backups: List<DatabaseBackups.Backup>,
+        /** face_db.csv has edits that are applied when the server starts again. */
+        val csvEditPending: Boolean,
     )
 
     enum class Section { STATUS, SETTINGS, DATA, KIOSKS, LOG }
@@ -109,6 +120,7 @@ internal class DevPage(
     private val dataList: LinearLayout = root.findViewById(R.id.devDataList)
     private val fileList: LinearLayout = root.findViewById(R.id.devFileList)
     private val clientTable: LinearLayout = root.findViewById(R.id.devClientTable)
+    private val backupList: LinearLayout = root.findViewById(R.id.devBackupList)
 
     private val logPath: TextView = root.findViewById(R.id.logPathText)
     private val logChips: LinearLayout = root.findViewById(R.id.devLogChips)
@@ -139,6 +151,8 @@ internal class DevPage(
         root.findViewById<Button>(R.id.devSaveButton).setOnClickListener { saveSettings() }
         root.findViewById<Button>(R.id.importCsvButton).setOnClickListener { actions.importCsv() }
         root.findViewById<Button>(R.id.exportCsvButton).setOnClickListener { actions.exportCsv() }
+        root.findViewById<Button>(R.id.devOpenCsvButton).setOnClickListener { actions.openCsv() }
+        root.findViewById<Button>(R.id.devBackupButton).setOnClickListener { actions.backupNow() }
         root.findViewById<Button>(R.id.reloadDbButton).setOnClickListener { actions.reloadDatabase() }
         root.findViewById<Button>(R.id.devSheetButton).setOnClickListener { actions.saveTodaySheet() }
         root.findViewById<Button>(R.id.devRangeButton).setOnClickListener { actions.exportRange() }
@@ -202,7 +216,7 @@ internal class DevPage(
             Section.STATUS -> renderStatus(state)
             Section.DATA -> renderData(state)
             Section.KIOSKS -> renderKiosks(state)
-            Section.SETTINGS -> renderColumns(state.rosterColumns, force = false)
+            Section.SETTINGS -> renderColumns(state.rosterColumns, state.columnLabels, force = false)
             Section.LOG -> Unit
         }
     }
@@ -239,8 +253,10 @@ internal class DevPage(
                 "위치" to state.dataDir,
                 "DB revision" to state.revision.toString(),
                 "명단" to "${state.rosterCount}명 · 샘플 ${state.sampleCount}개",
+                "face_db.csv" to if (state.csvEditPending) "편집 대기 중 · 서버를 다시 시작하거나 'CSV 지금 반영'을 누르면 반영" else "DB와 같음",
             ),
         )
+        renderBackups(state.backups)
         fileList.removeAllViews()
         val weights = floatArrayOf(2f, 1f, 3f)
         fileList.addRow(tableRow(listOf("파일", "크기", "내용"), header = true, weights = weights))
@@ -249,10 +265,31 @@ internal class DevPage(
         files.forEach { f -> fileList.addRow(tableRow(listOf(f.name, Format.size(f.length()), describe(f.name)), weights = weights)) }
     }
 
+    private fun renderBackups(backups: List<DatabaseBackups.Backup>) {
+        backupList.removeAllViews()
+        if (backups.isEmpty()) {
+            backupList.addView(plain("아직 백업이 없습니다.", R.color.dev_muted))
+            return
+        }
+        val weights = floatArrayOf(3f, 1f, 1f, 1.2f)
+        backupList.addRow(tableRow(listOf("파일", "종류", "크기", ""), header = true, weights = weights))
+        backups.forEach { backup ->
+            val kind = when (backup.reason) {
+                DatabaseBackups.DAILY -> "매일"
+                "csv" -> "CSV 반영 전"
+                "restore" -> "되돌리기 전"
+                else -> "직접"
+            }
+            val row = tableRow(listOf(backup.file.name, kind, Format.size(backup.sizeBytes), ""), weights = weights)
+            (row.getChildAt(row.childCount - 1) as LinearLayout).addView(devButton("되돌리기") { actions.restore(backup) })
+            backupList.addRow(row)
+        }
+    }
+
     private fun describe(name: String): String = when {
         name == "face_meta.db" -> "명단·얼굴 샘플 (SQLite)"
         name.startsWith("face_meta.db-") -> "쓰기 중인 변경 (DB 교체 시 함께 지움)"
-        name == "face_db.csv" -> "명단 (엑셀로 고친 뒤 'CSV 편집 반영')"
+        name == "face_db.csv" -> "명단 (고친 내용은 서버를 다시 시작할 때 반영)"
         name.startsWith("attendance.db") -> "출석 기록 (SQLite)"
         Regex("""attendance_\d{4}-\d{2}-\d{2}\.csv""").matches(name) -> "그날의 출석부"
         name.startsWith("attendance_") && name.endsWith(".csv") -> "기간 출석 내보내기"
@@ -292,25 +329,29 @@ internal class DevPage(
         dataDir.setText(s.dataDir)
         maxSamples.setText(s.maxEmbeddingsPerPerson.toString())
         autoStart.isChecked = s.autoStart
-        last?.let { renderColumns(it.rosterColumns, force = true) }
+        last?.let { renderColumns(it.rosterColumns, it.columnLabels, force = true) }
     }
 
     /**
      * One row per column: the CSV column, its header in the 명단 and whether it shows. Redrawn only
      * when the columns change (a CSV with new columns was applied), so typing is not interrupted.
      */
-    private fun renderColumns(columns: List<RosterColumn>, force: Boolean) {
+    private fun renderColumns(columns: List<RosterColumn>, labels: Map<String, String>, force: Boolean) {
         val s = settings ?: return
-        val signature = columns.map { "${it.key}:${it.hasValues}" }
+        val signature = columns.map { "${it.key}:${it.hasValues}" } + labels.map { "${it.key}=${it.value}" }
         if (!force && signature == columnSignature) return
         columnSignature = signature
+        shownLabels = labels
         rosterColumns.removeAllViews()
         columnEditors.clear()
-        columnRow(RosterColumns.NAME, s, hasValues = true, canHide = false)
-        columns.forEach { columnRow(it.key, s, it.hasValues, canHide = true) }
+        columnRow(RosterColumns.NAME, s, labels, hasValues = true, canHide = false)
+        columns.forEach { columnRow(it.key, s, labels, it.hasValues, canHide = true) }
     }
 
-    private fun columnRow(key: String, s: ServerSettings, hasValues: Boolean, canHide: Boolean) {
+    /** The column names the editors were filled with, to save only what was changed. */
+    private var shownLabels: Map<String, String> = emptyMap()
+
+    private fun columnRow(key: String, s: ServerSettings, labels: Map<String, String>, hasValues: Boolean, canHide: Boolean) {
         val row = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -323,7 +364,7 @@ internal class DevPage(
         }, LinearLayout.LayoutParams(context.dp(260), LinearLayout.LayoutParams.WRAP_CONTENT))
         val label = (android.view.LayoutInflater.from(context).inflate(R.layout.cell_roster_input, row, false) as EditText).apply {
             hint = RosterColumns.DEFAULT_LABELS[key] ?: key
-            setText(s.rosterColumnLabels[key].orEmpty())
+            setText(labels[key].orEmpty())
             contentDescription = "$key 열의 머리글"
             (layoutParams as LinearLayout.LayoutParams).marginStart = 0
         }
@@ -354,12 +395,14 @@ internal class DevPage(
                 maxEmbeddingsPerPerson = maxSamples.text.toString().toIntOrNull()?.coerceIn(10, 1000) ?: current.maxEmbeddingsPerPerson,
                 autoStart = autoStart.isChecked,
                 // Columns that are not listed right now (no longer in the CSV) keep their settings.
-                rosterColumnLabels = current.rosterColumnLabels.filterKeys { it !in columnEditors } +
-                    columnEditors.mapValues { it.value.first.text.toString().trim().replace("|", "").replace("=", "") }.filterValues { it.isNotEmpty() },
                 rosterHiddenColumns = current.rosterHiddenColumns.filter { it !in columnEditors }.toSet() +
                     columnEditors.filter { it.value.second?.isChecked == false }.keys,
             ),
         )
+        // Column names live with the roster (kiosks and the CSV use them), not in config.yaml.
+        val labelChanges = columnEditors.mapValues { it.value.first.text.toString().trim().ifEmpty { null } }
+            .filter { (key, label) -> label != shownLabels[key] }
+        if (labelChanges.isNotEmpty()) actions.saveColumnLabels(labelChanges)
     }
 
     private fun showConfig(file: File) {

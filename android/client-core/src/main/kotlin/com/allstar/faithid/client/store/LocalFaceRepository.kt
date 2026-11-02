@@ -8,6 +8,7 @@ import com.allstar.faithid.core.model.PersonMetadata
 import com.allstar.faithid.core.recognition.FaceIndex
 import com.allstar.faithid.core.storage.PeopleStore
 import com.allstar.faithid.core.sync.ChangeSet
+import com.allstar.faithid.core.sync.ColumnLabels
 import com.allstar.faithid.core.sync.OpResult
 import com.allstar.faithid.core.sync.PersonOp
 import java.io.Closeable
@@ -50,6 +51,18 @@ class LocalFaceRepository(
 
     @Synchronized
     fun people(): List<Person> = people.values.toList()
+
+    /** Column names set on the server ("department" → "반"), as last downloaded. */
+    @Synchronized
+    fun columnLabels(): Map<String, String> = ColumnLabels.decode(store.meta(META_COLUMN_LABELS))
+
+    /** Stores the server's column names; true if they changed. */
+    @Synchronized
+    fun setColumnLabels(labels: Map<String, String>): Boolean {
+        if (labels == columnLabels()) return false
+        store.setMeta(META_COLUMN_LABELS, ColumnLabels.encode(labels).ifEmpty { null })
+        return true
+    }
 
     @Synchronized
     fun get(key: String): Person? = people[key]
@@ -212,5 +225,6 @@ class LocalFaceRepository(
     companion object {
         const val META_EPOCH = "sync_epoch"
         const val META_REVISION = "sync_revision"
+        const val META_COLUMN_LABELS = "column_labels"
     }
 }

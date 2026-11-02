@@ -37,6 +37,15 @@ class PersonMetadata private constructor(private val fields: LinkedHashMap<Strin
         }
     }
 
+    /**
+     * Sets the name from its parts: the full name is both joined ([PersonNames.join]); the family
+     * name is kept when both parts are given, otherwise dropped.
+     */
+    fun withName(familyName: String, givenName: String): PersonMetadata {
+        val named = withValue(CANONICAL_NAME, PersonNames.join(familyName, givenName))
+        return if (familyName.isNotBlank() && givenName.isNotBlank()) named.withValue(CANONICAL_FAMILY_NAME, familyName) else named.without(CANONICAL_FAMILY_NAME)
+    }
+
     /** Sets one column, keeping the spelling already used for it (also for the well-known aliases). */
     fun withValue(column: String, value: String): PersonMetadata {
         val next = LinkedHashMap(fields)
@@ -47,6 +56,19 @@ class PersonMetadata private constructor(private val fields: LinkedHashMap<Strin
             }
             else -> replace(next, aliases, canonicalOf(aliases), value)
         }
+        return of(next)
+    }
+
+    /**
+     * Removes a column. Name, department and grade always exist, so they are emptied instead; the
+     * other columns (also family_name) disappear.
+     */
+    fun without(column: String): PersonMetadata {
+        val aliases = aliasesOf(column)
+        if (aliases != null && aliases !== FAMILY_NAME_ALIASES) return withValue(column, "")
+        val next = LinkedHashMap(fields)
+        next.keys.filter { key -> if (aliases != null) key.lowercase(Locale.US) in aliases else key.equals(column.trim(), ignoreCase = true) }
+            .forEach { next.remove(it) }
         return of(next)
     }
 
@@ -91,6 +113,9 @@ class PersonMetadata private constructor(private val fields: LinkedHashMap<Strin
         const val CANONICAL_DEPARTMENT = "department"
         const val CANONICAL_GRADE = "grade"
         const val CANONICAL_FAMILY_NAME = "family_name"
+
+        /** Only in face_db.csv: the given name, next to family_name, in place of the full name. */
+        const val CSV_GIVEN_NAME = "given_name"
 
         val NAME_ALIASES = setOf("name", "이름")
         val DEPARTMENT_ALIASES = setOf("department", "dept", "folder", "부서")
