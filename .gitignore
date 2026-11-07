@@ -8,6 +8,10 @@ __pycache__/
 /local-data/
 /tmp_*/
 
+# Install files built by android/tools/make_dist.sh (only the README is tracked)
+/dist/*
+!/dist/README.md
+
 # Android / Gradle
 android/.gradle/
 android/.kotlin/

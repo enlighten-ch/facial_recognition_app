@@ -9,7 +9,7 @@
 | `kiosk-app` | Android 앱 | Faith ID 키오스크 (`com.example.facetestbed`) |
 | `server-app` | Android 앱 | Faith DB Server (`com.example.facedbserver`) |
 | `integration-tests` | JVM 테스트 | 실제 HTTP/WebSocket으로 여러 키오스크와 서버를 동시에 돌리는 시나리오 |
-| `tools/` | 스크립트 | 에뮬레이터 실행, 기기 E2E 시나리오 |
+| `tools/` | 스크립트 | 에뮬레이터 실행, 기기 E2E 시나리오, 화면 점검, 설치 파일 만들기 |
 
 앱 ID(`com.example.*`)는 첫 배포 그대로 두어 설치된 기기가 그대로 업데이트됩니다. 소스 패키지는 `com.allstar.faithid.*`입니다.
 
@@ -41,6 +41,10 @@
 | `./gradlew :integration-tests:test` | 다중 키오스크 통합 시나리오 (약 2~3분) |
 | `./gradlew :android-support:connectedDebugAndroidTest` | 기기 SQLite에서 저장소·이전 DB 이전 |
 | `tools/e2e_server_scenario.sh <serial> [url]` | 기기에서 실행 중인 서버 앱에 6개 모의 키오스크 접속, 승인은 실제 UI로 |
-| `tools/e2e_kiosk_flow.sh <serial> [admin-pw]` | 기기의 키오스크·서버 앱으로 등록→인식→출석→본인 확인→이름표만→삭제 전파 (디버그 빌드의 얼굴 주입 사용) |
+| `tools/e2e_kiosk_flow.sh <serial> <admin-pw>` | 기기의 키오스크·서버 앱으로 등록→인식→출석→재등록(묻지 않고 이름 입력)→이름표만→삭제 전파 (디버그 빌드의 얼굴 주입 사용) |
+| `tools/e2e_roster_columns.sh <serial> <admin-pw>` | face_db.csv 편집·서버 시작 때 반영, 명단 길게 눌러 고치기, 열 이름이 키오스크에 전달, 백업 되돌리기, 빈 CSV 보호 (에뮬레이터·시험 데이터 전용) |
+| `[BLUR=1] [NOPRINT=1] [NOSAVE=1] tools/ui_walkthrough_kiosk.sh <serial> <out-dir> <identity\|register>` | 키오스크 화면 단계별 점검과 스크린샷. 실제 태블릿에서는 `NOSAVE=1`로 시험 인물을 저장하지 않음 |
+| `tools/run_emulator.sh` | 시험용 에뮬레이터를 켜고 두 앱 설치 |
+| `tools/make_dist.sh` | 설치 파일을 프로젝트 루트 `dist/`에 만듦 |
 
 디버그 빌드에만 있는 `DebugObservationReceiver`로 카메라 없이 합성 얼굴을 넣을 수 있습니다. 릴리스 빌드에는 포함되지 않습니다.
