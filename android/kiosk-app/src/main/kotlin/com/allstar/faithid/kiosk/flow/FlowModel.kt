@@ -90,7 +90,7 @@ data class CandidateView(
 )
 
 /** Why the last registration frame was not kept, for the guide's words. */
-enum class CaptureProblem { NO_FACE, OUTSIDE_LEFT, OUTSIDE_RIGHT, SEVERAL, TOO_TURNED, DIRECTION, COME_CLOSER, STEP_BACK, TOO_SIMILAR, OTHER_PERSON }
+enum class CaptureProblem { NO_FACE, OUTSIDE_LEFT, OUTSIDE_RIGHT, SEVERAL, TOO_TURNED, DIRECTION, COME_CLOSER, STEP_BACK, TOO_SIMILAR }
 
 data class RegistrationView(
     /** Every cell to collect, in the order the guide suggests them, and whether it is collected. */

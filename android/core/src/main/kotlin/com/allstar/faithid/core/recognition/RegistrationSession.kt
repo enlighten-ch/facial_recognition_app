@@ -9,9 +9,11 @@ data class RegistrationConfig(
     val samplesPerDirection: Int = 3,
     /** Collects frontal samples too (5 directions instead of 4). */
     val includeFront: Boolean = true,
-    /** A new sample must be at least this similar to the samples already taken (same person). */
-    val minSimilarity: Float = 0.35f,
-    /** ... and at most this similar (otherwise it adds nothing new). */
+    /**
+     * A new sample may be at most this similar to the samples already taken (otherwise it adds
+     * nothing new). There is no lower limit: a face in the right pose and place is always kept,
+     * however different it looks from the earlier samples.
+     */
     val maxSimilarity: Float = 0.85f,
     /**
      * Collects each direction with a normal, a big and a small face circle, so the person also comes
@@ -80,7 +82,6 @@ class RegistrationSession(private val config: RegistrationConfig) {
         /** The direction is right but the face fits none of its empty circles; [ratio] = size / [expected]'s size. */
         data class WrongSize(val expected: FaceCircle, val ratio: Float) : Outcome()
         data object TooTurned : Outcome()
-        data class TooDifferent(val maxSimilarity: Float) : Outcome()
         data class TooSimilar(val maxSimilarity: Float) : Outcome()
         data object AlreadyComplete : Outcome()
     }
@@ -164,7 +165,6 @@ class RegistrationSession(private val config: RegistrationConfig) {
         val maxSimilarity = collected.values.maxOfOrNull { Vectors.dot(it, best) }
         if (maxSimilarity != null) {
             if (maxSimilarity > config.maxSimilarity) return Outcome.TooSimilar(maxSimilarity)
-            if (maxSimilarity < config.minSimilarity) return Outcome.TooDifferent(maxSimilarity)
         }
         collected[cell] = best
         return Outcome.Accepted(cell, maxSimilarity)

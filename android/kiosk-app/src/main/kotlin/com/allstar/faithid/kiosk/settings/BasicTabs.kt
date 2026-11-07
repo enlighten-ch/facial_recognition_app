@@ -168,7 +168,7 @@ class RegistrationTab(context: Context, s: KioskSettings) : SettingsTab {
     private val otherPose = form.number("권하지 않은 자세도 받기까지 기다리는 시간 (초, 0이면 바로)", s.registerOtherPoseSeconds)
     private val perDirection = form.number("방향별 수집 장수 (동그라미 3단계를 끄면 사용)", s.registerSamplesPerDirection)
     private val every = form.number("몇 프레임마다 샘플 수집", s.registerCaptureEveryNFrames)
-    private val band = form.pair("샘플 유사도 하한", s.registerSimilarityLowerBoundary, "상한 (너무 비슷하면 제외)", s.registerSimilarityHigherBoundary)
+    private val similarityMax = form.number("샘플 유사도 상한 (너무 비슷하면 제외, 하한은 없음)", s.registerSimilarityHigherBoundary)
     private val maxSamples = form.number("사람별 최대 샘플 수", s.maxEmbeddingsPerPerson)
 
     init { form.section("자동 보정") }
@@ -189,8 +189,7 @@ class RegistrationTab(context: Context, s: KioskSettings) : SettingsTab {
         registerBigCircleScale = circleScales.first.floatValue(settings.registerBigCircleScale).coerceIn(1.05f, 1.6f),
         registerSmallCircleScale = circleScales.second.floatValue(settings.registerSmallCircleScale).coerceIn(0.5f, 0.95f),
         registerCaptureEveryNFrames = every.intValue(settings.registerCaptureEveryNFrames).coerceIn(1, 30),
-        registerSimilarityLowerBoundary = band.first.floatValue(settings.registerSimilarityLowerBoundary).coerceIn(0f, 0.9f),
-        registerSimilarityHigherBoundary = band.second.floatValue(settings.registerSimilarityHigherBoundary).coerceIn(0.1f, 1f),
+        registerSimilarityHigherBoundary = similarityMax.floatValue(settings.registerSimilarityHigherBoundary).coerceIn(0.1f, 1f),
         maxEmbeddingsPerPerson = maxSamples.intValue(settings.maxEmbeddingsPerPerson).coerceIn(10, 1000),
         adaptiveUpdateEnabled = adaptive.isChecked,
         adaptiveUpdateMaxSim = adaptiveMax.floatValue(settings.adaptiveUpdateMaxSim).coerceIn(0f, 1f),

@@ -336,12 +336,14 @@ class RegistrationSessionTest {
     }
 
     @Test
-    fun `rejects a different person and an identical frame`() {
+    fun `keeps a very different face in the right pose, rejects an identical frame`() {
         val session = RegistrationSession(RegistrationConfig(holdFrames = 1))
         val first = faces.sample("me")
         session.offer(RegistrationFrame(first, Pose.Facing(HeadDirection.LEFT)))
-        assertTrue(session.offer(frame(HeadDirection.RIGHT, identity = "someone else")) is RegistrationSession.Outcome.TooDifferent)
         assertTrue(session.offer(RegistrationFrame(first.copyOf(), Pose.Facing(HeadDirection.RIGHT))) is RegistrationSession.Outcome.TooSimilar)
+        // Low similarity no longer rejects: the pose and place decide (it used to loop the hold ring).
+        val other = session.offer(frame(HeadDirection.RIGHT, identity = "someone else"))
+        assertTrue(other is RegistrationSession.Outcome.Accepted)
     }
 
     @Test

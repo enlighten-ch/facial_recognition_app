@@ -52,7 +52,6 @@ internal class RegistrationRecord(private val startedAt: Long) {
         CaptureProblem.COME_CLOSER -> "더 가까이"
         CaptureProblem.STEP_BACK -> "더 멀리"
         CaptureProblem.TOO_SIMILAR -> "너무 비슷"
-        CaptureProblem.OTHER_PERSON -> "다른 사람"
     }
 
     private fun circleName(c: FaceCircle) = when (c) {

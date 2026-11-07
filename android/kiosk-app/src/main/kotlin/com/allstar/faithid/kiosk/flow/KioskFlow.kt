@@ -169,7 +169,6 @@ class KioskFlow(
                     is Outcome.WrongSize -> if (outcome.ratio < 1f) CaptureProblem.COME_CLOSER else CaptureProblem.STEP_BACK
                     Outcome.TooTurned -> CaptureProblem.TOO_TURNED
                     is Outcome.TooSimilar -> CaptureProblem.TOO_SIMILAR
-                    is Outcome.TooDifferent -> CaptureProblem.OTHER_PERSON
                     Outcome.AlreadyComplete -> return
                 }
             }
@@ -215,7 +214,6 @@ class KioskFlow(
         CaptureProblem.COME_CLOSER -> "조금 더 가까이 와 주세요."
         CaptureProblem.STEP_BACK -> "조금 뒤로 물러나 주세요."
         CaptureProblem.TOO_SIMILAR -> "이미 모은 사진과 너무 비슷합니다."
-        CaptureProblem.OTHER_PERSON -> "같은 분이 계속 카메라 앞에 있어야 합니다."
     }
 
     private var lastDecisionLog = ""

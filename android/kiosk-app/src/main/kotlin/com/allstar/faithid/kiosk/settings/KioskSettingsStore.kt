@@ -134,7 +134,6 @@ class KioskSettingsStore(context: Context) {
                 registerBigCircleScale = float("REGISTER_BIG_CIRCLE_SCALE", d.registerBigCircleScale),
                 registerSmallCircleScale = float("REGISTER_SMALL_CIRCLE_SCALE", d.registerSmallCircleScale),
                 registerCaptureEveryNFrames = int("REGISTER_CAPTURE_EVERY_N_FRAMES", d.registerCaptureEveryNFrames),
-                registerSimilarityLowerBoundary = float("REGISTER_SIMILARITY_LOWER_BOUNDARY", d.registerSimilarityLowerBoundary),
                 registerSimilarityHigherBoundary = float("REGISTER_SIMILARITY_HIGHER_BOUNDARY", d.registerSimilarityHigherBoundary),
                 maxEmbeddingsPerPerson = int("MAX_EMBEDDINGS_PER_PERSON", d.maxEmbeddingsPerPerson),
                 adaptiveUpdateEnabled = bool("ADAPTIVE_UPDATE_ENABLED", d.adaptiveUpdateEnabled),
@@ -236,7 +235,6 @@ class KioskSettingsStore(context: Context) {
             put("REGISTER_BIG_CIRCLE_SCALE", s.registerBigCircleScale.toDouble())
             put("REGISTER_SMALL_CIRCLE_SCALE", s.registerSmallCircleScale.toDouble())
             put("REGISTER_CAPTURE_EVERY_N_FRAMES", s.registerCaptureEveryNFrames)
-            put("REGISTER_SIMILARITY_LOWER_BOUNDARY", s.registerSimilarityLowerBoundary.toDouble())
             put("REGISTER_SIMILARITY_HIGHER_BOUNDARY", s.registerSimilarityHigherBoundary.toDouble())
             put("MAX_EMBEDDINGS_PER_PERSON", s.maxEmbeddingsPerPerson)
             put("ADAPTIVE_UPDATE_ENABLED", s.adaptiveUpdateEnabled)

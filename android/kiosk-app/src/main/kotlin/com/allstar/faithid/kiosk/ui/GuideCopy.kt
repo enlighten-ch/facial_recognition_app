@@ -110,7 +110,6 @@ class GuideCopy(
             CaptureProblem.STEP_BACK -> line("back")
             CaptureProblem.DIRECTION -> if (r.stalled) line("turnLikePicture") else ""
             CaptureProblem.TOO_SIMILAR -> line("moveABit")
-            CaptureProblem.OTHER_PERSON -> line("samePerson")
             else -> ""
         }
         return Line(title, sub)
@@ -205,7 +204,6 @@ class GuideCopy(
             Entry("back", "등록: 더 멀리 둘째 줄", "조금만 뒤로 가 볼까?", "조금 뒤로 물러나 주세요"),
             Entry("turnLikePicture", "등록: 방향이 안 맞을 때 둘째 줄", "그림처럼 고개를 돌려 볼까?", "그림과 같은 방향으로 고개를 돌려 주세요"),
             Entry("moveABit", "등록: 너무 비슷할 때 둘째 줄", "고개를 아주 조금만 움직여 볼까?", "자세를 조금만 바꿔 주세요"),
-            Entry("samePerson", "등록: 다른 얼굴일 때 둘째 줄", "처음 그 친구가 계속 있어 줘", "처음 등록하던 분이 계속 계셔야 합니다"),
             Entry("several", "등록: 얼굴이 여럿일 때", "한 번에 한 친구만 등록할게!", "한 번에 한 분씩 등록합니다"),
             Entry("severalSub", "등록: 얼굴이 여럿일 때 둘째 줄", "다른 친구는 뒤에서 잠깐 기다려 줄래?", "다른 분은 잠시 화면 밖으로 비켜 주세요"),
             Entry("outside", "등록: 원 밖에 있을 때", "동그라미 쪽으로 조금만 와 줄래?", "화면 가운데로 와 주세요"),
